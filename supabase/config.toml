@@ -2,3 +2,6 @@ project_id = "bpkddmxpyeyxvjyebull"
 
 [functions.somlink-delivery]
 verify_jwt = false
+
+[functions.send-tenant-notification]
+verify_jwt = true
