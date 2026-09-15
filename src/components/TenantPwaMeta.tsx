@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useTenant } from "@/contexts/TenantContext";
+import { initializeOneSignal, syncOneSignalTenant } from "@/services/onesignal";
 
 function upsertLink(rel: string, href: string, attrs: Record<string, string> = {}) {
   let el = document.head.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`);
@@ -47,9 +48,23 @@ export function TenantPwaMeta() {
     upsertLink("apple-touch-icon", logo);
     upsertLink("icon", logo, { type: "image/png" });
 
-
     if (tenant?.name) document.title = tenant.name;
   }, [tenant?.slug, tenant?.name, tenant?.logo_url, tenant?.primary_color]);
+
+  // Native push must only be initialized after the authoritative tenant has
+  // resolved. This prevents a previously opened tenant from leaking its push
+  // audience/tag into another tenant storefront.
+  useEffect(() => {
+    if (!tenant?.id) {
+      syncOneSignalTenant(null);
+      return;
+    }
+
+    const pushTenant = { id: tenant.id, slug: tenant.slug ?? null };
+    void initializeOneSignal(pushTenant).then((ready) => {
+      if (ready) syncOneSignalTenant(pushTenant);
+    });
+  }, [tenant?.id, tenant?.slug]);
 
   return null;
 }
