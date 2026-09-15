@@ -1,0 +1,1 @@
+ALTER TABLE android_devices ADD COLUMN IF NOT EXISTS archived_at timestamptz DEFAULT NULL;

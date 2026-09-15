@@ -1,0 +1,1 @@
+UPDATE public.auto_topup_packages SET ussd_code = REPLACE(ussd_code, '(receiver_phone}', '{receiver_phone}') WHERE ussd_code LIKE '%(receiver_phone}%';

@@ -1,0 +1,1 @@
+DELETE FROM public.payment_receipts WHERE status = 'pending';

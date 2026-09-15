@@ -1,0 +1,1 @@
+ALTER TABLE public.auto_topup_phone_mappings ADD COLUMN custom_amount numeric NULL;

@@ -1,0 +1,1 @@
+ALTER TABLE public.pending_online_payments RENAME COLUMN sender_phone TO verified_phone;

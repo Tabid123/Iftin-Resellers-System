@@ -1,0 +1,1 @@
+ALTER TABLE public.auto_topup_packages ADD COLUMN cost_price numeric NOT NULL DEFAULT 0;

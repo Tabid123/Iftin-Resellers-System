@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Patched per tenant by the Android build workflow (splash_color input) -->
+    <color name="splash_background">#0F4C81</color>
+    <color name="status_bar_background">#0F4C81</color>
+    <color name="navigation_bar_background">#0F4C81</color>
+    <color name="colorPrimary">#0F4C81</color>
+    <color name="colorPrimaryDark">#0F4C81</color>
+    <color name="colorAccent">#0F4C81</color>
+    <!-- Text selection / action mode (Cut, Copy, Paste, Select all) chrome.
+         Kept light so it never inherits the dark navy theme color. -->
+    <color name="action_mode_background">#FFFFFF</color>
+    <color name="action_mode_text">#1A1A1A</color>
+
+</resources>

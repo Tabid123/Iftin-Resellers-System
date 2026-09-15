@@ -8,9 +8,82 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
+import { warmPages } from "@/lib/lazyPages";
+
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ThemeProvider } from "@/contexts/ThemeContext";
+import { LanguageProvider } from "@/contexts/LanguageContext";
+import { TenantProvider } from "@/contexts/TenantContext";
+import { TenantPwaMeta } from "@/components/TenantPwaMeta";
+import { ConnectivityProvider } from "@/contexts/ConnectivityContext";
+import { TenantGate } from "@/components/TenantGate";
+import { StatusBarColor } from "@/components/StatusBarColor";
+import { PersistentBottomNav } from "@/components/PersistentBottomNav";
+import { registerTenantChangeListener } from '@/integrations/supabase/client';
+import { scheduleNativeSplashFallback } from '@/lib/nativeSplash';
+import { initNativeBars } from '@/lib/nativeStatusBar';
+
+import { useOfflineCache } from "@/hooks/useOfflineCache";
+import { useGlobalImagePreloader } from "@/hooks/useGlobalImagePreloader";
+import { useEdgeToEdge } from "@/hooks/useEdgeToEdge";
+import { useKeyboardInsets } from "@/hooks/useKeyboardInsets";
+import { useAndroidBackButton } from "@/hooks/useAndroidBackButton";
+import { useAutoOnlineRedirect } from "@/hooks/useAutoOnlineRedirect";
+import { useStorefrontRealtime } from "@/hooks/useStorefrontRealtime";
+import { onStorefront } from "@/lib/storefrontEvents";
+import { useQueryClient } from "@tanstack/react-query";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+
+const CHUNK_RELOAD_KEY = "iftin:chunk-reload";
+const CHUNK_ERROR_PATTERN =
+  /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk|Failed to fetch/i;
+
+function isChunkLoadError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return CHUNK_ERROR_PATTERN.test(message);
+}
+
+function recoverFromStaleChunk() {
+  try {
+    const previousAttempt = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY) ?? 0);
+    if (Date.now() - previousAttempt < 30_000) return false;
+    sessionStorage.setItem(CHUNK_RELOAD_KEY, String(Date.now()));
+    window.location.reload();
+    return true;
+  } catch {
+    window.location.reload();
+    return true;
+  }
+}
+
+const chunkRecoveryScript = `
+  (() => {
+    const key = ${JSON.stringify(CHUNK_RELOAD_KEY)};
+    window.addEventListener('vite:preloadError', (event) => {
+      event.preventDefault();
+      try {
+        const previousAttempt = Number(sessionStorage.getItem(key) || 0);
+        if (Date.now() - previousAttempt < 30000) return;
+        sessionStorage.setItem(key, String(Date.now()));
+      } catch {}
+      window.location.reload();
+    });
+  })();
+`;
 
 function NotFoundComponent() {
   return (
@@ -39,6 +112,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
+    if (isChunkLoadError(error)) recoverFromStaleChunk();
   }, [error]);
 
   return (
@@ -76,22 +150,30 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+      { name: "theme-color", content: "#1E3A8A" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { title: "Iftin Agents — Buy Mobile Data & Airtime in Somalia" },
+      { name: "description", content: "Buy mobile data bundles and airtime instantly from Somali networks with fast, secure mobile-money payments." },
+      { name: "author", content: "Iftin Agents" },
+      { property: "og:title", content: "Iftin Agents — Buy Mobile Data & Airtime in Somalia" },
+      { property: "og:description", content: "Buy mobile data bundles and airtime instantly from Somali networks with fast, secure mobile-money payments." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
+
+      { name: "twitter:title", content: "Iftin Agents — Buy Mobile Data & Airtime in Somalia" },
+      { name: "twitter:description", content: "Buy mobile data bundles and airtime instantly from Somali networks with fast, secure mobile-money payments." },
+      { property: "og:image", content: "https://iftinagents.com/og-image.png" },
+      { name: "twitter:image", content: "https://iftinagents.com/og-image.png" },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/favicon.png", type: "image/png" },
+      { rel: "manifest", href: "/manifest.json" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
     ],
   }),
   shellComponent: RootShell,
@@ -105,6 +187,7 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        <script dangerouslySetInnerHTML={{ __html: chunkRecoveryScript }} />
       </head>
       <body>
         {children}
@@ -114,13 +197,135 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+function AppContent() {
+  useOfflineCache();
+  useGlobalImagePreloader();
+  useEdgeToEdge();
+  useKeyboardInsets();
+  useAutoOnlineRedirect();
+  useStorefrontRealtime();
+  const appQueryClient = useQueryClient();
+
+  // Tenant settings changed on the server: refetch everything immediately
+  // instead of waiting for a cache to expire.
+  useEffect(
+    () => onStorefront("tenant-config-changed", () => appQueryClient.invalidateQueries()),
+    [appQueryClient],
+  );
+  const { showExitDialog, handleExitApp, handleCancelExit } = useAndroidBackButton();
+
+  // Safety net: never leave the user stuck behind the native splash screen.
+  useEffect(() => {
+    scheduleNativeSplashFallback();
+  }, []);
+
+  // Lock the native status/navigation bars to the build color once, and keep
+  // them there across background/foreground switches.
+  useEffect(() => initNativeBars(), []);
+
+
+  return (
+    <>
+      <TenantPwaMeta />
+      <StatusBarColor />
+      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+      <Outlet />
+      <PersistentBottomNav />
+
+      <AlertDialog open={showExitDialog} onOpenChange={handleCancelExit}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ka bax App-ka?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ma hubtaa inaad rabto inaad ka baxdo Najax Data app-ka?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelExit}>Maya</AlertDialogCancel>
+            <AlertDialogAction onClick={handleExitApp}>Haa, Ka bax</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  // Android builds carry their Git commit as a build version. Send it to any
+  // previously installed service worker so an APK update cannot keep serving
+  // the prior app shell or JavaScript bundle.
+  useEffect(() => {
+    const buildVersion = import.meta.env.VITE_BUILD_VERSION;
+    if (!buildVersion || !("serviceWorker" in navigator)) return;
+
+    void navigator.serviceWorker.ready.then((registration) => {
+      const worker = registration.active ?? registration.waiting ?? registration.installing;
+      worker?.postMessage({ type: "SET_VERSION", version: buildVersion });
+    });
+  }, []);
+
+  // Cache-ka qaldan ka ilaali: marka version-ka app-ku isbeddelo (build cusub),
+  // tirtir dhammaan xogta API/offline ee kaydsan si xog cusub oo sax ah loo soo dejiyo.
+  useEffect(() => {
+    try {
+      const version = String(import.meta.env.VITE_BUILD_VERSION ?? "dev");
+      const key = "app_cache_version";
+      if (localStorage.getItem(key) === version) return;
+      const staleKeys = [
+        "iftin_catalog_v3_local_images",
+        "iftin_tenant_id_v1",
+        "najax.tenant_delivery_mode",
+        "offline_providers",
+        "offline_categories",
+        "offline_packages",
+        "offline_payment_providers",
+      ];
+      for (const k of staleKeys) localStorage.removeItem(k);
+      // Tirtir keys kale ee qadiimiga ah ee iftin/offline/banner ah
+      const doomed: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (/^iftin_catalog_v\d/.test(k) || k.startsWith("offline_banners"))) doomed.push(k);
+      }
+      doomed.forEach((k) => localStorage.removeItem(k));
+      localStorage.setItem(key, version);
+    } catch {
+      /* storage aan la heli karin */
+    }
+  }, []);
+
+  // Bogagga kale ayaa la soo dejiyaa marka app-ku nasanayo, si taabashadu
+  // u noqoto mid isla markiiba furta.
+  useEffect(() => {
+    warmPages();
+  }, []);
+
+  useEffect(() => {
+    return registerTenantChangeListener((prev, next) => {
+      if (prev !== next) queryClient.clear();
+    });
+  }, [queryClient]);
+
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <ConnectivityProvider>
+        <ThemeProvider>
+          <LanguageProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <TenantProvider>
+                <TenantGate>
+                  <AppContent />
+                </TenantGate>
+              </TenantProvider>
+            </TooltipProvider>
+          </LanguageProvider>
+        </ThemeProvider>
+      </ConnectivityProvider>
     </QueryClientProvider>
   );
 }
+

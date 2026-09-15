@@ -1,0 +1,1 @@
+ALTER TABLE public.pending_online_payments RENAME COLUMN payment_phone TO sender_phone;
