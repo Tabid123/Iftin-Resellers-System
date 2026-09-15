@@ -19,65 +19,104 @@ interface Notification {
   created_at: string;
 }
 
+interface SendNotificationResult {
+  success?: boolean;
+  push_configured?: boolean;
+  push_sent?: boolean;
+  push_error?: string;
+  recipients?: number | null;
+  error?: string;
+}
+
 export function SendNotification() {
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const queryClient = useQueryClient();
 
+  const { data: tenantId, isLoading: isTenantLoading } = useQuery({
+    queryKey: ["resolved-tenant-id", "send-notification"],
+    queryFn: resolveTenantId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const notificationQueryKey = ["admin-notifications", tenantId] as const;
+
   const { data: notifications, isLoading } = useQuery({
-    queryKey: ["admin-notifications"],
+    queryKey: notificationQueryKey,
+    enabled: Boolean(tenantId),
     queryFn: async () => {
-      const tenantId = await resolveTenantId();
       if (!tenantId) return [] as Notification[];
       const { data, error } = await supabase
         .from("notifications")
-        .select("*")
+        .select("id,title,message,is_active,created_at")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
-      
+
       if (error) throw error;
-      return data as Notification[];
+      return (data ?? []) as Notification[];
     },
   });
 
   const sendMutation = useMutation({
     mutationFn: async () => {
-      const tenantId = await resolveTenantId();
       if (!tenantId) throw new Error("Workspace-ka lama garanayo");
-      const { error } = await supabase
-        .from("notifications")
-        .insert({ title, message, tenant_id: tenantId });
-      
+
+      const { data, error } = await supabase.functions.invoke<SendNotificationResult>(
+        "send-tenant-notification",
+        {
+          body: {
+            tenant_id: tenantId,
+            title: title.trim(),
+            message: message.trim(),
+            path: "/notifications",
+          },
+        },
+      );
+
       if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Fariinta lama diri karin");
+      return data;
     },
-    onSuccess: () => {
-      toast.success("Fariinta waa la diray!");
+    onSuccess: (result) => {
       setTitle("");
       setMessage("");
-      queryClient.invalidateQueries({ queryKey: ["admin-notifications"] });
+      queryClient.invalidateQueries({ queryKey: notificationQueryKey });
+      queryClient.invalidateQueries({ queryKey: ["user-notifications", tenantId] });
+
+      if (result.push_sent) {
+        const recipientText =
+          typeof result.recipients === "number" && result.recipients >= 0
+            ? ` (${result.recipients} qalab)`
+            : "";
+        toast.success(`Fariinta iyo native notification-ka waa la diray${recipientText}`);
+      } else if (result.push_configured === false) {
+        toast.warning("Fariinta app-ka waa la kaydiyey; native push config weli lama dhameystirin");
+      } else {
+        toast.warning("Fariinta app-ka waa la kaydiyey, laakiin native push ma gaarin provider-ka");
+      }
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast.error("Khalad: " + error.message);
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const tenantId = await resolveTenantId();
       if (!tenantId) throw new Error("Workspace-ka lama garanayo");
       const { error } = await supabase
         .from("notifications")
         .delete()
         .eq("id", id)
         .eq("tenant_id", tenantId);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Fariinta waa la tirtiray!");
-      queryClient.invalidateQueries({ queryKey: ["admin-notifications"] });
+      queryClient.invalidateQueries({ queryKey: notificationQueryKey });
+      queryClient.invalidateQueries({ queryKey: ["user-notifications", tenantId] });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast.error("Khalad: " + error.message);
     },
   });
@@ -85,6 +124,10 @@ export function SendNotification() {
   const handleSend = () => {
     if (!title.trim() || !message.trim()) {
       toast.error("Fadlan buuxi Title iyo Message");
+      return;
+    }
+    if (!tenantId) {
+      toast.error("Workspace-ka lama garanayo");
       return;
     }
     sendMutation.mutate();
@@ -105,6 +148,7 @@ export function SendNotification() {
             <Input
               placeholder="Cinwaanka fariinta..."
               value={title}
+              maxLength={100}
               onChange={(e) => setTitle(e.target.value)}
             />
           </div>
@@ -113,13 +157,14 @@ export function SendNotification() {
             <Textarea
               placeholder="Qoraalka fariinta..."
               value={message}
+              maxLength={500}
               onChange={(e) => setMessage(e.target.value)}
               rows={4}
             />
           </div>
-          <Button 
-            onClick={handleSend} 
-            disabled={sendMutation.isPending}
+          <Button
+            onClick={handleSend}
+            disabled={sendMutation.isPending || isTenantLoading || !tenantId}
             className="w-full"
           >
             {sendMutation.isPending ? (
@@ -137,7 +182,7 @@ export function SendNotification() {
           <CardTitle>Fariimaha La Diray</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isTenantLoading || isLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
