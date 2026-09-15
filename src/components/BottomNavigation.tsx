@@ -7,6 +7,7 @@ import { useTenant } from '@/contexts/TenantContext';
 
 interface BottomNavigationProps {
   onNotificationsClick?: () => void;
+  visible?: boolean;
 }
 
 const HomeIcon = (_: { active: boolean }) => (
@@ -39,7 +40,7 @@ const UserIcon = (_: { active: boolean }) => (
   </svg>
 );
 
-export function BottomNavigation({ onNotificationsClick }: BottomNavigationProps) {
+export function BottomNavigation({ onNotificationsClick, visible = true }: BottomNavigationProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { language } = useLanguage();
@@ -93,10 +94,13 @@ export function BottomNavigation({ onNotificationsClick }: BottomNavigationProps
   return (
     <div
       className="fixed bottom-0 left-0 right-0 z-50"
+      aria-hidden={!visible}
       style={{
         paddingBottom: 'calc(8px + var(--effective-safe-area-bottom, env(safe-area-inset-bottom, 0px)))',
         background: navBackground,
         WebkitTapHighlightColor: 'transparent',
+        visibility: visible ? 'visible' : 'hidden',
+        pointerEvents: visible ? 'auto' : 'none',
       }}
     >
       <div className="mx-auto w-full max-w-md">
@@ -108,6 +112,7 @@ export function BottomNavigation({ onNotificationsClick }: BottomNavigationProps
                 key={path}
                 type="button"
                 onClick={onClick}
+                tabIndex={visible ? 0 : -1}
                 className="relative flex h-[68px] min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1.5 bg-transparent px-1 outline-none"
                 style={{ WebkitTapHighlightColor: 'transparent' }}
                 aria-current={active ? 'page' : undefined}
