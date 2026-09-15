@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Send, Trash2, Loader2 } from "lucide-react";
+import { Send, Trash2, Loader2, Smartphone } from "lucide-react";
 import { format } from "date-fns";
 import { resolveTenantId } from "@/lib/iftinCatalog";
 
@@ -18,6 +18,15 @@ interface Notification {
   is_active: boolean;
   created_at: string;
 }
+
+type SendResult = {
+  ok?: boolean;
+  notification_id?: string;
+  push_id?: string | null;
+  recipients?: number | null;
+  saved?: boolean;
+  error?: string;
+};
 
 export function SendNotification() {
   const [title, setTitle] = useState("");
@@ -34,7 +43,7 @@ export function SendNotification() {
         .select("*")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
-      
+
       if (error) throw error;
       return data as Notification[];
     },
@@ -44,19 +53,37 @@ export function SendNotification() {
     mutationFn: async () => {
       const tenantId = await resolveTenantId();
       if (!tenantId) throw new Error("Workspace-ka lama garanayo");
-      const { error } = await supabase
-        .from("notifications")
-        .insert({ title, message, tenant_id: tenantId });
-      
+
+      // The Edge Function performs server-side tenant authorization, persists
+      // the in-app notification and sends a native OneSignal push only to APKs
+      // tagged with this tenant's trusted slug.
+      const { data, error } = await supabase.functions.invoke<SendResult>(
+        "send-tenant-notification",
+        {
+          body: {
+            tenant_id: tenantId,
+            title: title.trim(),
+            message: message.trim(),
+            type: "info",
+            route: "/notifications",
+          },
+        },
+      );
+
       if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error || "Native notification lama dirin");
+      return data;
     },
-    onSuccess: () => {
-      toast.success("Fariinta waa la diray!");
+    onSuccess: (data) => {
+      const recipientText = typeof data?.recipients === "number"
+        ? ` (${data.recipients} qalab)`
+        : "";
+      toast.success(`Fariinta native-ka waa la diray!${recipientText}`);
       setTitle("");
       setMessage("");
       queryClient.invalidateQueries({ queryKey: ["admin-notifications"] });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast.error("Khalad: " + error.message);
     },
   });
@@ -70,14 +97,14 @@ export function SendNotification() {
         .delete()
         .eq("id", id)
         .eq("tenant_id", tenantId);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Fariinta waa la tirtiray!");
       queryClient.invalidateQueries({ queryKey: ["admin-notifications"] });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast.error("Khalad: " + error.message);
     },
   });
@@ -98,6 +125,10 @@ export function SendNotification() {
             <Send className="h-5 w-5" />
             Dir Fariin Cusub
           </CardTitle>
+          <div className="flex items-start gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+            <Smartphone className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>Fariintan waxay native notification ahaan ugu dhacaysaa APK-yada tenant-kan oo keliya, xitaa app-ku marka uu background-ka ku jiro.</span>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
@@ -105,6 +136,7 @@ export function SendNotification() {
             <Input
               placeholder="Cinwaanka fariinta..."
               value={title}
+              maxLength={120}
               onChange={(e) => setTitle(e.target.value)}
             />
           </div>
@@ -113,12 +145,13 @@ export function SendNotification() {
             <Textarea
               placeholder="Qoraalka fariinta..."
               value={message}
+              maxLength={1000}
               onChange={(e) => setMessage(e.target.value)}
               rows={4}
             />
           </div>
-          <Button 
-            onClick={handleSend} 
+          <Button
+            onClick={handleSend}
             disabled={sendMutation.isPending}
             className="w-full"
           >
@@ -127,7 +160,7 @@ export function SendNotification() {
             ) : (
               <Send className="h-4 w-4 mr-2" />
             )}
-            Dir Fariinta
+            Dir Native Notification
           </Button>
         </CardContent>
       </Card>
