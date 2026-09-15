@@ -359,7 +359,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
       purgeNonActiveWorkspaceStorage(cached.id);
       applyBranding(cached);
       setState(
-        cached.status === "suspended" || cached.status === "cancelled"
+        isTenantBlocked(cached)
           ? { status: "suspended", tenant: cached, isPlatform: false }
           : { status: "ready", tenant: cached, isPlatform: false },
       );
@@ -455,7 +455,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
         emitStorefront("banners-changed");
       }
 
-      if (tenant.status === "suspended" || tenant.status === "cancelled") {
+      if (isTenantBlocked(tenant)) {
         setState({ status: "suspended", tenant, isPlatform: false });
         return;
       }
