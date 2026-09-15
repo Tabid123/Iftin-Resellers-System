@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Main App Theme -->
+    <style name="Theme.IftinAgents" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowBackground">@color/white</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+    </style>
+
+    <!--
+      Splash theme built on androidx core-splashscreen. This is the single
+      startup screen for every API level (23..34+):
+        - white background
+        - Iftin Resellers logo mark, centered, aspect ratio preserved
+        - hands over to Theme.IftinAgents once the activity is ready
+      Before this, API 31+ ignored the old windowBackground layer-list and
+      drew the launcher icon instead, which the system masks/zooms -> the
+      cropped, oversized logo users reported.
+    -->
+    <style name="Theme.IftinAgents.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
+        <item name="postSplashScreenTheme">@style/Theme.IftinAgents</item>
+        <item name="android:windowBackground">@color/splash_background</item>
+        <item name="android:statusBarColor">@color/splash_background</item>
+        <item name="android:navigationBarColor">@color/splash_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+
+</resources>

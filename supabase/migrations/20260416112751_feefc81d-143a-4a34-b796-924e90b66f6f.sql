@@ -1,0 +1,1 @@
+ALTER TABLE public.auto_topup_phone_mappings DROP CONSTRAINT IF EXISTS auto_topup_phone_mappings_phone_number_key;

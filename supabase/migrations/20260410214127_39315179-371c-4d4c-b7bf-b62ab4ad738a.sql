@@ -1,0 +1,1 @@
+ALTER TABLE public.auto_topup_packages ADD COLUMN sim_password text DEFAULT NULL;

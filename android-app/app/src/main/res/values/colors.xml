@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Iftin Resellers Brand Colors -->
+    <color name="iftin_green">#006F00</color>
+    <color name="iftin_green_dark">#004A00</color>
+    <color name="iftin_green_light">#00A03A</color>
+    <color name="iftin_lime">#C5F82A</color>
+    <color name="splash_background">#FFFFFF</color>
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+</resources>

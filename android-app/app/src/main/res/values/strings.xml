@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Iftin Resellers</string>
+    
+    <!-- Accessibility Service -->
+    <string name="accessibility_service_label">Iftin Resellers USSD Automation</string>
+    <string name="accessibility_service_description">Allows Iftin Resellers to automatically read and process USSD responses for mobile data delivery. This service only activates during payment transactions.</string>
+</resources>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Fallback window background (used only for the brief pre-inflate frame).
+  White background + centred logo scaled with a fixed square box, so the
+  aspect ratio is preserved on every screen size and density.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splash_background" />
+    <item
+        android:gravity="center"
+        android:width="160dp"
+        android:height="160dp">
+        <bitmap
+            android:gravity="fill"
+            android:src="@drawable/splash_logo" />
+    </item>
+</layer-list>

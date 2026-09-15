@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS idx_delivery_queue_unique_active_order;

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Iftin Agents</string>
+    <string name="title_activity_main">Iftin Agents</string>
+    <string name="package_name">com.iftin.agents</string>
+    <string name="custom_url_scheme">com.iftin.agents</string>
+</resources>

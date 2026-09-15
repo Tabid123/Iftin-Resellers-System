@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "656279477412",
+    "project_id": "iftin-30857",
+    "storage_bucket": "iftin-30857.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:656279477412:android:23d3b86da33fb04e7f5a31",
+        "android_client_info": {
+          "package_name": "com.iftin.internet"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD8zna-vQQurrT7EWTU5TrN-1lFUIW8ttQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

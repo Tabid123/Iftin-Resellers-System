@@ -7,9 +7,12 @@ import { cn } from "@/lib/utils";
 const InputOTP = React.forwardRef<
   React.ElementRef<typeof OTPInput>,
   React.ComponentPropsWithoutRef<typeof OTPInput>
->(({ className, containerClassName, ...props }, ref) => (
+>(({ className, containerClassName, inputMode = "numeric", pattern = "[0-9]*", type = "tel", ...props }, ref) => (
   <OTPInput
     ref={ref}
+    type={type}
+    inputMode={inputMode}
+    pattern={pattern}
     containerClassName={cn(
       "flex items-center gap-2 has-[:disabled]:opacity-50",
       containerClassName,

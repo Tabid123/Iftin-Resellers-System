@@ -1,0 +1,1 @@
+ALTER TABLE public.auto_topup_phone_mappings ALTER COLUMN custom_amount TYPE text USING custom_amount::text;

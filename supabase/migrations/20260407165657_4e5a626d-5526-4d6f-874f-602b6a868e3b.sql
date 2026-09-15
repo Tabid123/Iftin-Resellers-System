@@ -1,0 +1,3 @@
+UPDATE delivery_queue SET status = 'completed', completed_at = now() WHERE id IN ('24e33fbc-2c4e-4b9b-a806-08de3afd0f16', '449e20b9-42b6-4e19-8bc2-82d91a8d87fd') AND status = 'processing';
+
+UPDATE orders SET delivery_status = 'delivered', delivered_at = now(), delivery_notes = 'Manually fixed - provider confirmed delivery' WHERE id IN ('e8e21c3b-1399-4097-824a-4a4eae87333f', '17681cbe-f123-4d25-97a4-3442175acf72');

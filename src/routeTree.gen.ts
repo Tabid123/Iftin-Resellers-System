@@ -10,33 +10,511 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as HistoryRouteImport } from './routes/history'
+import { Route as NotificationsRouteImport } from './routes/notifications'
+import { Route as OfflineModeRouteImport } from './routes/offline-mode'
+import { Route as PaymentSuccessRouteImport } from './routes/payment-success'
+import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
+import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as ProvidersRouteImport } from './routes/providers'
+import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as AdminAppsRouteImport } from './routes/admin.apps'
+import { Route as AdminPlansRouteImport } from './routes/admin.plans'
+import { Route as CategoriesProviderRouteImport } from './routes/categories.$provider'
+import { Route as DashboardIndexRouteImport } from './routes/dashboard.index'
+import { Route as DashboardTypeRouteImport } from './routes/dashboard.$type'
+import { Route as DashboardLoginRouteImport } from './routes/dashboard.login'
+import { Route as PackagesProviderRouteImport } from './routes/packages.$provider'
+import { Route as PaymentProviderRouteImport } from './routes/payment.$provider'
+import { Route as AdminResellersIndexRouteImport } from './routes/admin.resellers.index'
+import { Route as AdminResellersIdRouteImport } from './routes/admin.resellers.$id'
+import { Route as AdminResellersNewRouteImport } from './routes/admin.resellers.new'
+import { Route as ApiPublicManifestRouteImport } from './routes/api/public/manifest'
+import { Route as ApiPublicOfflineRegisterRouteImport } from './routes/api/public/offline-register'
+import { Route as ApiPublicTenantIconRouteImport } from './routes/api/public/tenant-icon'
+import { Route as TSlugIndexRouteImport } from './routes/t.$slug.index'
+import { Route as TSlugHistoryRouteImport } from './routes/t.$slug.history'
+import { Route as TSlugNotificationsRouteImport } from './routes/t.$slug.notifications'
+import { Route as TSlugOfflineModeRouteImport } from './routes/t.$slug.offline-mode'
+import { Route as TSlugPaymentSuccessRouteImport } from './routes/t.$slug.payment-success'
+import { Route as TSlugPrivacyPolicyRouteImport } from './routes/t.$slug.privacy-policy'
+import { Route as TSlugProfileRouteImport } from './routes/t.$slug.profile'
+import { Route as TSlugProvidersRouteImport } from './routes/t.$slug.providers'
+import { Route as TSlugCategoriesProviderRouteImport } from './routes/t.$slug.categories.$provider'
+import { Route as TSlugDashboardIndexRouteImport } from './routes/t.$slug.dashboard.index'
+import { Route as TSlugDashboardTypeRouteImport } from './routes/t.$slug.dashboard.$type'
+import { Route as TSlugDashboardLoginRouteImport } from './routes/t.$slug.dashboard.login'
+import { Route as TSlugPackagesProviderRouteImport } from './routes/t.$slug.packages.$provider'
+import { Route as TSlugPaymentProviderRouteImport } from './routes/t.$slug.payment.$provider'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HistoryRoute = HistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OfflineModeRoute = OfflineModeRouteImport.update({
+  id: '/offline-mode',
+  path: '/offline-mode',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PaymentSuccessRoute = PaymentSuccessRouteImport.update({
+  id: '/payment-success',
+  path: '/payment-success',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
+  id: '/privacy-policy',
+  path: '/privacy-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProvidersRoute = ProvidersRouteImport.update({
+  id: '/providers',
+  path: '/providers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminAppsRoute = AdminAppsRouteImport.update({
+  id: '/apps',
+  path: '/apps',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminPlansRoute = AdminPlansRouteImport.update({
+  id: '/plans',
+  path: '/plans',
+  getParentRoute: () => AdminRoute,
+} as any)
+const CategoriesProviderRoute = CategoriesProviderRouteImport.update({
+  id: '/categories/$provider',
+  path: '/categories/$provider',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardIndexRoute = DashboardIndexRouteImport.update({
+  id: '/dashboard/',
+  path: '/dashboard/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardTypeRoute = DashboardTypeRouteImport.update({
+  id: '/dashboard/$type',
+  path: '/dashboard/$type',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardLoginRoute = DashboardLoginRouteImport.update({
+  id: '/dashboard/login',
+  path: '/dashboard/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PackagesProviderRoute = PackagesProviderRouteImport.update({
+  id: '/packages/$provider',
+  path: '/packages/$provider',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PaymentProviderRoute = PaymentProviderRouteImport.update({
+  id: '/payment/$provider',
+  path: '/payment/$provider',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminResellersIndexRoute = AdminResellersIndexRouteImport.update({
+  id: '/resellers/',
+  path: '/resellers/',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminResellersIdRoute = AdminResellersIdRouteImport.update({
+  id: '/resellers/$id',
+  path: '/resellers/$id',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminResellersNewRoute = AdminResellersNewRouteImport.update({
+  id: '/resellers/new',
+  path: '/resellers/new',
+  getParentRoute: () => AdminRoute,
+} as any)
+const ApiPublicManifestRoute = ApiPublicManifestRouteImport.update({
+  id: '/api/public/manifest',
+  path: '/api/public/manifest',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicOfflineRegisterRoute =
+  ApiPublicOfflineRegisterRouteImport.update({
+    id: '/api/public/offline-register',
+    path: '/api/public/offline-register',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicTenantIconRoute = ApiPublicTenantIconRouteImport.update({
+  id: '/api/public/tenant-icon',
+  path: '/api/public/tenant-icon',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TSlugIndexRoute = TSlugIndexRouteImport.update({
+  id: '/t/$slug/',
+  path: '/t/$slug/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TSlugHistoryRoute = TSlugHistoryRouteImport.update({
+  id: '/t/$slug/history',
+  path: '/t/$slug/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TSlugNotificationsRoute = TSlugNotificationsRouteImport.update({
+  id: '/t/$slug/notifications',
+  path: '/t/$slug/notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TSlugOfflineModeRoute = TSlugOfflineModeRouteImport.update({
+  id: '/t/$slug/offline-mode',
+  path: '/t/$slug/offline-mode',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TSlugPaymentSuccessRoute = TSlugPaymentSuccessRouteImport.update({
+  id: '/t/$slug/payment-success',
+  path: '/t/$slug/payment-success',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TSlugPrivacyPolicyRoute = TSlugPrivacyPolicyRouteImport.update({
+  id: '/t/$slug/privacy-policy',
+  path: '/t/$slug/privacy-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TSlugProfileRoute = TSlugProfileRouteImport.update({
+  id: '/t/$slug/profile',
+  path: '/t/$slug/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TSlugProvidersRoute = TSlugProvidersRouteImport.update({
+  id: '/t/$slug/providers',
+  path: '/t/$slug/providers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TSlugCategoriesProviderRoute = TSlugCategoriesProviderRouteImport.update({
+  id: '/t/$slug/categories/$provider',
+  path: '/t/$slug/categories/$provider',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TSlugDashboardIndexRoute = TSlugDashboardIndexRouteImport.update({
+  id: '/t/$slug/dashboard/',
+  path: '/t/$slug/dashboard/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TSlugDashboardTypeRoute = TSlugDashboardTypeRouteImport.update({
+  id: '/t/$slug/dashboard/$type',
+  path: '/t/$slug/dashboard/$type',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TSlugDashboardLoginRoute = TSlugDashboardLoginRouteImport.update({
+  id: '/t/$slug/dashboard/login',
+  path: '/t/$slug/dashboard/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TSlugPackagesProviderRoute = TSlugPackagesProviderRouteImport.update({
+  id: '/t/$slug/packages/$provider',
+  path: '/t/$slug/packages/$provider',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TSlugPaymentProviderRoute = TSlugPaymentProviderRouteImport.update({
+  id: '/t/$slug/payment/$provider',
+  path: '/t/$slug/payment/$provider',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
+  '/history': typeof HistoryRoute
+  '/notifications': typeof NotificationsRoute
+  '/offline-mode': typeof OfflineModeRoute
+  '/payment-success': typeof PaymentSuccessRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
+  '/profile': typeof ProfileRoute
+  '/providers': typeof ProvidersRoute
+  '/admin/apps': typeof AdminAppsRoute
+  '/admin/plans': typeof AdminPlansRoute
+  '/categories/$provider': typeof CategoriesProviderRoute
+  '/dashboard/$type': typeof DashboardTypeRoute
+  '/dashboard/login': typeof DashboardLoginRoute
+  '/packages/$provider': typeof PackagesProviderRoute
+  '/payment/$provider': typeof PaymentProviderRoute
+  '/admin/': typeof AdminIndexRoute
+  '/dashboard/': typeof DashboardIndexRoute
+  '/admin/resellers/$id': typeof AdminResellersIdRoute
+  '/admin/resellers/new': typeof AdminResellersNewRoute
+  '/api/public/manifest': typeof ApiPublicManifestRoute
+  '/api/public/offline-register': typeof ApiPublicOfflineRegisterRoute
+  '/api/public/tenant-icon': typeof ApiPublicTenantIconRoute
+  '/t/$slug/history': typeof TSlugHistoryRoute
+  '/t/$slug/notifications': typeof TSlugNotificationsRoute
+  '/t/$slug/offline-mode': typeof TSlugOfflineModeRoute
+  '/t/$slug/payment-success': typeof TSlugPaymentSuccessRoute
+  '/t/$slug/privacy-policy': typeof TSlugPrivacyPolicyRoute
+  '/t/$slug/profile': typeof TSlugProfileRoute
+  '/t/$slug/providers': typeof TSlugProvidersRoute
+  '/admin/resellers/': typeof AdminResellersIndexRoute
+  '/t/$slug/': typeof TSlugIndexRoute
+  '/t/$slug/categories/$provider': typeof TSlugCategoriesProviderRoute
+  '/t/$slug/dashboard/$type': typeof TSlugDashboardTypeRoute
+  '/t/$slug/dashboard/login': typeof TSlugDashboardLoginRoute
+  '/t/$slug/packages/$provider': typeof TSlugPackagesProviderRoute
+  '/t/$slug/payment/$provider': typeof TSlugPaymentProviderRoute
+  '/t/$slug/dashboard/': typeof TSlugDashboardIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/history': typeof HistoryRoute
+  '/notifications': typeof NotificationsRoute
+  '/offline-mode': typeof OfflineModeRoute
+  '/payment-success': typeof PaymentSuccessRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
+  '/profile': typeof ProfileRoute
+  '/providers': typeof ProvidersRoute
+  '/admin/apps': typeof AdminAppsRoute
+  '/admin/plans': typeof AdminPlansRoute
+  '/categories/$provider': typeof CategoriesProviderRoute
+  '/dashboard/$type': typeof DashboardTypeRoute
+  '/dashboard/login': typeof DashboardLoginRoute
+  '/packages/$provider': typeof PackagesProviderRoute
+  '/payment/$provider': typeof PaymentProviderRoute
+  '/admin': typeof AdminIndexRoute
+  '/dashboard': typeof DashboardIndexRoute
+  '/admin/resellers/$id': typeof AdminResellersIdRoute
+  '/admin/resellers/new': typeof AdminResellersNewRoute
+  '/api/public/manifest': typeof ApiPublicManifestRoute
+  '/api/public/offline-register': typeof ApiPublicOfflineRegisterRoute
+  '/api/public/tenant-icon': typeof ApiPublicTenantIconRoute
+  '/t/$slug/history': typeof TSlugHistoryRoute
+  '/t/$slug/notifications': typeof TSlugNotificationsRoute
+  '/t/$slug/offline-mode': typeof TSlugOfflineModeRoute
+  '/t/$slug/payment-success': typeof TSlugPaymentSuccessRoute
+  '/t/$slug/privacy-policy': typeof TSlugPrivacyPolicyRoute
+  '/t/$slug/profile': typeof TSlugProfileRoute
+  '/t/$slug/providers': typeof TSlugProvidersRoute
+  '/admin/resellers': typeof AdminResellersIndexRoute
+  '/t/$slug': typeof TSlugIndexRoute
+  '/t/$slug/categories/$provider': typeof TSlugCategoriesProviderRoute
+  '/t/$slug/dashboard/$type': typeof TSlugDashboardTypeRoute
+  '/t/$slug/dashboard/login': typeof TSlugDashboardLoginRoute
+  '/t/$slug/packages/$provider': typeof TSlugPackagesProviderRoute
+  '/t/$slug/payment/$provider': typeof TSlugPaymentProviderRoute
+  '/t/$slug/dashboard': typeof TSlugDashboardIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
+  '/history': typeof HistoryRoute
+  '/notifications': typeof NotificationsRoute
+  '/offline-mode': typeof OfflineModeRoute
+  '/payment-success': typeof PaymentSuccessRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
+  '/profile': typeof ProfileRoute
+  '/providers': typeof ProvidersRoute
+  '/admin/apps': typeof AdminAppsRoute
+  '/admin/plans': typeof AdminPlansRoute
+  '/categories/$provider': typeof CategoriesProviderRoute
+  '/dashboard/$type': typeof DashboardTypeRoute
+  '/dashboard/login': typeof DashboardLoginRoute
+  '/packages/$provider': typeof PackagesProviderRoute
+  '/payment/$provider': typeof PaymentProviderRoute
+  '/admin/': typeof AdminIndexRoute
+  '/dashboard/': typeof DashboardIndexRoute
+  '/admin/resellers/$id': typeof AdminResellersIdRoute
+  '/admin/resellers/new': typeof AdminResellersNewRoute
+  '/api/public/manifest': typeof ApiPublicManifestRoute
+  '/api/public/offline-register': typeof ApiPublicOfflineRegisterRoute
+  '/api/public/tenant-icon': typeof ApiPublicTenantIconRoute
+  '/t/$slug/history': typeof TSlugHistoryRoute
+  '/t/$slug/notifications': typeof TSlugNotificationsRoute
+  '/t/$slug/offline-mode': typeof TSlugOfflineModeRoute
+  '/t/$slug/payment-success': typeof TSlugPaymentSuccessRoute
+  '/t/$slug/privacy-policy': typeof TSlugPrivacyPolicyRoute
+  '/t/$slug/profile': typeof TSlugProfileRoute
+  '/t/$slug/providers': typeof TSlugProvidersRoute
+  '/admin/resellers/': typeof AdminResellersIndexRoute
+  '/t/$slug/': typeof TSlugIndexRoute
+  '/t/$slug/categories/$provider': typeof TSlugCategoriesProviderRoute
+  '/t/$slug/dashboard/$type': typeof TSlugDashboardTypeRoute
+  '/t/$slug/dashboard/login': typeof TSlugDashboardLoginRoute
+  '/t/$slug/packages/$provider': typeof TSlugPackagesProviderRoute
+  '/t/$slug/payment/$provider': typeof TSlugPaymentProviderRoute
+  '/t/$slug/dashboard/': typeof TSlugDashboardIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/history'
+    | '/notifications'
+    | '/offline-mode'
+    | '/payment-success'
+    | '/privacy-policy'
+    | '/profile'
+    | '/providers'
+    | '/admin/apps'
+    | '/admin/plans'
+    | '/categories/$provider'
+    | '/dashboard/$type'
+    | '/dashboard/login'
+    | '/packages/$provider'
+    | '/payment/$provider'
+    | '/admin/'
+    | '/dashboard/'
+    | '/admin/resellers/$id'
+    | '/admin/resellers/new'
+    | '/api/public/manifest'
+    | '/api/public/offline-register'
+    | '/api/public/tenant-icon'
+    | '/t/$slug/history'
+    | '/t/$slug/notifications'
+    | '/t/$slug/offline-mode'
+    | '/t/$slug/payment-success'
+    | '/t/$slug/privacy-policy'
+    | '/t/$slug/profile'
+    | '/t/$slug/providers'
+    | '/admin/resellers/'
+    | '/t/$slug/'
+    | '/t/$slug/categories/$provider'
+    | '/t/$slug/dashboard/$type'
+    | '/t/$slug/dashboard/login'
+    | '/t/$slug/packages/$provider'
+    | '/t/$slug/payment/$provider'
+    | '/t/$slug/dashboard/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/history'
+    | '/notifications'
+    | '/offline-mode'
+    | '/payment-success'
+    | '/privacy-policy'
+    | '/profile'
+    | '/providers'
+    | '/admin/apps'
+    | '/admin/plans'
+    | '/categories/$provider'
+    | '/dashboard/$type'
+    | '/dashboard/login'
+    | '/packages/$provider'
+    | '/payment/$provider'
+    | '/admin'
+    | '/dashboard'
+    | '/admin/resellers/$id'
+    | '/admin/resellers/new'
+    | '/api/public/manifest'
+    | '/api/public/offline-register'
+    | '/api/public/tenant-icon'
+    | '/t/$slug/history'
+    | '/t/$slug/notifications'
+    | '/t/$slug/offline-mode'
+    | '/t/$slug/payment-success'
+    | '/t/$slug/privacy-policy'
+    | '/t/$slug/profile'
+    | '/t/$slug/providers'
+    | '/admin/resellers'
+    | '/t/$slug'
+    | '/t/$slug/categories/$provider'
+    | '/t/$slug/dashboard/$type'
+    | '/t/$slug/dashboard/login'
+    | '/t/$slug/packages/$provider'
+    | '/t/$slug/payment/$provider'
+    | '/t/$slug/dashboard'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/history'
+    | '/notifications'
+    | '/offline-mode'
+    | '/payment-success'
+    | '/privacy-policy'
+    | '/profile'
+    | '/providers'
+    | '/admin/apps'
+    | '/admin/plans'
+    | '/categories/$provider'
+    | '/dashboard/$type'
+    | '/dashboard/login'
+    | '/packages/$provider'
+    | '/payment/$provider'
+    | '/admin/'
+    | '/dashboard/'
+    | '/admin/resellers/$id'
+    | '/admin/resellers/new'
+    | '/api/public/manifest'
+    | '/api/public/offline-register'
+    | '/api/public/tenant-icon'
+    | '/t/$slug/history'
+    | '/t/$slug/notifications'
+    | '/t/$slug/offline-mode'
+    | '/t/$slug/payment-success'
+    | '/t/$slug/privacy-policy'
+    | '/t/$slug/profile'
+    | '/t/$slug/providers'
+    | '/admin/resellers/'
+    | '/t/$slug/'
+    | '/t/$slug/categories/$provider'
+    | '/t/$slug/dashboard/$type'
+    | '/t/$slug/dashboard/login'
+    | '/t/$slug/packages/$provider'
+    | '/t/$slug/payment/$provider'
+    | '/t/$slug/dashboard/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRouteWithChildren
+  HistoryRoute: typeof HistoryRoute
+  NotificationsRoute: typeof NotificationsRoute
+  OfflineModeRoute: typeof OfflineModeRoute
+  PaymentSuccessRoute: typeof PaymentSuccessRoute
+  PrivacyPolicyRoute: typeof PrivacyPolicyRoute
+  ProfileRoute: typeof ProfileRoute
+  ProvidersRoute: typeof ProvidersRoute
+  CategoriesProviderRoute: typeof CategoriesProviderRoute
+  DashboardTypeRoute: typeof DashboardTypeRoute
+  DashboardLoginRoute: typeof DashboardLoginRoute
+  PackagesProviderRoute: typeof PackagesProviderRoute
+  PaymentProviderRoute: typeof PaymentProviderRoute
+  DashboardIndexRoute: typeof DashboardIndexRoute
+  ApiPublicManifestRoute: typeof ApiPublicManifestRoute
+  ApiPublicOfflineRegisterRoute: typeof ApiPublicOfflineRegisterRoute
+  ApiPublicTenantIconRoute: typeof ApiPublicTenantIconRoute
+  TSlugHistoryRoute: typeof TSlugHistoryRoute
+  TSlugNotificationsRoute: typeof TSlugNotificationsRoute
+  TSlugOfflineModeRoute: typeof TSlugOfflineModeRoute
+  TSlugPaymentSuccessRoute: typeof TSlugPaymentSuccessRoute
+  TSlugPrivacyPolicyRoute: typeof TSlugPrivacyPolicyRoute
+  TSlugProfileRoute: typeof TSlugProfileRoute
+  TSlugProvidersRoute: typeof TSlugProvidersRoute
+  TSlugIndexRoute: typeof TSlugIndexRoute
+  TSlugCategoriesProviderRoute: typeof TSlugCategoriesProviderRoute
+  TSlugDashboardTypeRoute: typeof TSlugDashboardTypeRoute
+  TSlugDashboardLoginRoute: typeof TSlugDashboardLoginRoute
+  TSlugPackagesProviderRoute: typeof TSlugPackagesProviderRoute
+  TSlugPaymentProviderRoute: typeof TSlugPaymentProviderRoute
+  TSlugDashboardIndexRoute: typeof TSlugDashboardIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +526,321 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/history': {
+      id: '/history'
+      path: '/history'
+      fullPath: '/history'
+      preLoaderRoute: typeof HistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/offline-mode': {
+      id: '/offline-mode'
+      path: '/offline-mode'
+      fullPath: '/offline-mode'
+      preLoaderRoute: typeof OfflineModeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/payment-success': {
+      id: '/payment-success'
+      path: '/payment-success'
+      fullPath: '/payment-success'
+      preLoaderRoute: typeof PaymentSuccessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy-policy': {
+      id: '/privacy-policy'
+      path: '/privacy-policy'
+      fullPath: '/privacy-policy'
+      preLoaderRoute: typeof PrivacyPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/providers': {
+      id: '/providers'
+      path: '/providers'
+      fullPath: '/providers'
+      preLoaderRoute: typeof ProvidersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/': {
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/apps': {
+      id: '/admin/apps'
+      path: '/apps'
+      fullPath: '/admin/apps'
+      preLoaderRoute: typeof AdminAppsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/plans': {
+      id: '/admin/plans'
+      path: '/plans'
+      fullPath: '/admin/plans'
+      preLoaderRoute: typeof AdminPlansRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/categories/$provider': {
+      id: '/categories/$provider'
+      path: '/categories/$provider'
+      fullPath: '/categories/$provider'
+      preLoaderRoute: typeof CategoriesProviderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/': {
+      id: '/dashboard/'
+      path: '/dashboard'
+      fullPath: '/dashboard/'
+      preLoaderRoute: typeof DashboardIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/$type': {
+      id: '/dashboard/$type'
+      path: '/dashboard/$type'
+      fullPath: '/dashboard/$type'
+      preLoaderRoute: typeof DashboardTypeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/login': {
+      id: '/dashboard/login'
+      path: '/dashboard/login'
+      fullPath: '/dashboard/login'
+      preLoaderRoute: typeof DashboardLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/packages/$provider': {
+      id: '/packages/$provider'
+      path: '/packages/$provider'
+      fullPath: '/packages/$provider'
+      preLoaderRoute: typeof PackagesProviderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/payment/$provider': {
+      id: '/payment/$provider'
+      path: '/payment/$provider'
+      fullPath: '/payment/$provider'
+      preLoaderRoute: typeof PaymentProviderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/resellers/': {
+      id: '/admin/resellers/'
+      path: '/resellers'
+      fullPath: '/admin/resellers/'
+      preLoaderRoute: typeof AdminResellersIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/resellers/$id': {
+      id: '/admin/resellers/$id'
+      path: '/resellers/$id'
+      fullPath: '/admin/resellers/$id'
+      preLoaderRoute: typeof AdminResellersIdRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/resellers/new': {
+      id: '/admin/resellers/new'
+      path: '/resellers/new'
+      fullPath: '/admin/resellers/new'
+      preLoaderRoute: typeof AdminResellersNewRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/api/public/manifest': {
+      id: '/api/public/manifest'
+      path: '/api/public/manifest'
+      fullPath: '/api/public/manifest'
+      preLoaderRoute: typeof ApiPublicManifestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/offline-register': {
+      id: '/api/public/offline-register'
+      path: '/api/public/offline-register'
+      fullPath: '/api/public/offline-register'
+      preLoaderRoute: typeof ApiPublicOfflineRegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/tenant-icon': {
+      id: '/api/public/tenant-icon'
+      path: '/api/public/tenant-icon'
+      fullPath: '/api/public/tenant-icon'
+      preLoaderRoute: typeof ApiPublicTenantIconRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/t/$slug/': {
+      id: '/t/$slug/'
+      path: '/t/$slug'
+      fullPath: '/t/$slug/'
+      preLoaderRoute: typeof TSlugIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/t/$slug/history': {
+      id: '/t/$slug/history'
+      path: '/t/$slug/history'
+      fullPath: '/t/$slug/history'
+      preLoaderRoute: typeof TSlugHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/t/$slug/notifications': {
+      id: '/t/$slug/notifications'
+      path: '/t/$slug/notifications'
+      fullPath: '/t/$slug/notifications'
+      preLoaderRoute: typeof TSlugNotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/t/$slug/offline-mode': {
+      id: '/t/$slug/offline-mode'
+      path: '/t/$slug/offline-mode'
+      fullPath: '/t/$slug/offline-mode'
+      preLoaderRoute: typeof TSlugOfflineModeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/t/$slug/payment-success': {
+      id: '/t/$slug/payment-success'
+      path: '/t/$slug/payment-success'
+      fullPath: '/t/$slug/payment-success'
+      preLoaderRoute: typeof TSlugPaymentSuccessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/t/$slug/privacy-policy': {
+      id: '/t/$slug/privacy-policy'
+      path: '/t/$slug/privacy-policy'
+      fullPath: '/t/$slug/privacy-policy'
+      preLoaderRoute: typeof TSlugPrivacyPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/t/$slug/profile': {
+      id: '/t/$slug/profile'
+      path: '/t/$slug/profile'
+      fullPath: '/t/$slug/profile'
+      preLoaderRoute: typeof TSlugProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/t/$slug/providers': {
+      id: '/t/$slug/providers'
+      path: '/t/$slug/providers'
+      fullPath: '/t/$slug/providers'
+      preLoaderRoute: typeof TSlugProvidersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/t/$slug/categories/$provider': {
+      id: '/t/$slug/categories/$provider'
+      path: '/t/$slug/categories/$provider'
+      fullPath: '/t/$slug/categories/$provider'
+      preLoaderRoute: typeof TSlugCategoriesProviderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/t/$slug/dashboard/': {
+      id: '/t/$slug/dashboard/'
+      path: '/t/$slug/dashboard'
+      fullPath: '/t/$slug/dashboard/'
+      preLoaderRoute: typeof TSlugDashboardIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/t/$slug/dashboard/$type': {
+      id: '/t/$slug/dashboard/$type'
+      path: '/t/$slug/dashboard/$type'
+      fullPath: '/t/$slug/dashboard/$type'
+      preLoaderRoute: typeof TSlugDashboardTypeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/t/$slug/dashboard/login': {
+      id: '/t/$slug/dashboard/login'
+      path: '/t/$slug/dashboard/login'
+      fullPath: '/t/$slug/dashboard/login'
+      preLoaderRoute: typeof TSlugDashboardLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/t/$slug/packages/$provider': {
+      id: '/t/$slug/packages/$provider'
+      path: '/t/$slug/packages/$provider'
+      fullPath: '/t/$slug/packages/$provider'
+      preLoaderRoute: typeof TSlugPackagesProviderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/t/$slug/payment/$provider': {
+      id: '/t/$slug/payment/$provider'
+      path: '/t/$slug/payment/$provider'
+      fullPath: '/t/$slug/payment/$provider'
+      preLoaderRoute: typeof TSlugPaymentProviderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
+interface AdminRouteChildren {
+  AdminAppsRoute: typeof AdminAppsRoute
+  AdminPlansRoute: typeof AdminPlansRoute
+  AdminIndexRoute: typeof AdminIndexRoute
+  AdminResellersIdRoute: typeof AdminResellersIdRoute
+  AdminResellersNewRoute: typeof AdminResellersNewRoute
+  AdminResellersIndexRoute: typeof AdminResellersIndexRoute
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminAppsRoute: AdminAppsRoute,
+  AdminPlansRoute: AdminPlansRoute,
+  AdminIndexRoute: AdminIndexRoute,
+  AdminResellersIdRoute: AdminResellersIdRoute,
+  AdminResellersNewRoute: AdminResellersNewRoute,
+  AdminResellersIndexRoute: AdminResellersIndexRoute,
+}
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRouteWithChildren,
+  HistoryRoute: HistoryRoute,
+  NotificationsRoute: NotificationsRoute,
+  OfflineModeRoute: OfflineModeRoute,
+  PaymentSuccessRoute: PaymentSuccessRoute,
+  PrivacyPolicyRoute: PrivacyPolicyRoute,
+  ProfileRoute: ProfileRoute,
+  ProvidersRoute: ProvidersRoute,
+  CategoriesProviderRoute: CategoriesProviderRoute,
+  DashboardTypeRoute: DashboardTypeRoute,
+  DashboardLoginRoute: DashboardLoginRoute,
+  PackagesProviderRoute: PackagesProviderRoute,
+  PaymentProviderRoute: PaymentProviderRoute,
+  DashboardIndexRoute: DashboardIndexRoute,
+  ApiPublicManifestRoute: ApiPublicManifestRoute,
+  ApiPublicOfflineRegisterRoute: ApiPublicOfflineRegisterRoute,
+  ApiPublicTenantIconRoute: ApiPublicTenantIconRoute,
+  TSlugHistoryRoute: TSlugHistoryRoute,
+  TSlugNotificationsRoute: TSlugNotificationsRoute,
+  TSlugOfflineModeRoute: TSlugOfflineModeRoute,
+  TSlugPaymentSuccessRoute: TSlugPaymentSuccessRoute,
+  TSlugPrivacyPolicyRoute: TSlugPrivacyPolicyRoute,
+  TSlugProfileRoute: TSlugProfileRoute,
+  TSlugProvidersRoute: TSlugProvidersRoute,
+  TSlugIndexRoute: TSlugIndexRoute,
+  TSlugCategoriesProviderRoute: TSlugCategoriesProviderRoute,
+  TSlugDashboardTypeRoute: TSlugDashboardTypeRoute,
+  TSlugDashboardLoginRoute: TSlugDashboardLoginRoute,
+  TSlugPackagesProviderRoute: TSlugPackagesProviderRoute,
+  TSlugPaymentProviderRoute: TSlugPaymentProviderRoute,
+  TSlugDashboardIndexRoute: TSlugDashboardIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

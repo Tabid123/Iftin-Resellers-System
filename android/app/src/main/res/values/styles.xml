@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Base application theme. -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+        <item name="android:windowBackground">@color/splash_background</item>
+    </style>
+
+    <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:background">@color/splash_background</item>
+        <item name="android:windowBackground">@color/splash_background</item>
+        <item name="android:statusBarColor">@color/status_bar_background</item>
+        <item name="android:navigationBarColor">@color/navigation_bar_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <!-- Text selection popup (Cut / Copy / Paste / Select all): use a light
+             surface instead of inheriting colorPrimaryDark. -->
+        <item name="windowActionModeOverlay">true</item>
+        <item name="actionModeStyle">@style/AppActionMode</item>
+        <item name="actionModeBackground">@color/action_mode_background</item>
+        <item name="actionModeCloseButtonStyle">@style/AppActionModeCloseButton</item>
+        <item name="actionMenuTextColor">@color/action_mode_text</item>
+    </style>
+
+    <style name="AppActionMode" parent="Widget.AppCompat.ActionMode">
+        <item name="background">@color/action_mode_background</item>
+        <item name="backgroundSplit">@color/action_mode_background</item>
+        <item name="titleTextStyle">@style/AppActionModeTitle</item>
+    </style>
+
+    <style name="AppActionModeTitle" parent="TextAppearance.AppCompat.Widget.ActionMode.Title">
+        <item name="android:textColor">@color/action_mode_text</item>
+    </style>
+
+    <style name="AppActionModeCloseButton" parent="Widget.AppCompat.ActionButton.CloseMode">
+        <item name="android:tint">@color/action_mode_text</item>
+    </style>
+
+
+
+    <!-- Launch theme: same background color as the web splash so there is no
+         white flash between the native splash and the web splash. -->
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_round</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+        <item name="android:background">@color/splash_background</item>
+        <item name="android:windowBackground">@color/splash_background</item>
+    </style>
+</resources>

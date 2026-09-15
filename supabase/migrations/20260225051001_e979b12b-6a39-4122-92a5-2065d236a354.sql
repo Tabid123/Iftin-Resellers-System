@@ -1,0 +1,1 @@
+ALTER TABLE public.delivery_queue ALTER COLUMN order_id DROP NOT NULL;
