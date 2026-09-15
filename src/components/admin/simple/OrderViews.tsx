@@ -208,7 +208,7 @@ export const OrdersListView = ({ isSo, type }: { isSo: boolean; type: string }) 
     setLoading(true);
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const tid = getTenantId();
-    let query = supabase.from('orders').select('*, data_packages_config(cost_price)').order('created_at', { ascending: false }).limit(200);
+    let query = supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(200);
     if (tid) query = query.eq('tenant_id', tid);
     switch (type) {
       case 'sales': query = query.gte('created_at', today.toISOString()).in('status', ['paid', 'completed']); break;
@@ -216,8 +216,9 @@ export const OrdersListView = ({ isSo, type }: { isSo: boolean; type: string }) 
       case 'pending': query = query.eq('delivery_status', 'pending').in('status', ['paid', 'completed']); break;
       case 'delivered': query = query.eq('delivery_status', 'delivered'); break;
     }
-    const { data } = await query;
-    setOrders(data || []);
+    const { data, error } = await query;
+    if (error) console.error('[OrdersList] load failed', error);
+    setOrders(await attachPackageCosts(data || []));
     setLoading(false);
   }, [type]);
 
