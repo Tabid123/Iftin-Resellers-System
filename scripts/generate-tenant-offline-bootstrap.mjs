@@ -140,6 +140,35 @@ const snapshot = {
 
 await writeFile('public/tenant-bootstrap.json', `${JSON.stringify(snapshot)}\n`, 'utf8');
 
+// This classic script is injected before the React entry module for Capacitor.
+// It synchronously seeds the exact workspace-scoped keys the app already uses,
+// so a brand-new APK can resolve its tenant and catalog with airplane mode on.
+const seedScript = `(() => {
+  try {
+    const snapshot = ${JSON.stringify(snapshot)};
+    const tenant = snapshot.tenant;
+    if (!tenant || !tenant.id || !tenant.slug) return;
+    localStorage.setItem('najax.tenant_cache.' + tenant.slug, JSON.stringify(tenant));
+    localStorage.setItem('najax.cache_owner_slug', tenant.slug);
+    const prefix = 'ws:' + tenant.id + ':';
+    const r = snapshot.resources || {};
+    const setJson = (name, value) => localStorage.setItem(prefix + name, JSON.stringify(value));
+    setJson('offline_providers', r.providers || []);
+    setJson('offline_categories', r.categories || []);
+    setJson('offline_packages', r.packages || {});
+    setJson('offline_payment_providers', r.paymentProviders || []);
+    setJson('offline_delivery_instructions', r.deliveryInstructions || []);
+    setJson('offline_app_settings', r.appSettings || []);
+    setJson('offline_featured_packages', r.featuredPackages || []);
+    setJson('offline_popular_packages_v2', r.popularPackages || []);
+    setJson('offline_banners', r.banners || []);
+    localStorage.setItem(prefix + 'offline_banners_at', String(Date.now()));
+    localStorage.setItem(prefix + 'offline_cache_timestamp', String(Date.now()));
+    localStorage.setItem(prefix + 'offline_bootstrap_applied_v1', snapshot.generatedAt || '1');
+  } catch (_) {}
+})();\n`;
+await writeFile('public/tenant-bootstrap.js', seedScript, 'utf8');
+
 if (process.env.GITHUB_ENV) {
   await appendFile(process.env.GITHUB_ENV, `VITE_TENANT_ID=${tenantId}\n`, 'utf8');
 }
