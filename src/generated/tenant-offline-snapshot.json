@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "generatedAt": null,
+  "tenant": null,
+  "providers": [],
+  "categories": [],
+  "packages": {},
+  "paymentProviders": [],
+  "deliveryInstructions": [],
+  "appSettings": [],
+  "featuredPackages": [],
+  "banners": []
+}
