@@ -1,0 +1,31 @@
+name: Verify storefront offline/nav/push
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'scripts/**'
+      - 'public/**'
+      - 'package.json'
+      - 'bun.lock'
+      - 'vite.config.ts'
+      - 'capacitor.config.json'
+      - '.github/workflows/build-tenant-android.yml'
+      - '.github/workflows/verify-storefront-offline-nav-push.yml'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Typecheck
+        run: bun run typecheck
+      - name: Build
+        run: bun run build

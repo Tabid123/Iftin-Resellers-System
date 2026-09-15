@@ -4,6 +4,11 @@ import { bundledStaticImages, getLocalImage } from '@/lib/localImages';
 import { useTenant } from '@/contexts/TenantContext';
 import { workspaceStorage } from '@/lib/workspaceKeys';
 
+type IdleWindow = Window & {
+  requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+  cancelIdleCallback?: (handle: number) => void;
+};
+
 export const useGlobalImagePreloader = () => {
   const tenantState = useTenant();
   const workspaceId =
@@ -15,7 +20,12 @@ export const useGlobalImagePreloader = () => {
     // Never preload another workspace's images: wait for resolution, and read
     // only this workspace's snapshots.
     if (!workspaceId) return;
-    const preloadAllImages = () => {
+
+    let cancelled = false;
+    let timeoutId: number | null = null;
+    let idleId: number | null = null;
+
+    const preloadProgressively = () => {
       try {
         const providers = workspaceStorage.getJson<any[]>('offline_providers', [], workspaceId);
         const categories = workspaceStorage.getJson<any[]>('offline_categories', [], workspaceId);
@@ -25,27 +35,48 @@ export const useGlobalImagePreloader = () => {
           [],
           workspaceId,
         );
-        
-        
-        // Collect ALL image URLs
+
         const cachedImageUrls: string[] = [
           ...providers.map((p: any) => p.provider_logo).filter(Boolean),
           ...categories.map((c: any) => c.category_image).filter(Boolean),
           ...banners.map((b: any) => b.banner_image).filter(Boolean),
           ...paymentProviders.map((pp: any) => pp.provider_logo).filter(Boolean),
         ];
-        
-        // Remove duplicates
+
         const uniqueUrls = [...new Set([...bundledStaticImages, ...cachedImageUrls])];
-        
-        // Preload ALL images into browser memory immediately
-        uniqueUrls.forEach(url => {
-          const img = new Image();
-          img.src = url;
-        });
+
+        // Do not decode every image on the main thread during startup. The
+        // first small batch covers the visible storefront; the remainder is
+        // warmed in small chunks while the browser/WebView is idle.
+        const queue = [...uniqueUrls];
+        const warmBatch = () => {
+          if (cancelled || queue.length === 0) return;
+          const batch = queue.splice(0, 6);
+          batch.forEach((url) => {
+            const img = new Image();
+            img.decoding = 'async';
+            img.loading = 'eager';
+            img.src = url;
+          });
+
+          if (queue.length > 0) scheduleNextBatch();
+        };
+
+        const scheduleNextBatch = () => {
+          if (cancelled) return;
+          const idleWindow = window as IdleWindow;
+          if (idleWindow.requestIdleCallback) {
+            idleId = idleWindow.requestIdleCallback(() => warmBatch(), { timeout: 1200 });
+          } else {
+            timeoutId = window.setTimeout(warmBatch, 120);
+          }
+        };
+
+        warmBatch();
 
         // Known static images are already in the bundle. Cache only custom
-        // remote uploads; known provider/category/banner images never need I/O.
+        // remote uploads for true offline reuse, but let cacheImages handle I/O
+        // independently from image decoding above.
         const customRemoteUrls = cachedImageUrls.filter((url) =>
           /^https?:/i.test(url) &&
           !getLocalImage('provider', null, url) &&
@@ -53,22 +84,21 @@ export const useGlobalImagePreloader = () => {
           !getLocalImage('category', null, url) &&
           !getLocalImage('banner', null, url),
         );
-        cacheImages(customRemoteUrls);
-        
-        console.log(`[ImagePreloader] Preloaded ${uniqueUrls.length} images into memory`);
+        void cacheImages(customRemoteUrls);
       } catch (error) {
         console.error('[ImagePreloader] Error preloading images:', error);
       }
     };
-    
-    // Run immediately
-    preloadAllImages();
-    
-    // Also run when coming back online
-    window.addEventListener('online', preloadAllImages);
-    
+
+    preloadProgressively();
+    window.addEventListener('online', preloadProgressively);
+
     return () => {
-      window.removeEventListener('online', preloadAllImages);
+      cancelled = true;
+      window.removeEventListener('online', preloadProgressively);
+      if (timeoutId != null) window.clearTimeout(timeoutId);
+      const idleWindow = window as IdleWindow;
+      if (idleId != null && idleWindow.cancelIdleCallback) idleWindow.cancelIdleCallback(idleId);
     };
   }, [workspaceId]);
 };
