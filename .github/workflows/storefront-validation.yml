@@ -1,0 +1,71 @@
+name: Validate storefront Android changes
+
+on:
+  push:
+    branches:
+      - feature/storefront-native-offline-performance
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'android/**'
+      - 'capacitor.config.json'
+      - 'package.json'
+      - 'bun.lock'
+      - '.github/workflows/build-tenant-android.yml'
+      - '.github/workflows/storefront-validation.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build Capacitor web bundle
+        env:
+          CAPACITOR_BUILD: 'true'
+          VITE_TENANT_SLUG: validation-tenant
+          VITE_TENANT_NAME: Validation Tenant
+          VITE_SPLASH_COLOR: '#0F4C81'
+          VITE_BUILD_VERSION: validation
+        run: bun run build
+
+      - name: Prepare and sync Capacitor
+        run: |
+          set -e
+          if [ ! -f dist/index.html ]; then
+            SRC=''
+            for d in .output/public dist/client dist/public build/client build; do
+              if [ -f "$d/index.html" ]; then SRC="$d"; break; fi
+            done
+            if [ -z "$SRC" ]; then
+              echo 'No built index.html found'
+              exit 1
+            fi
+            rm -rf dist_capacitor
+            mkdir -p dist_capacitor
+            cp -R "$SRC"/. dist_capacitor/
+            rm -rf dist
+            mv dist_capacitor dist
+          fi
+          rm -rf android/app/src/main/assets/public
+          npx cap sync android
+
+      - name: Compile Android debug APK
+        working-directory: android
+        env:
+          TENANT_SLUG: validation-tenant
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
