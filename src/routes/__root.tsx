@@ -35,6 +35,7 @@ import { registerTenantChangeListener } from '@/integrations/supabase/client';
 import { scheduleNativeSplashFallback } from '@/lib/nativeSplash';
 import { initNativeBars } from '@/lib/nativeStatusBar';
 
+import { usePackagedOfflineBootstrap } from "@/hooks/usePackagedOfflineBootstrap";
 import { useOfflineCache } from "@/hooks/useOfflineCache";
 import { useGlobalImagePreloader } from "@/hooks/useGlobalImagePreloader";
 import { useEdgeToEdge } from "@/hooks/useEdgeToEdge";
@@ -200,6 +201,9 @@ function RootShell({ children }: { children: ReactNode }) {
 }
 
 function AppContent() {
+  // Fresh tenant APKs seed the exact tenant snapshot before normal cache/network
+  // hydration. This gives first-launch offline browsing without cross-tenant data.
+  usePackagedOfflineBootstrap();
   useOfflineCache();
   useGlobalImagePreloader();
   useEdgeToEdge();
@@ -323,4 +327,3 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
-
