@@ -76,7 +76,7 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
 
     const reasonText =
       kind === "trial_expired"
-        ? "Waqtigii tijaabada wuu dhamaaday"
+        ? "Waqtiga tijaabada ayaa kaa dhacay"
         : kind === "expired"
           ? "Waqtigii adeegga wuu dhacay"
           : manualReason || "Maamulka sare ayaa xiray";
