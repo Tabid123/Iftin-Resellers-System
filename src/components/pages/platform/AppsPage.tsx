@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Loader2, Trash2, Upload, Smartphone, Eye, EyeOff } from 'lucide-react'
+import { Loader2, Trash2, Upload, Smartphone, Eye, EyeOff, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
 type AppRow = {
@@ -102,21 +102,104 @@ export default function AppsPage() {
     }
   }
 
-  const toggle = async (app: AppRow) => {
-    const { error } = await db.from('platform_apps').update({ is_active: !app.is_active }).eq('id', app.id)
+  // Hal app oo la siiyay resellers badan waxuu leeyahay saf kasta reseller — halkan
+  // waxaa lagu soo koobaa hal kaar si liisku u nadiifto.
+  type AppGroup = {
+    key: string
+    rows: AppRow[]
+    name: string
+    version: string | null
+    platform: string
+    description: string | null
+    file_url: string
+    isAllTenants: boolean
+    anyActive: boolean
+  }
+
+  const groups: AppGroup[] = (() => {
+    const map = new Map<string, AppGroup>()
+    for (const app of apps) {
+      const key = `${app.name}|${app.version ?? ''}|${app.platform}|${app.file_url}`
+      const g = map.get(key)
+      if (g) {
+        g.rows.push(app)
+        g.isAllTenants = g.isAllTenants || app.tenant_id === null
+        g.anyActive = g.anyActive || app.is_active
+      } else {
+        map.set(key, {
+          key,
+          rows: [app],
+          name: app.name,
+          version: app.version,
+          platform: app.platform,
+          description: app.description,
+          file_url: app.file_url,
+          isAllTenants: app.tenant_id === null,
+          anyActive: app.is_active,
+        })
+      }
+    }
+    return [...map.values()]
+  })()
+
+  const toggle = async (group: AppGroup) => {
+    const next = !group.anyActive
+    const { error } = await db
+      .from('platform_apps')
+      .update({ is_active: next })
+      .in('id', group.rows.map((r) => r.id))
     if (error) return toast.error(error.message)
     load()
   }
 
-  const remove = async (app: AppRow) => {
-    if (!confirm(`Tirtir "${app.name}"?`)) return
-    const { error } = await db.from('platform_apps').delete().eq('id', app.id)
+  const remove = async (group: AppGroup) => {
+    if (!confirm(`Tirtir "${group.name}"?`)) return
+    const { error } = await db.from('platform_apps').delete().in('id', group.rows.map((r) => r.id))
     if (error) return toast.error(error.message)
-    if (!/^https?:\/\//i.test(app.file_url)) {
-      await supabase.storage.from('apks').remove([app.file_url])
+    if (!/^https?:\/\//i.test(group.file_url)) {
+      await supabase.storage.from('apks').remove([group.file_url])
     }
     toast.success('Waa la tirtiray')
     load()
+  }
+
+  // Resellers cusub ku dar app horey loo daabacay — file-ka dib looma raro.
+  const [shareKey, setShareKey] = useState<string | null>(null)
+  const [shareIds, setShareIds] = useState<string[]>([])
+  const [sharing, setSharing] = useState(false)
+
+  const openShare = (group: AppGroup) => {
+    setShareKey(shareKey === group.key ? null : group.key)
+    setShareIds([])
+  }
+
+  const saveShare = async (group: AppGroup) => {
+    if (shareIds.length === 0) return toast.error('Dooro ugu yaraan hal reseller')
+    setSharing(true)
+    try {
+      const sample = group.rows[0]
+      const { error } = await db.from('platform_apps').insert(
+        shareIds.map((tid) => ({
+          name: group.name,
+          description: group.description,
+          platform: group.platform,
+          version: group.version,
+          file_url: group.file_url,
+          icon_url: sample.icon_url,
+          display_order: sample.display_order,
+          tenant_id: tid,
+        })),
+      )
+      if (error) throw error
+      toast.success('Resellers-ka waa lagu daray')
+      setShareKey(null)
+      setShareIds([])
+      await load()
+    } catch (err: any) {
+      toast.error(err?.message || 'Khalad ayaa dhacay')
+    } finally {
+      setSharing(false)
+    }
   }
 
   return (
@@ -208,26 +291,71 @@ export default function AppsPage() {
         {!loading && apps.length === 0 && (
           <div className="p-6 text-sm text-muted-foreground">Wali app lama daabicin.</div>
         )}
-        {apps.map((app) => (
-          <div key={app.id} className="p-4 flex flex-wrap items-center gap-3">
-            <Smartphone className="h-5 w-5 text-muted-foreground shrink-0" />
-            <div className="min-w-0 flex-1 basis-[60%]">
-              <div className="font-medium truncate">
-                {app.name} {app.version ? <span className="text-xs text-muted-foreground">v{app.version}</span> : null}
+        {groups.map((group) => {
+          const assigned = group.rows
+            .filter((r) => r.tenant_id)
+            .map((r) => tenants.find((t) => t.id === r.tenant_id)?.name ?? 'Reseller')
+          const remaining = tenants.filter((t) => !group.rows.some((r) => r.tenant_id === t.id))
+          return (
+            <div key={group.key} className="p-4 space-y-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <Smartphone className="h-5 w-5 text-muted-foreground shrink-0" />
+                <div className="min-w-0 flex-1 basis-[55%]">
+                  <div className="font-medium truncate">
+                    {group.name} {group.version ? <span className="text-xs text-muted-foreground">v{group.version}</span> : null}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {group.platform} ·{' '}
+                    {group.isAllTenants
+                      ? 'Dhammaan resellers-ka'
+                      : `${assigned.length} reseller: ${assigned.join(', ')}`}
+                    {group.anyActive ? '' : ' · qarsoon'}
+                  </div>
+                </div>
+                {!group.isAllTenants && remaining.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={() => openShare(group)}>
+                    <Plus className="h-4 w-4 mr-1" /> Resellers ku dar
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={() => toggle(group)}>
+                  {group.anyActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => remove(group)}>
+                  <Trash2 className="h-4 w-4 text-red-600" />
+                </Button>
               </div>
-              <div className="text-xs text-muted-foreground truncate">
-                {app.platform} · {app.tenant_id ? (tenants.find(t => t.id === app.tenant_id)?.name ?? 'Reseller') : 'Dhammaan resellers-ka'}
-                {app.is_active ? '' : ' · qarsoon'}
-              </div>
+
+              {shareKey === group.key && (
+                <div className="rounded-md border bg-background p-3 space-y-2">
+                  <div className="text-xs text-muted-foreground">
+                    Resellers cusub dooro — file-ka dib looma rarayo.
+                  </div>
+                  <div className="max-h-40 overflow-y-auto space-y-1">
+                    {remaining.map((t) => (
+                      <label key={t.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4"
+                          checked={shareIds.includes(t.id)}
+                          onChange={() =>
+                            setShareIds((prev) =>
+                              prev.includes(t.id) ? prev.filter((x) => x !== t.id) : [...prev, t.id],
+                            )
+                          }
+                        />
+                        {t.name}
+                      </label>
+                    ))}
+                  </div>
+                  <Button size="sm" disabled={sharing} onClick={() => saveShare(group)}>
+                    {sharing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                    Kaydi
+                  </Button>
+                </div>
+              )}
             </div>
-            <Button variant="outline" size="sm" onClick={() => toggle(app)}>
-              {app.is_active ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => remove(app)}>
-              <Trash2 className="h-4 w-4 text-red-600" />
-            </Button>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
