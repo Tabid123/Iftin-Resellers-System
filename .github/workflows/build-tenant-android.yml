@@ -45,12 +45,17 @@ jobs:
         with:
           bun-version: latest
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
 
-      - uses: android-actions/setup-android@v3
+      - name: Setup Android SDK
+        run: |
+          # ubuntu-latest runners already ship the Android SDK at $ANDROID_HOME.
+          # Accept licenses and make sure cmdline-tools are usable.
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platform-tools" "build-tools;36.0.0" "platforms;android-36"
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
