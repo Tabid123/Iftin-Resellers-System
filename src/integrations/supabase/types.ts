@@ -2494,6 +2494,8 @@ export type Database = {
           slug: string
           status: string
           support_phone: string | null
+          suspended_at: string | null
+          suspension_reason: string | null
           trial_ends_at: string | null
           updated_at: string
         }
@@ -2521,6 +2523,8 @@ export type Database = {
           slug: string
           status?: string
           support_phone?: string | null
+          suspended_at?: string | null
+          suspension_reason?: string | null
           trial_ends_at?: string | null
           updated_at?: string
         }
@@ -2548,6 +2552,8 @@ export type Database = {
           slug?: string
           status?: string
           support_phone?: string | null
+          suspended_at?: string | null
+          suspension_reason?: string | null
           trial_ends_at?: string | null
           updated_at?: string
         }
@@ -3056,6 +3062,9 @@ export type Database = {
           slug: string
           status: string
           support_phone: string
+          suspended_at: string
+          suspension_kind: string
+          suspension_reason: string
           trial_ends_at: string
         }[]
       }
