@@ -1,3 +1,5 @@
+import { tenantOfflineBootstrap } from '@/generated/tenantOfflineBootstrap';
+
 /**
  * Tenant resolution for the native (Capacitor) app.
  *
@@ -9,6 +11,25 @@
  */
 
 export const TENANT_STORAGE_KEY = "najax.tenant_slug";
+const TENANT_CACHE_PREFIX = "najax.tenant_cache.";
+
+function seedPackagedTenantIdentity(slug: string) {
+  if (typeof window === 'undefined') return;
+  const snapshot = tenantOfflineBootstrap as any;
+  const tenant = snapshot?.tenant;
+  if (!tenant?.id || String(tenant.slug || '').toLowerCase() !== slug) return;
+
+  try {
+    const key = TENANT_CACHE_PREFIX + slug;
+    // Runtime/server-resolved identity is newer and wins over the APK snapshot.
+    if (!localStorage.getItem(key)) {
+      localStorage.setItem(key, JSON.stringify(tenant));
+    }
+    localStorage.setItem(TENANT_STORAGE_KEY, slug);
+  } catch {
+    /* ignore storage restrictions */
+  }
+}
 
 /**
  * Detect the native shell. Shared by every tenant build.
@@ -52,8 +73,10 @@ export function isNativeApp(): boolean {
 
 /** Slug baked into this build (per-tenant APKs produced by CI). */
 export function buildTenantSlug(): string | null {
-  const slug = (import.meta.env.VITE_TENANT_SLUG as string | undefined)?.trim();
-  return slug ? slug.toLowerCase() : null;
+  const value = (import.meta.env.VITE_TENANT_SLUG as string | undefined)?.trim();
+  const slug = value ? value.toLowerCase() : null;
+  if (slug) seedPackagedTenantIdentity(slug);
+  return slug;
 }
 
 export function storedTenantSlug(): string | null {
