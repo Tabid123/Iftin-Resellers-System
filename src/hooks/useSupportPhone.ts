@@ -1,6 +1,6 @@
 import { useTenant } from '@/contexts/TenantContext';
 
-const DEFAULT_SUPPORT_PHONE = '619535029';
+const DEFAULT_SUPPORT_PHONE = '615555495';
 
 /** Normalise to a bare 9-digit Somali number (no +252 / 252 prefix). */
 export function normalizeSupportPhone(raw?: string | null): string {
