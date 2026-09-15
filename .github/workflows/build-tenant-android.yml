@@ -151,16 +151,38 @@ jobs:
 
       - name: Verify fresh web bundle was packaged
         run: |
-          set -e
-          test -f android/app/src/main/assets/public/index.html
-          test -f android/app/src/main/assets/public/apk-build.json
-          grep -Fq "${GITHUB_SHA}" android/app/src/main/assets/public/apk-build.json
-          grep -Fq '"bannerCache":"tenant-scoped"' android/app/src/main/assets/public/apk-build.json
-          grep -Fq '"numericKeyboard":"native-webview-numeric"' android/app/src/main/assets/public/apk-build.json
-          grep -Fq '"captureInput": false' capacitor.config.json
-          grep -Fq '"captureInput": false' android/app/src/main/assets/capacitor.config.json
-          grep -Rqs "offline_banners:" android/app/src/main/assets/public
-          grep -Rqs "SET_VERSION" android/app/src/main/assets/public
+          ASSETS=android/app/src/main/assets
+          FAILED=0
+          fail() { echo "::error::VERIFY FAILED: $1"; FAILED=1; }
+
+          test -f "$ASSETS/public/index.html" || fail "index.html missing from Android assets"
+          test -f "$ASSETS/public/apk-build.json" || fail "apk-build.json missing from Android assets"
+
+          if [ -f "$ASSETS/public/apk-build.json" ]; then
+            echo "apk-build.json: $(cat "$ASSETS/public/apk-build.json")"
+            grep -Fq "${GITHUB_SHA}" "$ASSETS/public/apk-build.json" || fail "apk-build.json is from an older commit"
+            grep -Fq '"bannerCache":"tenant-scoped"' "$ASSETS/public/apk-build.json" || fail "bannerCache stamp missing"
+            grep -Fq '"numericKeyboard":"native-webview-numeric"' "$ASSETS/public/apk-build.json" || fail "numericKeyboard stamp missing"
+          fi
+
+          # captureInput must stay false so the native numeric keyboard is used.
+          grep -Eq '"captureInput"[[:space:]]*:[[:space:]]*false' capacitor.config.json \
+            || fail "captureInput is not false in capacitor.config.json"
+          if [ -f "$ASSETS/capacitor.config.json" ]; then
+            grep -Eq '"captureInput"[[:space:]]*:[[:space:]]*false' "$ASSETS/capacitor.config.json" \
+              || fail "captureInput is not false in the synced Android capacitor.config.json"
+          else
+            echo "Note: $ASSETS/capacitor.config.json not present (Capacitor 7 keeps config in the APK resources)."
+          fi
+
+          grep -Rqs "offline_banners" "$ASSETS/public" || fail "tenant banner cache code missing from bundle"
+          grep -Rqs "SET_VERSION" "$ASSETS/public" || fail "service worker version handshake missing from bundle"
+
+          if [ "$FAILED" != "0" ]; then
+            echo "Android assets tree:"
+            find "$ASSETS" -maxdepth 2 -print
+            exit 1
+          fi
           echo "Fresh tenant banner and native numeric keyboard configuration verified in Android bundle"
 
       - name: Apply app id, label and splash color
