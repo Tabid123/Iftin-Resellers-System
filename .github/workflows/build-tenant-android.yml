@@ -80,6 +80,30 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Generate bundled offline storefront
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -e
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::Supabase build secrets are required for a full offline tenant APK"
+            exit 1
+          fi
+          node scripts/generate-tenant-offline-snapshot.mjs
+          node - <<'NODE'
+          const fs = require('fs');
+          const snapshot = JSON.parse(fs.readFileSync('src/generated/tenant-offline-snapshot.json', 'utf8'));
+          if (!snapshot.tenant?.id || snapshot.tenant.slug !== process.env.TENANT_SLUG) {
+            throw new Error('Bundled offline tenant identity verification failed');
+          }
+          const packageCount = Object.values(snapshot.packages || {}).reduce((n, rows) => n + rows.length, 0);
+          if (!snapshot.providers?.length || packageCount === 0) {
+            throw new Error('Bundled offline catalog is empty');
+          }
+          console.log(`Verified offline snapshot: ${snapshot.providers.length} providers / ${packageCount} packages`);
+          NODE
+
       - name: Configure app identity for this tenant
         run: |
           APP_ID="${{ inputs.app_id }}"
@@ -103,7 +127,7 @@ jobs:
 
       - name: Stamp Android web bundle
         run: |
-          printf '{"commit":"%s","tenant":"%s","bannerCache":"tenant-scoped","numericKeyboard":"native-webview-numeric"}\n' "${GITHUB_SHA}" "${TENANT_SLUG}" > public/apk-build.json
+          printf '{"commit":"%s","tenant":"%s","bannerCache":"tenant-scoped","numericKeyboard":"native-webview-numeric","offlineSnapshot":"bundled-v1"}\n' "${GITHUB_SHA}" "${TENANT_SLUG}" > public/apk-build.json
 
       - name: Build web bundle
         run: bun run build
@@ -114,7 +138,6 @@ jobs:
           VITE_TENANT_LOGO_URL: ${{ inputs.logo_url }}
           VITE_SPLASH_COLOR: ${{ inputs.splash_color }}
           VITE_BUILD_VERSION: ${{ github.sha }}
-
 
       - name: Prepare web assets for Capacitor
         run: |
@@ -145,7 +168,6 @@ jobs:
 
       - name: Sync Capacitor
         run: |
-          # Never allow files from an earlier APK build to survive the copy.
           rm -rf android/app/src/main/assets/public
           npx cap sync android
 
@@ -163,36 +185,34 @@ jobs:
             grep -Fq "${GITHUB_SHA}" "$ASSETS/public/apk-build.json" || fail "apk-build.json is from an older commit"
             grep -Fq '"bannerCache":"tenant-scoped"' "$ASSETS/public/apk-build.json" || fail "bannerCache stamp missing"
             grep -Fq '"numericKeyboard":"native-webview-numeric"' "$ASSETS/public/apk-build.json" || fail "numericKeyboard stamp missing"
+            grep -Fq '"offlineSnapshot":"bundled-v1"' "$ASSETS/public/apk-build.json" || fail "offline snapshot stamp missing"
           fi
 
-          # captureInput must stay false so the native numeric keyboard is used.
           grep -Eq '"captureInput"[[:space:]]*:[[:space:]]*false' capacitor.config.json \
             || fail "captureInput is not false in capacitor.config.json"
           if [ -f "$ASSETS/capacitor.config.json" ]; then
             grep -Eq '"captureInput"[[:space:]]*:[[:space:]]*false' "$ASSETS/capacitor.config.json" \
               || fail "captureInput is not false in the synced Android capacitor.config.json"
           else
-            echo "Note: $ASSETS/capacitor.config.json not present (Capacitor 7 keeps config in the APK resources)."
+            echo "Note: $ASSETS/capacitor.config.json not present (Capacitor keeps config in APK resources)."
           fi
 
           grep -Rqs "offline_banners" "$ASSETS/public" || fail "tenant banner cache code missing from bundle"
           grep -Rqs "SET_VERSION" "$ASSETS/public" || fail "service worker version handshake missing from bundle"
+          grep -Rqs "offlineSnapshot" "$ASSETS/public" || fail "bundled offline snapshot bootstrap missing from bundle"
 
           if [ "$FAILED" != "0" ]; then
             echo "Android assets tree:"
             find "$ASSETS" -maxdepth 2 -print
             exit 1
           fi
-          echo "Fresh tenant banner and native numeric keyboard configuration verified in Android bundle"
+          echo "Fresh tenant bundle, offline snapshot and navigation configuration verified"
 
       - name: Apply app id, label and splash color
         env:
           SPLASH_COLOR: ${{ inputs.splash_color }}
         run: |
           sed -i "s/applicationId \".*\"/applicationId \"${APP_ID}\"/" android/app/build.gradle
-          # Keep the Android namespace fixed because MainActivity is compiled as
-          # com.iftin.agents.MainActivity. The applicationId may safely vary per
-          # tenant without moving or renaming the Java activity class.
           python3 - <<'PY'
           import os, re
           p = "android/app/src/main/res/values/strings.xml"
@@ -208,10 +228,8 @@ jobs:
           c = "android/app/src/main/res/values/colors.xml"
           s = open(c).read()
           s = re.sub(r'(<color name="[A-Za-z_]+">)#[0-9A-Fa-f]{6}(</color>)', r'\g<1>' + color + r'\g<2>', s)
-
           open(c, "w").write(s)
           PY
-
 
       - name: Generate icons and splash from tenant logo
         env:
@@ -279,7 +297,6 @@ jobs:
             -H "x-upsert: true" \
             -H "Content-Type: application/vnd.android.package-archive" \
             --data-binary "@$APK"
-          # Private bucket: store the object path; the app creates signed URLs.
           STORED_PATH="${TENANT_SLUG}-${APP_VERSION_NAME}.apk"
           curl -fsS -X PATCH "$SUPABASE_URL/rest/v1/tenants?slug=eq.$TENANT_SLUG" \
             -H "apikey: $SERVICE_KEY" \
