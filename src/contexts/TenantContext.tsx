@@ -24,6 +24,9 @@ export interface Tenant {
   trial_ends_at: string | null;
   current_period_end: string | null;
   support_phone?: string | null;
+  suspension_reason?: string | null;
+  suspended_at?: string | null;
+  suspension_kind?: "trial_expired" | "expired" | "manual" | null;
 }
 
 

@@ -182,6 +182,24 @@ export default function ResellerDetailPage() {
     return true
   }
 
+  const suspendWithReason = async () => {
+    const reason = window.prompt(
+      'Sababta xiritaanka (waxay ka muuqan doontaa app-ka macmiilka):',
+      tenant?.suspension_reason ?? '',
+    )
+    if (reason === null) return
+    const trimmed = reason.trim()
+    if (!trimmed) {
+      toast({ title: 'Fadlan sababta qor', variant: 'destructive' })
+      return
+    }
+    await update({
+      status: 'suspended',
+      suspension_reason: trimmed,
+      suspended_at: new Date().toISOString(),
+    })
+  }
+
   const saveDates = async () => {
     await update({
       current_period_end: periodEnd ? new Date(`${periodEnd}T23:59:59`).toISOString() : null,
@@ -407,13 +425,15 @@ export default function ResellerDetailPage() {
 
             <div className="flex gap-2 pt-2 border-t flex-wrap">
               {tenant.status !== 'active' && (
-                <Button size="sm" onClick={() => update({ status: 'active' })} disabled={saving}>
+                <Button size="sm"
+                  onClick={() => update({ status: 'active', suspension_reason: null, suspended_at: null })}
+                  disabled={saving}>
                   Activate
                 </Button>
               )}
               {tenant.status === 'active' && (
                 <Button size="sm" variant="destructive"
-                  onClick={() => update({ status: 'suspended' })} disabled={saving}>
+                  onClick={suspendWithReason} disabled={saving}>
                   Suspend
                 </Button>
               )}
