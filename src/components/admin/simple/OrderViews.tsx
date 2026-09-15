@@ -15,6 +15,19 @@ import { effectiveOrderCost } from '@/lib/iftinProfit';
 
 const orderDisplayCost = (item: any) => effectiveOrderCost(item.cost_price, item.data_packages_config?.cost_price);
 
+// orders → data_packages_config ma laha foreign key, sidaa darteed embed lama sameyn karo.
+// Kharashka xirmada si gooni ah ayaa loo soo qaadayaa, kadibna dalabka lagu dhejinayaa.
+const attachPackageCosts = async (rows: any[]): Promise<any[]> => {
+  const ids = Array.from(new Set(rows.map(r => r.package_id).filter(Boolean)));
+  if (!ids.length) return rows;
+  const { data } = await supabase.from('data_packages_config').select('id, cost_price').in('id', ids);
+  const costs = new Map((data || []).map((p: any) => [p.id, p.cost_price]));
+  return rows.map(r => ({
+    ...r,
+    data_packages_config: costs.has(r.package_id) ? { cost_price: costs.get(r.package_id) } : null,
+  }));
+};
+
 // ========== ORDER ACCORDION ITEM ==========
 const OrderAccordionItem = ({ item, idx, expandedId, setExpandedId, isSo, actions, onReload }: {
   item: any; idx: number; expandedId: string | null; setExpandedId: (id: string | null) => void;
