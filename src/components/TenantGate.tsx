@@ -67,7 +67,11 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
   if (state.status === "suspended") {
     const t = state.tenant;
     const waPhone = normalizeSupportPhone(t?.support_phone ?? null);
-    const kind = t?.suspension_kind ?? null;
+    const endsAt = t?.trial_ends_at ?? t?.current_period_end ?? null;
+    const expired = endsAt ? new Date(endsAt).getTime() <= Date.now() : false;
+    const kind =
+      t?.suspension_kind ??
+      (expired ? (t?.trial_ends_at ? "trial_expired" : "expired") : null);
     const manualReason = (t?.suspension_reason ?? "").trim();
 
     const reasonText =
