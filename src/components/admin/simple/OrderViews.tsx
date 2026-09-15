@@ -15,6 +15,19 @@ import { effectiveOrderCost } from '@/lib/iftinProfit';
 
 const orderDisplayCost = (item: any) => effectiveOrderCost(item.cost_price, item.data_packages_config?.cost_price);
 
+// orders → data_packages_config ma laha foreign key, sidaa darteed embed lama sameyn karo.
+// Kharashka xirmada si gooni ah ayaa loo soo qaadayaa, kadibna dalabka lagu dhejinayaa.
+const attachPackageCosts = async (rows: any[]): Promise<any[]> => {
+  const ids = Array.from(new Set(rows.map(r => r.package_id).filter(Boolean)));
+  if (!ids.length) return rows;
+  const { data } = await supabase.from('data_packages_config').select('id, cost_price').in('id', ids);
+  const costs = new Map((data || []).map((p: any) => [p.id, p.cost_price]));
+  return rows.map(r => ({
+    ...r,
+    data_packages_config: costs.has(r.package_id) ? { cost_price: costs.get(r.package_id) } : null,
+  }));
+};
+
 // ========== ORDER ACCORDION ITEM ==========
 const OrderAccordionItem = ({ item, idx, expandedId, setExpandedId, isSo, actions, onReload }: {
   item: any; idx: number; expandedId: string | null; setExpandedId: (id: string | null) => void;
@@ -111,14 +124,17 @@ export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
     try {
       const date = new Date(selectedDate);
       const tid = getTenantId();
-      let dayQuery = supabase.from('orders').select('*, data_packages_config(cost_price)')
+      let dayQuery = supabase.from('orders').select('*')
         .gte('created_at', startOfDay(date).toISOString()).lte('created_at', endOfDay(date).toISOString())
         .order('created_at', { ascending: false });
       if (tid) dayQuery = dayQuery.eq('tenant_id', tid);
       const { data, error } = await dayQuery;
       if (error) throw error;
-      setOrders(data || []);
-    } catch { toast.error('Failed to load orders'); }
+      setOrders(await attachPackageCosts(data || []));
+    } catch (err) {
+      console.error('[DailyOrders] load failed', err);
+      toast.error('Failed to load orders');
+    }
     finally { setLoading(false); }
   }, [selectedDate]);
 
@@ -192,7 +208,7 @@ export const OrdersListView = ({ isSo, type }: { isSo: boolean; type: string }) 
     setLoading(true);
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const tid = getTenantId();
-    let query = supabase.from('orders').select('*, data_packages_config(cost_price)').order('created_at', { ascending: false }).limit(200);
+    let query = supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(200);
     if (tid) query = query.eq('tenant_id', tid);
     switch (type) {
       case 'sales': query = query.gte('created_at', today.toISOString()).in('status', ['paid', 'completed']); break;
@@ -200,8 +216,9 @@ export const OrdersListView = ({ isSo, type }: { isSo: boolean; type: string }) 
       case 'pending': query = query.eq('delivery_status', 'pending').in('status', ['paid', 'completed']); break;
       case 'delivered': query = query.eq('delivery_status', 'delivered'); break;
     }
-    const { data } = await query;
-    setOrders(data || []);
+    const { data, error } = await query;
+    if (error) console.error('[OrdersList] load failed', error);
+    setOrders(await attachPackageCosts(data || []));
     setLoading(false);
   }, [type]);
 
