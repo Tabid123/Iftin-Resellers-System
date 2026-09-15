@@ -4,6 +4,5 @@
     <string name="title_activity_main">Iftin Agents</string>
     <string name="package_name">com.iftin.agents</string>
     <string name="custom_url_scheme">com.iftin.agents</string>
-    <string name="tenant_slug">iftin-agents</string>
     <string name="onesignal_app_id">e5260228-4238-43e6-9bb7-77d839e5907d</string>
 </resources>
