@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
@@ -10,10 +10,23 @@ interface Notification {
   created_at: string;
 }
 
+function readCachedNotifications(key: string): Notification[] | undefined {
+  if (typeof window === 'undefined') return undefined;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return undefined;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as Notification[]) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function useNotifications() {
   const tenantState = useTenant();
   const tenantId = tenantState?.tenant?.id || null;
   const storageKey = tenantId ? `lastSeenNotification:${tenantId}` : 'lastSeenNotification';
+  const cacheKey = tenantId ? `offline_notifications:${tenantId}` : 'offline_notifications:none';
 
   const [lastSeenTimestamp, setLastSeenTimestamp] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
@@ -24,9 +37,24 @@ export function useNotifications() {
     }
   });
 
+  // Re-hydrate the seen timestamp when a different tenant becomes authoritative.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      setLastSeenTimestamp(localStorage.getItem(storageKey));
+    } catch {
+      setLastSeenTimestamp(null);
+    }
+  }, [storageKey]);
+
+  const cachedNotifications = useMemo(() => readCachedNotifications(cacheKey), [cacheKey]);
+
   const { data: notifications, isLoading, isError, refetch } = useQuery({
     queryKey: ['user-notifications', tenantId],
     enabled: !!tenantId,
+    initialData: cachedNotifications,
+    staleTime: 30_000,
+    gcTime: 60 * 60 * 1000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('notifications')
@@ -38,10 +66,23 @@ export function useNotifications() {
       if (error) throw error;
       return (data ?? []) as Notification[];
     },
-    refetchOnWindowFocus: true,
+    // The bottom navigation consumes only the unread count. Avoid forcing a
+    // fresh network request on every app focus/tap; realtime/manual refresh and
+    // this light interval keep the list current without making the nav repaint.
+    refetchOnWindowFocus: false,
     refetchOnReconnect: true,
-    refetchInterval: 30_000,
+    refetchInterval: 60_000,
+    retry: 1,
   });
+
+  useEffect(() => {
+    if (!tenantId || !notifications || typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(notifications));
+    } catch {
+      /* keep the live data even if device storage is unavailable/full */
+    }
+  }, [cacheKey, notifications, tenantId]);
 
   const unreadCount = notifications?.filter((notif) => {
     if (!lastSeenTimestamp) return true;
