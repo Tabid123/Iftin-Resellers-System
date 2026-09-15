@@ -135,8 +135,7 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
           >
             <AlertCircle className="h-5 w-5 shrink-0" style={{ color: "#3b82f6" }} />
             <p>
-              Dhammaan xogtaada iyo diiwaanka macaamiishaadu way badbaadsan
-              yihiin. Si degdeg ah ayaad dib ugu furi kartaa.
+              {reasonText} fadlan bixi bill ka.
             </p>
           </div>
         </div>
