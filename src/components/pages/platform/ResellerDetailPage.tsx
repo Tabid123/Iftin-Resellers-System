@@ -407,13 +407,15 @@ export default function ResellerDetailPage() {
 
             <div className="flex gap-2 pt-2 border-t flex-wrap">
               {tenant.status !== 'active' && (
-                <Button size="sm" onClick={() => update({ status: 'active' })} disabled={saving}>
+                <Button size="sm"
+                  onClick={() => update({ status: 'active', suspension_reason: null, suspended_at: null })}
+                  disabled={saving}>
                   Activate
                 </Button>
               )}
               {tenant.status === 'active' && (
                 <Button size="sm" variant="destructive"
-                  onClick={() => update({ status: 'suspended' })} disabled={saving}>
+                  onClick={suspendWithReason} disabled={saving}>
                   Suspend
                 </Button>
               )}
