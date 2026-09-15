@@ -107,9 +107,24 @@ jobs:
           APP_ID: ${{ inputs.app_id }}
           SPLASH_COLOR: ${{ inputs.splash_color }}
 
+      - name: Generate packaged offline tenant snapshot
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -e
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SERVICE_KEY" ]; then
+            echo "::error::Supabase secrets are required to build a full offline tenant APK"
+            exit 1
+          fi
+          node scripts/generate-tenant-offline-bootstrap.mjs
+          grep -Fq "tenantOfflineBootstrap" src/generated/tenantOfflineBootstrap.ts
+          grep -Fq "\"slug\":\"${TENANT_SLUG}\"" src/generated/tenantOfflineBootstrap.ts
+          echo "Tenant storefront snapshot packaged for first-launch offline mode"
+
       - name: Stamp Android web bundle
         run: |
-          printf '{"commit":"%s","tenant":"%s","bannerCache":"tenant-scoped","numericKeyboard":"native-webview-numeric","nativePush":"onesignal"}\n' "${GITHUB_SHA}" "${TENANT_SLUG}" > public/apk-build.json
+          printf '{"commit":"%s","tenant":"%s","bannerCache":"tenant-scoped","numericKeyboard":"native-webview-numeric","nativePush":"onesignal","offlineBootstrap":"packaged-v1"}\n' "${GITHUB_SHA}" "${TENANT_SLUG}" > public/apk-build.json
 
       - name: Build web bundle
         run: bun run build
@@ -170,6 +185,7 @@ jobs:
             grep -Fq '"bannerCache":"tenant-scoped"' "$ASSETS/public/apk-build.json" || fail "bannerCache stamp missing"
             grep -Fq '"numericKeyboard":"native-webview-numeric"' "$ASSETS/public/apk-build.json" || fail "numericKeyboard stamp missing"
             grep -Fq '"nativePush":"onesignal"' "$ASSETS/public/apk-build.json" || fail "native push stamp missing"
+            grep -Fq '"offlineBootstrap":"packaged-v1"' "$ASSETS/public/apk-build.json" || fail "offline bootstrap stamp missing"
           fi
 
           # captureInput must stay false so the native numeric keyboard is used.
@@ -183,6 +199,7 @@ jobs:
           fi
 
           grep -Rqs "offline_banners" "$ASSETS/public" || fail "tenant banner cache code missing from bundle"
+          grep -Rqs "offline_packaged_bootstrap_at" "$ASSETS/public" || fail "packaged offline bootstrap code missing from bundle"
           grep -Rqs "SET_VERSION" "$ASSETS/public" || fail "service worker version handshake missing from bundle"
           grep -Rqs "OneSignal" android/app/src/main 2>/dev/null || echo "Note: OneSignal native sources are provided through Gradle dependencies"
 
@@ -191,7 +208,7 @@ jobs:
             find "$ASSETS" -maxdepth 2 -print
             exit 1
           fi
-          echo "Fresh tenant banner, native push and native numeric keyboard configuration verified in Android bundle"
+          echo "Fresh tenant offline snapshot, native push and native numeric keyboard configuration verified in Android bundle"
 
       - name: Apply app id, label and splash color
         env:
