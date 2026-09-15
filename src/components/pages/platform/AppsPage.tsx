@@ -163,6 +163,15 @@ export default function AppsPage() {
     load()
   }
 
+  // Hal reseller ka saar app-ka — kaliya safkiisa ayaa la tirtiraa, kuwa kale waa haraan.
+  const removeTenant = async (row: AppRow, tenantName: string) => {
+    if (!confirm(`Ka saar "${tenantName}" app-kan?`)) return
+    const { error } = await db.from('platform_apps').delete().eq('id', row.id)
+    if (error) return toast.error(error.message)
+    toast.success(`${tenantName} waa laga saaray`)
+    load()
+  }
+
   // Resellers cusub ku dar app horey loo daabacay — file-ka dib looma raro.
   const [shareKey, setShareKey] = useState<string | null>(null)
   const [shareIds, setShareIds] = useState<string[]>([])
@@ -292,9 +301,6 @@ export default function AppsPage() {
           <div className="p-6 text-sm text-muted-foreground">Wali app lama daabicin.</div>
         )}
         {groups.map((group) => {
-          const assigned = group.rows
-            .filter((r) => r.tenant_id)
-            .map((r) => tenants.find((t) => t.id === r.tenant_id)?.name ?? 'Reseller')
           const remaining = tenants.filter((t) => !group.rows.some((r) => r.tenant_id === t.id))
           return (
             <div key={group.key} className="p-4 space-y-3">
@@ -305,12 +311,37 @@ export default function AppsPage() {
                     {group.name} {group.version ? <span className="text-xs text-muted-foreground">v{group.version}</span> : null}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {group.platform} ·{' '}
-                    {group.isAllTenants
-                      ? 'Dhammaan resellers-ka'
-                      : `${assigned.length} reseller: ${assigned.join(', ')}`}
+                    {group.platform}
                     {group.anyActive ? '' : ' · qarsoon'}
                   </div>
+                  {!group.isAllTenants && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {group.rows
+                        .filter((r) => r.tenant_id)
+                        .map((r) => {
+                          const tName = tenants.find((t) => t.id === r.tenant_id)?.name ?? 'Reseller'
+                          return (
+                            <span
+                              key={r.id}
+                              className="inline-flex items-center gap-1 rounded-full border bg-background px-2 py-0.5 text-xs"
+                            >
+                              {tName}
+                              <button
+                                type="button"
+                                onClick={() => removeTenant(r, tName)}
+                                className="text-red-600 hover:text-red-800"
+                                aria-label={`Ka saar ${tName}`}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </span>
+                          )
+                        })}
+                    </div>
+                  )}
+                  {group.isAllTenants && (
+                    <div className="text-xs text-muted-foreground mt-1">Dhammaan resellers-ka</div>
+                  )}
                 </div>
                 {!group.isAllTenants && remaining.length > 0 && (
                   <Button variant="outline" size="sm" onClick={() => openShare(group)}>
