@@ -301,9 +301,6 @@ export default function AppsPage() {
           <div className="p-6 text-sm text-muted-foreground">Wali app lama daabicin.</div>
         )}
         {groups.map((group) => {
-          const assigned = group.rows
-            .filter((r) => r.tenant_id)
-            .map((r) => tenants.find((t) => t.id === r.tenant_id)?.name ?? 'Reseller')
           const remaining = tenants.filter((t) => !group.rows.some((r) => r.tenant_id === t.id))
           return (
             <div key={group.key} className="p-4 space-y-3">
