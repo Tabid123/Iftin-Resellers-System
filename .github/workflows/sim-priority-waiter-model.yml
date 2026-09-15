@@ -1,0 +1,89 @@
+name: SIM Priority Waiter Model
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sim-priority-waiter-model.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Locate device UI
+        id: locate
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE=$(grep -RIl --include='*.tsx' --include='*.ts' -E 'sim1_priority|sim1_enabled|sim1_provider' src/components | head -n1 || true)
+          if [ -z "$FILE" ]; then
+            FILE=$(grep -RIl --include='*.tsx' --include='*.ts' -E 'DevicesCustomView|EditDevice|DeviceCard' src/components | head -n1 || true)
+          fi
+          test -n "$FILE" || { echo 'Device UI file not found'; exit 1; }
+          echo "file=$FILE" >> "$GITHUB_OUTPUT"
+          echo "Using $FILE"
+
+      - name: Patch SIM priority controls
+        env:
+          FILE: ${{ steps.locate.outputs.file }}
+        run: |
+          python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          p=Path(os.environ['FILE'])
+          s=p.read_text()
+          original=s
+
+          # Extend any device edit state/object that already carries SIM metadata.
+          # Existing fields are preserved; only missing priority/enabled/provider controls are added.
+          # First normalize priority number inputs if controls already exist.
+          s=re.sub(r'(name=["\']sim1_priority["\'][^>]*)(>)', lambda m: m.group(1) + (' min="1" max="5"' if 'min=' not in m.group(1) else '') + m.group(2), s)
+          s=re.sub(r'(name=["\']sim2_priority["\'][^>]*)(>)', lambda m: m.group(1) + (' min="1" max="5"' if 'min=' not in m.group(1) else '') + m.group(2), s)
+
+          # If the UI already exposes all requested fields, no structural rewrite is necessary.
+          required=['sim1_provider','sim2_provider','sim1_priority','sim2_priority','sim1_enabled','sim2_enabled']
+          missing=[x for x in required if x not in s]
+          if missing:
+            raise SystemExit('Missing SIM controls in device UI: '+', '.join(missing)+'. Refusing broad automatic rewrite.')
+
+          if s != original:
+            p.write_text(s)
+          PY
+
+      - uses: oven-sh/setup-bun@v2
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Verify requested SIM controls
+        env:
+          FILE: ${{ steps.locate.outputs.file }}
+        run: |
+          grep -q 'sim1_provider' "$FILE"
+          grep -q 'sim2_provider' "$FILE"
+          grep -q 'sim1_priority' "$FILE"
+          grep -q 'sim2_priority' "$FILE"
+          grep -q 'sim1_enabled' "$FILE"
+          grep -q 'sim2_enabled' "$FILE"
+          git diff --check
+      - name: Build
+        run: bun run build
+      - name: Persist focused UI change
+        env:
+          FILE: ${{ steps.locate.outputs.file }}
+        run: |
+          if git diff --quiet -- "$FILE"; then
+            echo 'SIM priority UI already satisfies requested model.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$FILE"
+          git commit -m 'Constrain SIM priority controls to waiter model range'
+          git push origin HEAD:main
