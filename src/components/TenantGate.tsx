@@ -135,8 +135,7 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
           >
             <AlertCircle className="h-5 w-5 shrink-0" style={{ color: "#3b82f6" }} />
             <p>
-              Dhammaan xogtaada iyo diiwaanka macaamiishaadu way badbaadsan
-              yihiin. Si degdeg ah ayaad dib ugu furi kartaa.
+              {reasonText} fadlan bixi bill ka.
             </p>
           </div>
         </div>
@@ -150,6 +149,16 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
         >
           <MessageCircle className="h-5 w-5" />
           La xiriir WhatsApp (Super Admin)
+        </a>
+        <a
+          href={`https://wa.me/252619535029`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-full max-w-md flex items-center justify-center gap-2 rounded-2xl py-4 font-bold text-white active:scale-[0.98] transition-transform"
+          style={{ background: "#3b82f6" }}
+        >
+          <MessageCircle className="h-5 w-5" />
+          Pay
         </a>
         <p className="text-xs mt-3" style={{ color: "#6b7186" }}>
           Saacadaha Shaqada: 24/7 · Iftin Agents System Security
