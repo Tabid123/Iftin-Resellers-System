@@ -1,7 +1,7 @@
 import React from "react";
 import { useTenant } from "@/contexts/TenantContext";
 import { ResellerCodeGate } from "@/components/ResellerCodeGate";
-import { AlertCircle, Loader2, Lock, MessageCircle, WifiOff } from "lucide-react";
+import { AlertCircle, Loader2, Lock, MessageCircle, Wallet, WifiOff } from "lucide-react";
 import { normalizeSupportPhone } from "@/hooks/useSupportPhone";
 
 
