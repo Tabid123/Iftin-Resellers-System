@@ -1,9 +1,16 @@
 import { useLocation } from "@/lib/router-compat";
 import { BottomNavigation } from "@/components/BottomNavigation";
+import { bootstrapBundledOfflineSnapshot } from "@/lib/bootstrapBundledOfflineSnapshot";
+
+// Root imports this module before React mounts. Seed a freshly-installed tenant
+// APK early enough for TenantProvider to resolve the real tenant UUID offline.
+bootstrapBundledOfflineSnapshot();
 
 /**
- * Rendered once in the root layout so the bar never unmounts between routes
- * (no blank flash). Visibility is decided from the tenant-normalized path.
+ * Keep the customer bottom navigation mounted for the entire storefront
+ * lifetime. Android WebView visibly flashes when a fixed bottom layer is
+ * destroyed and recreated during route transitions, so routes that should not
+ * show the bar only hide the already-mounted layer.
  */
 const NAV_PATHS = ["/providers", "/history", "/notifications", "/profile"];
 
@@ -13,6 +20,13 @@ export function PersistentBottomNav() {
   const visible =
     NAV_PATHS.includes(pathname) || pathname.startsWith("/categories/");
 
-  if (!visible) return null;
-  return <BottomNavigation />;
+  return (
+    <div
+      className="storefront-bottom-nav-host"
+      data-visible={visible ? "true" : "false"}
+      aria-hidden={!visible}
+    >
+      <BottomNavigation />
+    </div>
+  );
 }

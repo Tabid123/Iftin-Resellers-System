@@ -12,6 +12,19 @@
   backface-visibility: visible !important;
 }
 
+/* Keep the bottom-nav DOM/layer alive for the whole storefront session. Routes
+ * that do not use it hide the existing layer instead of unmounting/remounting
+ * it, which avoids the Android WebView white/brand-color flash on return. */
+.storefront-bottom-nav-host[data-visible="false"] > .fixed.bottom-0 {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.storefront-bottom-nav-host[data-visible="true"] > .fixed.bottom-0 {
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
 /* Bottom navigation should respond immediately, not animate a large white pill
  * while the destination route is mounting. */
 .fixed.bottom-0 button,

@@ -4,6 +4,7 @@
  */
 const KEY = 'img_cache_v1';
 const MAX_BYTES = 2 * 1024 * 1024; // per image
+const MAX_PARALLEL_IMAGE_FETCHES = 3;
 
 type CacheMap = Record<string, string>;
 
@@ -89,7 +90,31 @@ export async function cacheImage(url: string | null | undefined): Promise<string
   }
 }
 
+/**
+ * Cache images in small batches instead of starting every download/Blob decode
+ * in the same frame. Low-end Android WebViews are especially sensitive to a
+ * burst of image fetch + FileReader work while the user is navigating.
+ */
 export function cacheImages(urls: (string | null | undefined)[]) {
   const unique = [...new Set(urls.filter(Boolean) as string[])];
-  unique.forEach((u) => { void cacheImage(u); });
+  if (!unique.length) return;
+
+  const run = async () => {
+    for (let index = 0; index < unique.length; index += MAX_PARALLEL_IMAGE_FETCHES) {
+      const batch = unique.slice(index, index + MAX_PARALLEL_IMAGE_FETCHES);
+      await Promise.all(batch.map((url) => cacheImage(url)));
+    }
+  };
+
+  const start = () => { void run(); };
+  if (typeof window === 'undefined') {
+    start();
+    return;
+  }
+
+  const idle = (window as any).requestIdleCallback as
+    | ((callback: () => void, options?: { timeout: number }) => number)
+    | undefined;
+  if (idle) idle(start, { timeout: 1500 });
+  else window.setTimeout(start, 250);
 }
