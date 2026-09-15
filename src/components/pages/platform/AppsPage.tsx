@@ -102,21 +102,104 @@ export default function AppsPage() {
     }
   }
 
-  const toggle = async (app: AppRow) => {
-    const { error } = await db.from('platform_apps').update({ is_active: !app.is_active }).eq('id', app.id)
+  // Hal app oo la siiyay resellers badan waxuu leeyahay saf kasta reseller — halkan
+  // waxaa lagu soo koobaa hal kaar si liisku u nadiifto.
+  type AppGroup = {
+    key: string
+    rows: AppRow[]
+    name: string
+    version: string | null
+    platform: string
+    description: string | null
+    file_url: string
+    isAllTenants: boolean
+    anyActive: boolean
+  }
+
+  const groups: AppGroup[] = (() => {
+    const map = new Map<string, AppGroup>()
+    for (const app of apps) {
+      const key = `${app.name}|${app.version ?? ''}|${app.platform}|${app.file_url}`
+      const g = map.get(key)
+      if (g) {
+        g.rows.push(app)
+        g.isAllTenants = g.isAllTenants || app.tenant_id === null
+        g.anyActive = g.anyActive || app.is_active
+      } else {
+        map.set(key, {
+          key,
+          rows: [app],
+          name: app.name,
+          version: app.version,
+          platform: app.platform,
+          description: app.description,
+          file_url: app.file_url,
+          isAllTenants: app.tenant_id === null,
+          anyActive: app.is_active,
+        })
+      }
+    }
+    return [...map.values()]
+  })()
+
+  const toggle = async (group: AppGroup) => {
+    const next = !group.anyActive
+    const { error } = await db
+      .from('platform_apps')
+      .update({ is_active: next })
+      .in('id', group.rows.map((r) => r.id))
     if (error) return toast.error(error.message)
     load()
   }
 
-  const remove = async (app: AppRow) => {
-    if (!confirm(`Tirtir "${app.name}"?`)) return
-    const { error } = await db.from('platform_apps').delete().eq('id', app.id)
+  const remove = async (group: AppGroup) => {
+    if (!confirm(`Tirtir "${group.name}"?`)) return
+    const { error } = await db.from('platform_apps').delete().in('id', group.rows.map((r) => r.id))
     if (error) return toast.error(error.message)
-    if (!/^https?:\/\//i.test(app.file_url)) {
-      await supabase.storage.from('apks').remove([app.file_url])
+    if (!/^https?:\/\//i.test(group.file_url)) {
+      await supabase.storage.from('apks').remove([group.file_url])
     }
     toast.success('Waa la tirtiray')
     load()
+  }
+
+  // Resellers cusub ku dar app horey loo daabacay — file-ka dib looma raro.
+  const [shareKey, setShareKey] = useState<string | null>(null)
+  const [shareIds, setShareIds] = useState<string[]>([])
+  const [sharing, setSharing] = useState(false)
+
+  const openShare = (group: AppGroup) => {
+    setShareKey(shareKey === group.key ? null : group.key)
+    setShareIds([])
+  }
+
+  const saveShare = async (group: AppGroup) => {
+    if (shareIds.length === 0) return toast.error('Dooro ugu yaraan hal reseller')
+    setSharing(true)
+    try {
+      const sample = group.rows[0]
+      const { error } = await db.from('platform_apps').insert(
+        shareIds.map((tid) => ({
+          name: group.name,
+          description: group.description,
+          platform: group.platform,
+          version: group.version,
+          file_url: group.file_url,
+          icon_url: sample.icon_url,
+          display_order: sample.display_order,
+          tenant_id: tid,
+        })),
+      )
+      if (error) throw error
+      toast.success('Resellers-ka waa lagu daray')
+      setShareKey(null)
+      setShareIds([])
+      await load()
+    } catch (err: any) {
+      toast.error(err?.message || 'Khalad ayaa dhacay')
+    } finally {
+      setSharing(false)
+    }
   }
 
   return (
