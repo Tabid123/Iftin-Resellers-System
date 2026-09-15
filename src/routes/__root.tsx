@@ -49,6 +49,8 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 
 const CHUNK_RELOAD_KEY = "iftin:chunk-reload";
+const OFFLINE_CACHE_SCHEMA_KEY = "iftin:offline-cache-schema";
+const OFFLINE_CACHE_SCHEMA_VERSION = "tenant-scoped-v1";
 const CHUNK_ERROR_PATTERN =
   /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk|Failed to fetch/i;
 
@@ -223,7 +225,6 @@ function AppContent() {
   // them there across background/foreground switches.
   useEffect(() => initNativeBars(), []);
 
-
   return (
     <>
       <TenantPwaMeta />
@@ -266,31 +267,25 @@ function RootComponent() {
     });
   }, []);
 
-  // Cache-ka qaldan ka ilaali: marka version-ka app-ku isbeddelo (build cusub),
-  // tirtir dhammaan xogta API/offline ee kaydsan si xog cusub oo sax ah loo soo dejiyo.
+  // Do not wipe tenant-scoped offline data whenever a new APK build is installed.
+  // Keeping that data is what lets an existing customer open the updated APK while
+  // offline. Only old, unscoped cache keys are removed once per cache schema.
   useEffect(() => {
     try {
       const version = String(import.meta.env.VITE_BUILD_VERSION ?? "dev");
-      const key = "app_cache_version";
-      if (localStorage.getItem(key) === version) return;
-      const staleKeys = [
-        "iftin_catalog_v3_local_images",
-        "iftin_tenant_id_v1",
-        "najax.tenant_delivery_mode",
+      localStorage.setItem("app_cache_version", version);
+
+      if (localStorage.getItem(OFFLINE_CACHE_SCHEMA_KEY) === OFFLINE_CACHE_SCHEMA_VERSION) return;
+
+      const legacyUnscopedKeys = [
         "offline_providers",
         "offline_categories",
         "offline_packages",
         "offline_payment_providers",
       ];
-      for (const k of staleKeys) localStorage.removeItem(k);
-      // Tirtir keys kale ee qadiimiga ah ee iftin/offline/banner ah
-      const doomed: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && (/^iftin_catalog_v\d/.test(k) || k.startsWith("offline_banners"))) doomed.push(k);
-      }
-      doomed.forEach((k) => localStorage.removeItem(k));
-      localStorage.setItem(key, version);
+      for (const key of legacyUnscopedKeys) localStorage.removeItem(key);
+
+      localStorage.setItem(OFFLINE_CACHE_SCHEMA_KEY, OFFLINE_CACHE_SCHEMA_VERSION);
     } catch {
       /* storage aan la heli karin */
     }
