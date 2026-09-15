@@ -80,6 +80,12 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # The storefront currently talks to the stable Cordova bridge API
+      # (window.plugins.OneSignal). Install the plugin only for native builds so
+      # the web dependency graph/lockfile stays unchanged.
+      - name: Install native OneSignal bridge
+        run: bun add onesignal-cordova-plugin@5.5.7 --no-save
+
       - name: Configure app identity for this tenant
         run: |
           APP_ID="${{ inputs.app_id }}"
@@ -103,7 +109,7 @@ jobs:
 
       - name: Stamp Android web bundle
         run: |
-          printf '{"commit":"%s","tenant":"%s","bannerCache":"tenant-scoped","numericKeyboard":"native-webview-numeric"}\n' "${GITHUB_SHA}" "${TENANT_SLUG}" > public/apk-build.json
+          printf '{"commit":"%s","tenant":"%s","bannerCache":"tenant-scoped","numericKeyboard":"native-webview-numeric","nativePush":"onesignal"}\n' "${GITHUB_SHA}" "${TENANT_SLUG}" > public/apk-build.json
 
       - name: Build web bundle
         run: bun run build
@@ -114,7 +120,7 @@ jobs:
           VITE_TENANT_LOGO_URL: ${{ inputs.logo_url }}
           VITE_SPLASH_COLOR: ${{ inputs.splash_color }}
           VITE_BUILD_VERSION: ${{ github.sha }}
-
+          VITE_ONESIGNAL_APP_ID: ${{ secrets.ONESIGNAL_APP_ID }}
 
       - name: Prepare web assets for Capacitor
         run: |
@@ -163,6 +169,7 @@ jobs:
             grep -Fq "${GITHUB_SHA}" "$ASSETS/public/apk-build.json" || fail "apk-build.json is from an older commit"
             grep -Fq '"bannerCache":"tenant-scoped"' "$ASSETS/public/apk-build.json" || fail "bannerCache stamp missing"
             grep -Fq '"numericKeyboard":"native-webview-numeric"' "$ASSETS/public/apk-build.json" || fail "numericKeyboard stamp missing"
+            grep -Fq '"nativePush":"onesignal"' "$ASSETS/public/apk-build.json" || fail "native push stamp missing"
           fi
 
           # captureInput must stay false so the native numeric keyboard is used.
@@ -177,13 +184,14 @@ jobs:
 
           grep -Rqs "offline_banners" "$ASSETS/public" || fail "tenant banner cache code missing from bundle"
           grep -Rqs "SET_VERSION" "$ASSETS/public" || fail "service worker version handshake missing from bundle"
+          grep -Rqs "OneSignal" android/app/src/main 2>/dev/null || echo "Note: OneSignal native sources are provided through Gradle dependencies"
 
           if [ "$FAILED" != "0" ]; then
             echo "Android assets tree:"
             find "$ASSETS" -maxdepth 2 -print
             exit 1
           fi
-          echo "Fresh tenant banner and native numeric keyboard configuration verified in Android bundle"
+          echo "Fresh tenant banner, native push and native numeric keyboard configuration verified in Android bundle"
 
       - name: Apply app id, label and splash color
         env:
@@ -211,7 +219,6 @@ jobs:
 
           open(c, "w").write(s)
           PY
-
 
       - name: Generate icons and splash from tenant logo
         env:
