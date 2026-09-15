@@ -1,18 +1,52 @@
 import { createHash } from 'node:crypto';
-import { appendFile, mkdir, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-const supabaseUrl = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
-const serviceKey = process.env.SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const tenantSlug = (process.env.TENANT_SLUG || '').trim();
+async function readEnvFile() {
+  try {
+    const text = await readFile('.env', 'utf8');
+    return Object.fromEntries(
+      text
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith('#') && line.includes('='))
+        .map((line) => {
+          const index = line.indexOf('=');
+          const key = line.slice(0, index).trim();
+          let value = line.slice(index + 1).trim();
+          if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.slice(1, -1);
+          }
+          return [key, value];
+        }),
+    );
+  } catch {
+    return {};
+  }
+}
 
-if (!supabaseUrl || !serviceKey || !tenantSlug) {
-  throw new Error('SUPABASE_URL, SERVICE_KEY and TENANT_SLUG are required to build the offline tenant snapshot.');
+const fileEnv = await readEnvFile();
+const supabaseUrl = (
+  process.env.SUPABASE_URL ||
+  process.env.VITE_SUPABASE_URL ||
+  fileEnv.VITE_SUPABASE_URL ||
+  ''
+).replace(/\/$/, '');
+const apiKey =
+  process.env.SERVICE_KEY ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  fileEnv.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  '';
+const tenantSlug = (process.env.TENANT_SLUG || process.env.VITE_TENANT_SLUG || '').trim();
+
+if (!supabaseUrl || !apiKey || !tenantSlug) {
+  throw new Error('Supabase URL/key and TENANT_SLUG are required to build the offline tenant snapshot.');
 }
 
 const headers = (tenantId) => ({
-  apikey: serviceKey,
-  Authorization: `Bearer ${serviceKey}`,
+  apikey: apiKey,
+  Authorization: `Bearer ${apiKey}`,
   'Content-Type': 'application/json',
   ...(tenantId ? { 'x-tenant-id': tenantId } : {}),
 });
