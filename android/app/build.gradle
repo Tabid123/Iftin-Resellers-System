@@ -2,6 +2,7 @@ apply plugin: 'com.android.application'
 
 def appVersionCodeValue = System.getenv("APP_VERSION_CODE")?.trim()
 def appVersionNameValue = System.getenv("APP_VERSION_NAME")?.trim()
+def tenantSlugValue = System.getenv("TENANT_SLUG")?.trim() ?: "iftin-agents"
 
 android {
     namespace = "com.iftin.agents"
@@ -12,6 +13,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode (appVersionCodeValue?.isInteger() ? appVersionCodeValue.toInteger() : 1)
         versionName (appVersionNameValue ?: "1.0.0")
+        resValue "string", "tenant_slug", tenantSlugValue
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
