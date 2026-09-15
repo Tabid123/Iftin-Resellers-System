@@ -182,6 +182,24 @@ export default function ResellerDetailPage() {
     return true
   }
 
+  const suspendWithReason = async () => {
+    const reason = window.prompt(
+      'Sababta xiritaanka (waxay ka muuqan doontaa app-ka macmiilka):',
+      tenant?.suspension_reason ?? '',
+    )
+    if (reason === null) return
+    const trimmed = reason.trim()
+    if (!trimmed) {
+      toast({ title: 'Fadlan sababta qor', variant: 'destructive' })
+      return
+    }
+    await update({
+      status: 'suspended',
+      suspension_reason: trimmed,
+      suspended_at: new Date().toISOString(),
+    })
+  }
+
   const saveDates = async () => {
     await update({
       current_period_end: periodEnd ? new Date(`${periodEnd}T23:59:59`).toISOString() : null,
