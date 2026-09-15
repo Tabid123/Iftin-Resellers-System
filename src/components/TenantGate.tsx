@@ -65,18 +65,78 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
   }
 
   if (state.status === "suspended") {
-    const waPhone = normalizeSupportPhone(state.tenant?.support_phone ?? null);
+    const t = state.tenant;
+    const waPhone = normalizeSupportPhone(t?.support_phone ?? null);
+    const kind = t?.suspension_kind ?? null;
+    const manualReason = (t?.suspension_reason ?? "").trim();
+
+    const reasonText =
+      kind === "trial_expired"
+        ? "Waqtigii tijaabada wuu dhamaaday"
+        : kind === "expired"
+          ? "Waqtigii adeegga wuu dhacay"
+          : manualReason || "Maamulka sare ayaa xiray";
+
+    const when = t?.suspended_at ? new Date(t.suspended_at) : null;
+    const whenText =
+      when && !Number.isNaN(when.getTime())
+        ? `${when.toLocaleDateString("so-SO")} · ${when.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}`
+        : "—";
+
     return (
       <div
-        className="min-h-screen flex flex-col items-center justify-center p-6"
+        className="min-h-screen flex flex-col items-center p-6"
         style={{ background: "#0b0b14", color: "#fff" }}
       >
-        <div className="max-w-md text-center space-y-6 flex-1 flex flex-col items-center justify-center">
-          <Lock className="h-14 w-14 mx-auto" style={{ color: "#ef4444" }} />
-          <h1 className="text-2xl font-bold">
-            Nidaamkaagu wuu xiran yahay, la xiriir Admin-ka guud
-          </h1>
+        <div className="w-full max-w-md flex-1 flex flex-col items-center justify-center space-y-6">
+          <div
+            className="h-24 w-24 rounded-3xl flex items-center justify-center"
+            style={{ background: "#171726", border: "1px solid #2a2a3d" }}
+          >
+            <Lock className="h-10 w-10" style={{ color: "#ef4444" }} />
+          </div>
+
+          <div className="text-center space-y-2">
+            <h1 className="text-2xl font-bold">Nidaamkaagu Wuu Xiran Yahay</h1>
+            <p className="text-sm" style={{ color: "#9aa0b4" }}>
+              Adeegga app-kaagu waa hakad. Hoos ka eeg sababta.
+            </p>
+          </div>
+
+          <div
+            className="w-full rounded-2xl p-4 space-y-3"
+            style={{ background: "#12121f", border: "1px solid #23233a" }}
+          >
+            <div className="flex items-start justify-between gap-3 text-sm">
+              <span style={{ color: "#9aa0b4" }}>Sababta Hakinta</span>
+              <span className="text-right font-semibold" style={{ color: "#ef4444" }}>
+                {reasonText}
+              </span>
+            </div>
+            <div
+              className="flex items-center justify-between gap-3 text-sm pt-3"
+              style={{ borderTop: "1px solid #23233a" }}
+            >
+              <span style={{ color: "#9aa0b4" }}>Taariikhda Xiritaanka</span>
+              <span className="font-semibold">{whenText}</span>
+            </div>
+          </div>
+
+          <div
+            className="w-full rounded-2xl p-4 flex gap-3 text-sm"
+            style={{ background: "#101a26", border: "1px solid #1d3348", color: "#9fb6cc" }}
+          >
+            <AlertCircle className="h-5 w-5 shrink-0" style={{ color: "#3b82f6" }} />
+            <p>
+              Dhammaan xogtaada iyo diiwaanka macaamiishaadu way badbaadsan
+              yihiin. Si degdeg ah ayaad dib ugu furi kartaa.
+            </p>
+          </div>
         </div>
+
         <a
           href={`https://wa.me/252${waPhone}`}
           target="_blank"
@@ -85,8 +145,11 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
           style={{ background: "#25D366" }}
         >
           <MessageCircle className="h-5 w-5" />
-          La xiriir WhatsApp
+          La xiriir WhatsApp (Super Admin)
         </a>
+        <p className="text-xs mt-3" style={{ color: "#6b7186" }}>
+          Saacadaha Shaqada: 24/7 · Iftin Agents System Security
+        </p>
       </div>
     );
   }
