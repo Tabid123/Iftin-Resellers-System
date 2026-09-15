@@ -124,14 +124,17 @@ export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
     try {
       const date = new Date(selectedDate);
       const tid = getTenantId();
-      let dayQuery = supabase.from('orders').select('*, data_packages_config(cost_price)')
+      let dayQuery = supabase.from('orders').select('*')
         .gte('created_at', startOfDay(date).toISOString()).lte('created_at', endOfDay(date).toISOString())
         .order('created_at', { ascending: false });
       if (tid) dayQuery = dayQuery.eq('tenant_id', tid);
       const { data, error } = await dayQuery;
       if (error) throw error;
-      setOrders(data || []);
-    } catch { toast.error('Failed to load orders'); }
+      setOrders(await attachPackageCosts(data || []));
+    } catch (err) {
+      console.error('[DailyOrders] load failed', err);
+      toast.error('Failed to load orders');
+    }
     finally { setLoading(false); }
   }, [selectedDate]);
 
