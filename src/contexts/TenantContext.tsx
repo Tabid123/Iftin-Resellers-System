@@ -47,6 +47,18 @@ const TenantContext = createContext<TenantState>({
 const RESERVED = new Set(["admin", "www", "api", "app", "mail", "status"]);
 
 /**
+ * A tenant is blocked when it was suspended/cancelled in the platform, or when
+ * its trial / paid period has already elapsed.
+ */
+function isTenantBlocked(tenant: Tenant): boolean {
+  if (tenant.status === "suspended" || tenant.status === "cancelled") return true;
+  const endsAt = tenant.trial_ends_at ?? tenant.current_period_end;
+  if (!endsAt) return false;
+  const end = new Date(endsAt).getTime();
+  return Number.isFinite(end) && end <= Date.now();
+}
+
+/**
  * Resolve the tenant slug from the current hostname.
  * - `admin.<domain>` → platform (super-admin) view
  * - `<slug>.<domain>` → tenant
@@ -359,7 +371,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
       purgeNonActiveWorkspaceStorage(cached.id);
       applyBranding(cached);
       setState(
-        cached.status === "suspended" || cached.status === "cancelled"
+        isTenantBlocked(cached)
           ? { status: "suspended", tenant: cached, isPlatform: false }
           : { status: "ready", tenant: cached, isPlatform: false },
       );
@@ -455,7 +467,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
         emitStorefront("banners-changed");
       }
 
-      if (tenant.status === "suspended" || tenant.status === "cancelled") {
+      if (isTenantBlocked(tenant)) {
         setState({ status: "suspended", tenant, isPlatform: false });
         return;
       }
