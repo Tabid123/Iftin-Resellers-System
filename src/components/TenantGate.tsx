@@ -78,7 +78,7 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
       kind === "trial_expired"
         ? "Waqtiga tijaabada ayaa kaa dhacay"
         : kind === "expired"
-          ? "Waqtigii adeegga wuu dhacay"
+          ? "Waqtiga tijaabada wuu dhacay"
           : manualReason || "Maamulka sare ayaa xiray";
 
     const when = t?.suspended_at ? new Date(t.suspended_at) : null;
