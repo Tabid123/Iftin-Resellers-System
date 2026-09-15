@@ -168,6 +168,9 @@ const RotatingBanner = () => {
     if (freshEnough) return;
 
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let attempts = 0;
+
     const loadBanners = async () => {
       try {
         const freshBanners = await queryClient.fetchQuery<Banner[]>({
@@ -177,7 +180,10 @@ const RotatingBanner = () => {
             if (error) throw error;
             return Array.isArray(data) ? (data as Banner[]) : [];
           },
-          staleTime: reloadKey === 0 ? BANNER_TTL_MS : 0,
+          // Only trust the TTL when we already hold a non-empty snapshot for
+          // this workspace. An empty result fetched during the startup window
+          // (before the tenant header is ready) must never be served as fresh.
+          staleTime: reloadKey === 0 && cachedBanners.length > 0 ? BANNER_TTL_MS : 0,
         });
         // A response that lands after the workspace changed is discarded.
         if (cancelled || activeWorkspaceId() !== workspaceId) return;
@@ -185,10 +191,17 @@ const RotatingBanner = () => {
         preloadBanners(freshBanners);
         if (freshBanners.length > 0) {
           workspaceStorage.setJson(BANNER_RESOURCE, freshBanners, workspaceId);
-        } else {
-          workspaceStorage.remove(BANNER_RESOURCE, workspaceId);
+          workspaceStorage.set(BANNER_AT_RESOURCE, String(Date.now()), workspaceId);
+          return;
         }
-        workspaceStorage.set(BANNER_AT_RESOURCE, String(Date.now()), workspaceId);
+        workspaceStorage.remove(BANNER_RESOURCE, workspaceId);
+        // Empty during the first seconds after app start usually means the
+        // tenant resolution hadn't finished when the request fired. Retry a
+        // few times so the banner shows without the user tapping anything.
+        attempts += 1;
+        if (attempts < 4) {
+          retryTimer = setTimeout(() => { if (!cancelled) void loadBanners(); }, 1500 * attempts);
+        }
       } catch {
         // Keep the last known snapshot.
       } finally {
@@ -197,7 +210,10 @@ const RotatingBanner = () => {
     };
 
     void loadBanners();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, [workspaceId, reloadKey, queryClient]);
 
   useEffect(() => {
