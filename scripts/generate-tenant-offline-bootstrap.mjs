@@ -35,12 +35,29 @@ async function rpc(name, tenantId, body = {}) {
 }
 
 const tenantRows = await fetchJson(
-  `${supabaseUrl}/rest/v1/tenants?slug=eq.${encodeURIComponent(tenantSlug)}&select=id,slug,name,logo_url,primary_color,accent_color,status,plan_id,trial_ends_at,current_period_end,support_phone,suspension_reason,suspended_at&limit=1`,
+  `${supabaseUrl}/rest/v1/tenants?slug=eq.${encodeURIComponent(tenantSlug)}&select=id,slug,name,logo_url,primary_color,accent_color,status,trial_ends_at,current_period_end,support_phone&limit=1`,
 );
-const tenant = tenantRows?.[0];
-if (!tenant?.id) {
+const tenantRow = tenantRows?.[0];
+if (!tenantRow?.id) {
   throw new Error(`Tenant not found for slug: ${tenantSlug}`);
 }
+
+// Keep the APK snapshot strictly to storefront-safe identity fields. Internal
+// notes, billing metadata, credit state and suspension details are never baked
+// into a customer APK.
+const tenant = {
+  id: tenantRow.id,
+  slug: tenantRow.slug,
+  name: tenantRow.name,
+  logo_url: tenantRow.logo_url ?? null,
+  primary_color: tenantRow.primary_color ?? null,
+  accent_color: tenantRow.accent_color ?? null,
+  status: tenantRow.status,
+  plan_id: null,
+  trial_ends_at: tenantRow.trial_ends_at ?? null,
+  current_period_end: tenantRow.current_period_end ?? null,
+  support_phone: tenantRow.support_phone ?? null,
+};
 
 const tenantId = tenant.id;
 const [providers, paymentProviders, deliveryInstructions, featuredPackages, appSettingsRaw, banners] = await Promise.all([
