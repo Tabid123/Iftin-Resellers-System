@@ -1,0 +1,79 @@
+name: Apply SIM priority device card UI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sim-priority-ui.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Update DeviceCard SIM priority display
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/components/admin/simple/CustomerViews.tsx')
+          s = p.read_text()
+          s = s.replace('const OFFLINE_THRESHOLD = 5 * 60 * 1000;', 'const OFFLINE_THRESHOLD = 3 * 60 * 1000;')
+
+          old1 = '<div><span className="text-[10px] opacity-70">SIM 1 ({item.sim1_provider || item.provider_name})</span><div className="font-medium">{item.sim_number}</div></div>'
+          new1 = '''<div className="rounded-lg bg-white/10 p-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] opacity-70">SIM 1 · {item.sim1_provider || item.provider_name || '—'}</span>
+                          <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${item.sim1_enabled === false ? 'bg-red-900/40' : 'bg-white/20'}`}>
+                            {item.sim1_enabled === false ? (isSo ? 'XIRAN' : 'OFF') : (isSo ? 'FURAN' : 'ON')}
+                          </span>
+                        </div>
+                        <div className="font-medium">{item.sim_number}</div>
+                        <div className="mt-0.5 text-[10px] opacity-80">Priority: {item.sim1_priority ?? 1}</div>
+                      </div>'''
+          old2 = '''{item.sim2_number && <div><span className="text-[10px] opacity-70">SIM 2 ({item.sim2_provider || '—'})</span><div className="font-medium">{item.sim2_number}</div></div>}'''
+          new2 = '''{item.sim2_number && <div className="rounded-lg bg-white/10 p-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] opacity-70">SIM 2 · {item.sim2_provider || '—'}</span>
+                          <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${item.sim2_enabled === false ? 'bg-red-900/40' : 'bg-white/20'}`}>
+                            {item.sim2_enabled === false ? (isSo ? 'XIRAN' : 'OFF') : (isSo ? 'FURAN' : 'ON')}
+                          </span>
+                        </div>
+                        <div className="font-medium">{item.sim2_number}</div>
+                        <div className="mt-0.5 text-[10px] opacity-80">Priority: {item.sim2_priority ?? 1}</div>
+                      </div>}'''
+
+          if 'Priority: {item.sim1_priority ?? 1}' not in s:
+              if old1 not in s: raise SystemExit('SIM1 display marker not found')
+              s = s.replace(old1, new1, 1)
+          if 'Priority: {item.sim2_priority ?? 1}' not in s:
+              if old2 not in s: raise SystemExit('SIM2 display marker not found')
+              s = s.replace(old2, new2, 1)
+          p.write_text(s)
+          PY
+
+      - uses: oven-sh/setup-bun@v2
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Build
+        run: bun run build
+      - name: Verify scope
+        run: |
+          grep -q "Priority: {item.sim1_priority ?? 1}" src/components/admin/simple/CustomerViews.tsx
+          grep -q "Priority: {item.sim2_priority ?? 1}" src/components/admin/simple/CustomerViews.tsx
+          grep -q "const OFFLINE_THRESHOLD = 3 \* 60 \* 1000;" src/components/admin/simple/CustomerViews.tsx
+          git diff --check
+      - name: Persist UI update
+        run: |
+          if git diff --quiet -- src/components/admin/simple/CustomerViews.tsx; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/components/admin/simple/CustomerViews.tsx
+          git commit -m 'Show SIM provider priority and enabled state on devices'
+          git push origin HEAD:main

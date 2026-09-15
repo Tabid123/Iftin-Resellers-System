@@ -1,0 +1,37 @@
+name: Build USSD delivery agent
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'android-app/**'
+      - '.github/workflows/build-delivery-agent.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # Overrides the defaults baked into android-app/app/build.gradle.kts
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      DELIVERY_API_BASE_URL: ${{ secrets.SUPABASE_URL && format('{0}/functions/v1/activate-package', secrets.SUPABASE_URL) || '' }}
+      DELIVERY_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Build and test Iftin delivery agent
+        working-directory: android-app
+        run: gradle testDebugUnitTest assembleDebug --no-daemon
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: iftin-delivery-agent
+          path: android-app/app/build/outputs/apk/debug/app-debug.apk

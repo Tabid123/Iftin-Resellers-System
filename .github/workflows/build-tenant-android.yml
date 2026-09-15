@@ -1,0 +1,243 @@
+name: Build tenant Android app
+
+on:
+  workflow_dispatch:
+    inputs:
+      tenant_slug:
+        description: "Tenant slug (reseller code), e.g. marwaan"
+        required: true
+      app_name:
+        description: "App name shown on the phone"
+        required: true
+      app_id:
+        description: "Android applicationId (reverse domain)"
+        required: false
+        default: ""
+      logo_url:
+        description: "Public URL of the tenant logo (PNG, >=1024px, square)"
+        required: false
+        default: ""
+      splash_color:
+        description: "Splash / status bar color (hex)"
+        required: false
+        default: "#0F4C81"
+      version_name:
+        description: "Version name, e.g. 1.0.0"
+        required: false
+        default: "1.0.0"
+      version_code:
+        description: "Version code (integer, must increase per release)"
+        required: false
+        default: "1"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      TENANT_SLUG: ${{ inputs.tenant_slug }}
+      APP_NAME: ${{ inputs.app_name }}
+      APP_VERSION_NAME: ${{ inputs.version_name }}
+      APP_VERSION_CODE: ${{ inputs.version_code }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Configure app identity for this tenant
+        run: |
+          APP_ID="${{ inputs.app_id }}"
+          if [ -z "$APP_ID" ]; then APP_ID="com.iftin.$(echo "$TENANT_SLUG" | tr -cd '[:alnum:]')"; fi
+          export APP_ID
+          echo "APP_ID=$APP_ID" >> "$GITHUB_ENV"
+          node -e '
+            const fs = require("fs");
+            const cfg = JSON.parse(fs.readFileSync("capacitor.config.json", "utf8"));
+            cfg.appId = process.env.APP_ID;
+            cfg.appName = process.env.APP_NAME;
+            const color = process.env.SPLASH_COLOR;
+            cfg.plugins.SplashScreen.backgroundColor = color;
+            cfg.plugins.StatusBar.backgroundColor = color;
+            cfg.plugins.NavigationBar.backgroundColor = color;
+            fs.writeFileSync("capacitor.config.json", JSON.stringify(cfg, null, 2));
+          '
+        env:
+          APP_ID: ${{ inputs.app_id }}
+          SPLASH_COLOR: ${{ inputs.splash_color }}
+
+      - name: Stamp Android web bundle
+        run: |
+          printf '{"commit":"%s","tenant":"%s","bannerCache":"tenant-scoped","numericKeyboard":"native-webview-numeric"}\n' "${GITHUB_SHA}" "${TENANT_SLUG}" > public/apk-build.json
+
+      - name: Build web bundle
+        run: bun run build
+        env:
+          CAPACITOR_BUILD: "true"
+          VITE_TENANT_SLUG: ${{ inputs.tenant_slug }}
+          VITE_TENANT_NAME: ${{ inputs.app_name }}
+          VITE_TENANT_LOGO_URL: ${{ inputs.logo_url }}
+          VITE_SPLASH_COLOR: ${{ inputs.splash_color }}
+          VITE_BUILD_VERSION: ${{ github.sha }}
+
+
+      - name: Prepare web assets for Capacitor
+        run: |
+          set -e
+          if [ -f dist/index.html ]; then
+            echo "dist/ already valid"
+          else
+            SRC=""
+            for d in .output/public dist/client dist/public build/client build; do
+              if [ -f "$d/index.html" ]; then SRC="$d"; break; fi
+            done
+            if [ -z "$SRC" ]; then
+              echo "No built index.html found. Build output files:"
+              for d in .output dist build; do
+                if [ -d "$d" ]; then
+                  find "$d" -maxdepth 4 -type f -print
+                fi
+              done
+              exit 1
+            fi
+            echo "Using web assets from $SRC"
+            rm -rf dist_capacitor
+            mkdir -p dist_capacitor
+            cp -R "$SRC"/. dist_capacitor/
+            rm -rf dist
+            mv dist_capacitor dist
+          fi
+
+      - name: Sync Capacitor
+        run: |
+          # Never allow files from an earlier APK build to survive the copy.
+          rm -rf android/app/src/main/assets/public
+          npx cap sync android
+
+      - name: Verify fresh web bundle was packaged
+        run: |
+          set -e
+          test -f android/app/src/main/assets/public/index.html
+          test -f android/app/src/main/assets/public/apk-build.json
+          grep -Fq "${GITHUB_SHA}" android/app/src/main/assets/public/apk-build.json
+          grep -Fq '"bannerCache":"tenant-scoped"' android/app/src/main/assets/public/apk-build.json
+          grep -Fq '"numericKeyboard":"native-webview-numeric"' android/app/src/main/assets/public/apk-build.json
+          grep -Fq '"captureInput": false' capacitor.config.json
+          grep -Fq '"captureInput": false' android/app/src/main/assets/capacitor.config.json
+          grep -Rqs "offline_banners:" android/app/src/main/assets/public
+          grep -Rqs "SET_VERSION" android/app/src/main/assets/public
+          echo "Fresh tenant banner and native numeric keyboard configuration verified in Android bundle"
+
+      - name: Apply app id, label and splash color
+        env:
+          SPLASH_COLOR: ${{ inputs.splash_color }}
+        run: |
+          sed -i "s/applicationId \".*\"/applicationId \"${APP_ID}\"/" android/app/build.gradle
+          # Keep the Android namespace fixed because MainActivity is compiled as
+          # com.iftin.agents.MainActivity. The applicationId may safely vary per
+          # tenant without moving or renaming the Java activity class.
+          python3 - <<'PY'
+          import os, re
+          p = "android/app/src/main/res/values/strings.xml"
+          s = open(p).read()
+          name = os.environ["APP_NAME"]
+          s = re.sub(r'(<string name="app_name">).*?(</string>)', r'\g<1>' + name + r'\g<2>', s)
+          s = re.sub(r'(<string name="title_activity_main">).*?(</string>)', r'\g<1>' + name + r'\g<2>', s)
+          open(p, "w").write(s)
+
+          color = (os.environ.get("SPLASH_COLOR") or "#0F4C81").strip()
+          if not re.fullmatch(r"#[0-9A-Fa-f]{6}", color):
+              color = "#0F4C81"
+          c = "android/app/src/main/res/values/colors.xml"
+          s = open(c).read()
+          s = re.sub(r'(<color name="[A-Za-z_]+">)#[0-9A-Fa-f]{6}(</color>)', r'\g<1>' + color + r'\g<2>', s)
+
+          open(c, "w").write(s)
+          PY
+
+
+      - name: Generate icons and splash from tenant logo
+        env:
+          LOGO_URL: ${{ inputs.logo_url }}
+          SPLASH_COLOR: ${{ inputs.splash_color }}
+        run: |
+          if [ -z "${LOGO_URL//[[:space:]]/}" ]; then
+            echo "No tenant logo URL supplied; keeping the default Android artwork."
+            exit 0
+          fi
+          case "$LOGO_URL" in
+            https://*|http://*) ;;
+            *)
+              echo "Logo URL must begin with https:// or http://; keeping the default Android artwork."
+              exit 0
+              ;;
+          esac
+          mkdir -p assets
+          if ! curl --retry 3 --retry-delay 2 -fsSL "$LOGO_URL" -o assets/logo.png; then
+            echo "Tenant logo could not be downloaded; keeping the default Android artwork."
+            exit 0
+          fi
+          cp assets/logo.png assets/icon.png
+          cp assets/logo.png assets/splash.png
+          npx @capacitor/assets generate --android \
+            --iconBackgroundColor "$SPLASH_COLOR" \
+            --splashBackgroundColor "$SPLASH_COLOR" || echo "Asset generation failed; keeping the existing Android artwork."
+
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/iftin.keystore"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/iftin.keystore" >> "$GITHUB_ENV"
+
+      - name: Build signed APK and AAB
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease bundleRelease --no-daemon
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.tenant_slug }}-android
+          path: |
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/bundle/release/*.aab
+
+      - name: Publish APK to Supabase Storage and update tenant
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ -z "$SERVICE_KEY" ] || [ -z "$SUPABASE_URL" ]; then
+            echo "Supabase secrets missing - skipping publish"
+            exit 0
+          fi
+          APK=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
+          OBJECT="apks/${TENANT_SLUG}-${APP_VERSION_NAME}.apk"
+          curl -fsS -X POST "$SUPABASE_URL/storage/v1/object/$OBJECT" \
+            -H "Authorization: Bearer $SERVICE_KEY" \
+            -H "x-upsert: true" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            --data-binary "@$APK"
+          # Private bucket: store the object path; the app creates signed URLs.
+          STORED_PATH="${TENANT_SLUG}-${APP_VERSION_NAME}.apk"
+          curl -fsS -X PATCH "$SUPABASE_URL/rest/v1/tenants?slug=eq.$TENANT_SLUG" \
+            -H "apikey: $SERVICE_KEY" \
+            -H "Authorization: Bearer $SERVICE_KEY" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d "{\"apk_url\":\"$STORED_PATH\",\"apk_version\":\"$APP_VERSION_NAME\"}"
+          echo "APK published: $STORED_PATH"
