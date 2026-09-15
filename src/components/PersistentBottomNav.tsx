@@ -1,5 +1,10 @@
 import { useLocation } from "@/lib/router-compat";
 import { BottomNavigation } from "@/components/BottomNavigation";
+import { bootstrapBundledOfflineSnapshot } from "@/lib/bootstrapBundledOfflineSnapshot";
+
+// Root imports this module before React mounts. Seed a freshly-installed tenant
+// APK early enough for TenantProvider to resolve the real tenant UUID offline.
+bootstrapBundledOfflineSnapshot();
 
 /**
  * Keep the customer bottom navigation mounted for the entire storefront
