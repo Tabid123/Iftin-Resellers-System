@@ -138,6 +138,17 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
               {reasonText} fadlan bixi bill ka.
             </p>
           </div>
+
+          <a
+            href={`https://wa.me/252619535029`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white active:scale-[0.98] transition-transform"
+            style={{ background: "linear-gradient(135deg, #3b82f6, #2563eb)", boxShadow: "0 4px 12px rgba(59,130,246,0.3)" }}
+          >
+            <Wallet className="h-4 w-4" />
+            Pay
+          </a>
         </div>
 
         <a
