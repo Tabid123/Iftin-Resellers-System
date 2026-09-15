@@ -116,6 +116,8 @@ Deno.serve(async (req) => {
 
     const pushPayload = {
       app_id: oneSignalAppId,
+      target_channel: "push",
+      name: `tenant-${tenant.slug}-${notification.id}`,
       headings: { en: title },
       contents: { en: message },
       filters: [
