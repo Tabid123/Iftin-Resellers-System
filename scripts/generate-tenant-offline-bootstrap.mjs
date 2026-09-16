@@ -98,6 +98,27 @@ const tenant = {
 };
 
 const tenantId = String(tenant.id);
+
+// A tenant-dedicated OneSignal App ID takes precedence over the legacy global
+// build secret. The App ID itself is public and safe to compile into the APK;
+// REST API credentials are never read here and remain server-side in Vault.
+if (serviceKey) {
+  try {
+    const pushRows = await fetchJson(
+      `${supabaseUrl}/rest/v1/tenant_push_config?tenant_id=eq.${encodeURIComponent(tenantId)}&select=onesignal_app_id,enabled&limit=1`,
+    );
+    const pushConfig = pushRows?.[0];
+    const tenantOneSignalAppId = String(pushConfig?.onesignal_app_id || '').trim();
+    if (pushConfig?.enabled === true && /^[0-9a-f-]{36}$/i.test(tenantOneSignalAppId)) {
+      process.env.VITE_ONESIGNAL_APP_ID = tenantOneSignalAppId;
+      console.log(`Using tenant-specific OneSignal App ID for ${tenant.slug}`);
+    }
+  } catch (error) {
+    // Keep the existing global VITE_ONESIGNAL_APP_ID as a migration fallback.
+    console.warn('Tenant push App ID lookup skipped:', error?.message || error);
+  }
+}
+
 const [providers, paymentProviders, deliveryInstructions, featuredPackages, appSettingsRaw, banners] = await Promise.all([
   rpc('get_active_providers', tenantId),
   rpc('get_active_payment_providers', tenantId),
