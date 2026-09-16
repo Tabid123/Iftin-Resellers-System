@@ -215,7 +215,7 @@ serve(async (req) => {
       paymentProviderId
         ? admin
             .from('payment_providers_config')
-            .select('id, provider_name, is_active')
+            .select('id, provider_name, is_active, is_waafipay')
             .eq('id', paymentProviderId)
             .eq('tenant_id', tenantId)
             .maybeSingle()
@@ -230,7 +230,8 @@ serve(async (req) => {
       !paymentProviderId ||
       !provider ||
       provider.is_active !== true ||
-      String(provider.provider_name || '').trim().toLowerCase() !== 'waafipay'
+      ((provider as any).is_waafipay !== true &&
+        String(provider.provider_name || '').trim().toLowerCase() !== 'waafipay')
     ) {
       return json({ error: 'waafipay_payment_provider_not_available' }, 404);
     }

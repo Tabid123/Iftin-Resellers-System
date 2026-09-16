@@ -46,6 +46,7 @@ interface PaymentProvider {
   prefix_code: string | null;
   ussd_code_template: string | null;
   payment_number: string | null;
+  is_waafipay?: boolean | null;
 }
 
 
@@ -232,7 +233,8 @@ const PaymentProviders = () => {
 
   const [selectedProvider, setSelectedProvider] = useState('');
   const selectedPaymentProviderForUi = paymentProviders.find(p => p.id === selectedProvider);
-  const isWaafiPaySelected = /waafipay/i.test(selectedPaymentProviderForUi?.provider_name || '');
+  const isWaafiPaySelected = (selectedPaymentProviderForUi as any)?.is_waafipay === true
+    || /waafipay/i.test(selectedPaymentProviderForUi?.provider_name || '');
   const [paymentNumber, setPaymentNumber] = useState('');
   const [receiverNumber, setReceiverNumber] = useState('');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
