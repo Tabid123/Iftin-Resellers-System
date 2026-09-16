@@ -394,7 +394,7 @@ serve(async (req) => {
           success: true,
           payment_approved: true,
           delivery_queued: false,
-          error: 'approved_order_creation_pending',
+          warning: 'approved_order_creation_pending',
           message: 'Lacagta waa la xaqiijiyey; delivery-ga wuxuu u baahan yahay dib-u-hubin.',
           reference_id: transaction.reference_id,
         }, 202);
