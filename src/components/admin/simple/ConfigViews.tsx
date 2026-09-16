@@ -836,7 +836,7 @@ export const PaymentSettingsCustomView = ({ isSo }: { isSo: boolean }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [newPay, setNewPay] = useState({ provider_name: '', payment_number: '', commission_rate: '0', prefix_code: '', ussd_code_template: '', provider_logo: '' });
+  const [newPay, setNewPay] = useState({ provider_name: '', payment_number: '', commission_rate: '0', prefix_code: '', ussd_code_template: '', provider_logo: '', is_waafipay: false });
 
   const loadPaymentProviders = useCallback(async () => {
     const { data } = await supabase.from('payment_providers_config').select('*').order('display_order');
@@ -866,6 +866,7 @@ export const PaymentSettingsCustomView = ({ isSo }: { isSo: boolean }) => {
       provider_name: newPay.provider_name, payment_number: newPay.payment_number || null,
       commission_rate: Number(newPay.commission_rate || 0), prefix_code: newPay.prefix_code || null,
       ussd_code_template: newPay.ussd_code_template || null, provider_logo: newPay.provider_logo || null,
+      is_waafipay: newPay.is_waafipay === true,
     };
     if (editingId) {
       const { error } = await supabase.from('payment_providers_config').update(payload).eq('id', editingId);
@@ -878,7 +879,7 @@ export const PaymentSettingsCustomView = ({ isSo }: { isSo: boolean }) => {
       setProviders(prev => [data, ...prev]);
       toast.success('Added');
     }
-    setNewPay({ provider_name: '', payment_number: '', commission_rate: '0', prefix_code: '', ussd_code_template: '', provider_logo: '' });
+    setNewPay({ provider_name: '', payment_number: '', commission_rate: '0', prefix_code: '', ussd_code_template: '', provider_logo: '', is_waafipay: false });
     setShowAdd(false); setEditingId(null);
   };
 
@@ -888,6 +889,7 @@ export const PaymentSettingsCustomView = ({ isSo }: { isSo: boolean }) => {
       provider_name: item.provider_name || '', payment_number: item.payment_number || '',
       commission_rate: String(item.commission_rate || 0), prefix_code: item.prefix_code || '',
       ussd_code_template: item.ussd_code_template || '', provider_logo: item.provider_logo || '',
+      is_waafipay: item.is_waafipay === true,
     });
     setShowAdd(true); setExpandedId(null);
   };
@@ -898,7 +900,7 @@ export const PaymentSettingsCustomView = ({ isSo }: { isSo: boolean }) => {
         { label: 'Total', value: providers.length, icon: CreditCard, color: 'bg-violet-500' },
         { label: 'Active', value: providers.filter(p => p.is_active).length, icon: CheckCircle, color: 'bg-green-500' },
       ]} />
-      <button onClick={() => { setShowAdd(!showAdd); setEditingId(null); setNewPay({ provider_name: '', payment_number: '', commission_rate: '0', prefix_code: '', ussd_code_template: '', provider_logo: '' }); }}
+      <button onClick={() => { setShowAdd(!showAdd); setEditingId(null); setNewPay({ provider_name: '', payment_number: '', commission_rate: '0', prefix_code: '', ussd_code_template: '', provider_logo: '', is_waafipay: false }); }}
         className="w-full py-2.5 bg-gradient-to-r from-violet-500 to-violet-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 active:scale-[0.98]">
         <Plus className="w-4 h-4" /> {isSo ? 'Payment Provider Cusub' : 'Add Payment Provider'}
       </button>
