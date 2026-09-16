@@ -14,23 +14,19 @@ import { fetchIftinCatalog, hasCatalog, mapProviders } from '@/lib/iftinCatalog'
 import { sellPriceFor } from '@/lib/resellerOverrides';
 import { fetchIftinIntentStatus, isIntentPending } from '@/lib/iftinIntent';
 import CachedImage from '@/components/CachedImage';
+import { useTenant } from '@/contexts/TenantContext';
 
 // Helper function to get invoice image - uses cached URL if available, otherwise generates on-demand
-const getInvoiceBlob = async (order: any): Promise<Blob> => {
-  // If order has a cached invoice URL, fetch it
-  if (order.invoice_url) {
-    try {
-      const response = await fetch(order.invoice_url);
-      if (response.ok) {
-        return await response.blob();
-      }
-    } catch (error) {
-      console.log('Failed to fetch cached invoice, generating on-demand:', error);
-    }
-  }
-  
-  // Fallback: Generate invoice on-demand
-  return generateInvoiceImage(order);
+const getInvoiceBlob = async (
+  order: any,
+  branding?: { tenantName?: string | null; tenantLogo?: string | null }
+): Promise<Blob> => {
+  // Had iyo jeer dib u samee si logo-ga shirkadda (tenant) uu ugu soo baxo
+  return generateInvoiceImage({
+    ...order,
+    tenantName: branding?.tenantName ?? null,
+    tenantLogo: branding?.tenantLogo ?? null,
+  });
 };
 
 const PENDING_STATES = ['pending', 'processing', 'matched', 'delivering', 'awaiting_payment', 'pending_payment'];
@@ -41,6 +37,11 @@ const normalizeSomaliPhone = (phone?: string | null) => (phone || '').replace(/^
 let historyCache: any[] | null = null;
 
 const OrderHistory = () => {
+  const { tenant } = useTenant();
+  const invoiceBranding = {
+    tenantName: tenant?.name ?? null,
+    tenantLogo: tenant?.logo_url ?? null,
+  };
   const navigate = useNavigate();
   const {
     toast
@@ -429,7 +430,7 @@ const OrderHistory = () => {
                       description: 'Creating invoice image',
                     });
 
-                    const imageBlob = await getInvoiceBlob(selectedOrder);
+                    const imageBlob = await getInvoiceBlob(selectedOrder, invoiceBranding);
                     const url = URL.createObjectURL(imageBlob);
                     
                     // Check if on mobile and WhatsApp is available
@@ -474,7 +475,7 @@ const OrderHistory = () => {
                       description: 'Sawirka invoice-ka ayaa la keydinayaa',
                     });
 
-                    const imageBlob = await getInvoiceBlob(selectedOrder);
+                    const imageBlob = await getInvoiceBlob(selectedOrder, invoiceBranding);
                     const fileName = `invoice-${selectedOrder.transactionId}.jpg`;
 
                     const isNativeApp = Capacitor.isNativePlatform();
@@ -502,24 +503,24 @@ const OrderHistory = () => {
 
                       if (useLegacyExternalStorage) {
                         await Filesystem.writeFile({
-                          path: `Pictures/NajaxInvoices/${fileName}`,
+                          path: `Pictures/Invoices/${fileName}`,
                           data: base64String,
                           directory: Directory.ExternalStorage,
                           recursive: true,
                         });
                         toast({
                           title: 'Waa la keydiyay! ✅',
-                          description: 'Gallery > Pictures > NajaxInvoices',
+                          description: 'Gallery > Pictures > Invoices',
                         });
                       } else {
                         await Filesystem.mkdir({
-                          path: 'NajaxInvoices',
+                          path: 'Invoices',
                           directory: Directory.Documents,
                           recursive: true,
                         }).catch(() => null);
 
                         await Filesystem.writeFile({
-                          path: `NajaxInvoices/${fileName}`,
+                          path: `Invoices/${fileName}`,
                           data: base64String,
                           directory: Directory.Documents,
                           recursive: true,
@@ -527,7 +528,7 @@ const OrderHistory = () => {
 
                         toast({
                           title: 'Waa la keydiyay! ✅',
-                          description: `Documents/NajaxInvoices/${fileName}`,
+                          description: `Documents/Invoices/${fileName}`,
                         });
                       }
                     } else {

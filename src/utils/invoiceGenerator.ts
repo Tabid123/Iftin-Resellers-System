@@ -32,6 +32,10 @@ export interface InvoiceData {
   status: string;
   delivery_status?: string;
   payment_source?: string | null;
+  /** Magaca shirkadda (tenant) ee invoice-ka lagu qorayo */
+  tenantName?: string | null;
+  /** Logo-ga shirkadda (tenant) */
+  tenantLogo?: string | null;
 }
 
 // Generate beautiful invoice image
@@ -54,15 +58,26 @@ export const generateInvoiceImage = async (order: InvoiceData): Promise<Blob> =>
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, 800, 150);
   
-  // Load and draw Najax Data logo (right side of header)
+  // Load and draw tenant (workspace) logo on the right side of the header
+  const tenantName = (order.tenantName || '').trim();
   try {
-    const najaxLogoModule = await import('@/assets/najax-logo.jpeg');
-    const najaxLogo = await loadLocalImage(najaxLogoModule.default);
-    const logoWidth = 120;
-    const logoHeight = 80;
-    ctx.drawImage(najaxLogo, 640, 35, logoWidth, logoHeight);
+    if (order.tenantLogo) {
+      const tenantLogo = await loadImageFromUrl(order.tenantLogo);
+      ctx.drawImage(tenantLogo, 640, 35, 120, 80);
+    } else if (tenantName) {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 26px Arial';
+      ctx.textAlign = 'right';
+      ctx.fillText(tenantName, 760, 90);
+    }
   } catch (error) {
-    console.error('Error loading Najax logo:', error);
+    console.error('Error loading tenant logo:', error);
+    if (tenantName) {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 26px Arial';
+      ctx.textAlign = 'right';
+      ctx.fillText(tenantName, 760, 90);
+    }
   }
   
   // Title (left side)
@@ -194,7 +209,11 @@ export const generateInvoiceImage = async (order: InvoiceData): Promise<Blob> =>
   ctx.fillText('Mahadsanid-Soo dhawow', 400, yPos);
   ctx.font = 'bold 20px Arial';
   ctx.fillStyle = '#3b82f6';
-  ctx.fillText('Najax Data - Waqti kasta, Meel kasta', 400, yPos + 35);
+  ctx.fillText(
+    tenantName ? `${tenantName} - Waqti kasta, Meel kasta` : 'Waqti kasta, Meel kasta',
+    400,
+    yPos + 35
+  );
   
   // Convert to blob
   return new Promise((resolve, reject) => {
