@@ -57,12 +57,7 @@ const clearOldCaches = async () => {
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing service worker...');
   event.waitUntil(
-    caches.open(getCacheName(STATIC_CACHE_PREFIX))
-      .then((cache) => {
-        console.log('[SW] Caching static assets');
-        return cache.addAll(STATIC_ASSETS);
-      })
-      .then(() => self.skipWaiting())
+    precache().then(() => self.skipWaiting())
   );
 });
 
