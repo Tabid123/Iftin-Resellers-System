@@ -430,7 +430,7 @@ const OrderHistory = () => {
                       description: 'Creating invoice image',
                     });
 
-                    const imageBlob = await getInvoiceBlob(selectedOrder);
+                    const imageBlob = await getInvoiceBlob(selectedOrder, invoiceBranding);
                     const url = URL.createObjectURL(imageBlob);
                     
                     // Check if on mobile and WhatsApp is available
@@ -475,7 +475,7 @@ const OrderHistory = () => {
                       description: 'Sawirka invoice-ka ayaa la keydinayaa',
                     });
 
-                    const imageBlob = await getInvoiceBlob(selectedOrder);
+                    const imageBlob = await getInvoiceBlob(selectedOrder, invoiceBranding);
                     const fileName = `invoice-${selectedOrder.transactionId}.jpg`;
 
                     const isNativeApp = Capacitor.isNativePlatform();
