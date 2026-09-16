@@ -262,6 +262,8 @@ function RootComponent() {
   // previously installed service worker so an APK update cannot keep serving
   // the prior app shell or JavaScript bundle.
   useEffect(() => {
+    registerServiceWorker();
+
     const buildVersion = import.meta.env.VITE_BUILD_VERSION;
     if (!buildVersion || !("serviceWorker" in navigator)) return;
 
