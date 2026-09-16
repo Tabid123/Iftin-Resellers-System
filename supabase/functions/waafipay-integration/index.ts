@@ -64,11 +64,36 @@ serve(async (req) => {
     }
 
     if (action === 'save') {
+      const merchantUid = String(body?.merchant_uid || '').trim();
+      const apiUserId = String(body?.api_user_id || '').trim();
+      const apiKey = typeof body?.api_key === 'string' && body.api_key.trim()
+        ? body.api_key.trim()
+        : null;
+
+      if (merchantUid.length < 7 || merchantUid.length > 15) {
+        return json({
+          error: 'invalid_merchant_uid',
+          message: 'Merchant UID-ga waa inuu ahaadaa 7 ilaa 15 xaraf.',
+        }, 400);
+      }
+      if (apiUserId.length < 7 || apiUserId.length > 15) {
+        return json({
+          error: 'invalid_api_user_id',
+          message: 'API User ID-ga waa inuu ahaadaa 7 ilaa 15 xaraf.',
+        }, 400);
+      }
+      if ((!body?.configured && !apiKey) || (apiKey && (apiKey.length < 20 || apiKey.length > 40))) {
+        return json({
+          error: 'invalid_api_key',
+          message: 'WaafiPay API Key-ga buuxa geli; waa inuu ahaadaa 20 ilaa 40 xaraf.',
+        }, 400);
+      }
+
       const { data, error } = await admin.rpc('waafipay_admin_save', {
         p_tenant_id: tenantId,
-        p_merchant_uid: String(body?.merchant_uid || '').trim(),
-        p_api_user_id: String(body?.api_user_id || '').trim(),
-        p_api_key: typeof body?.api_key === 'string' && body.api_key.trim() ? body.api_key.trim() : null,
+        p_merchant_uid: merchantUid,
+        p_api_user_id: apiUserId,
+        p_api_key: apiKey,
         p_environment: body?.environment === 'sandbox' ? 'sandbox' : 'production',
         p_is_active: body?.is_active === true,
       });
