@@ -58,9 +58,28 @@ serve(async (req) => {
     if (isSuperAdmin !== true) return json({ error: 'super_admin_required' }, 403);
 
     if (action === 'status') {
-      const { data, error } = await admin.rpc('waafipay_admin_status', { p_tenant_id: tenantId });
+      const [{ data, error }, { data: credentials, error: credentialError }] = await Promise.all([
+        admin.rpc('waafipay_admin_status', { p_tenant_id: tenantId }),
+        admin.rpc('waafipay_admin_credentials', { p_tenant_id: tenantId }),
+      ]);
       if (error) throw error;
-      return json({ success: true, integration: data });
+      if (credentialError) throw credentialError;
+
+      const merchantUid = String(credentials?.merchant_uid || '');
+      const apiUserId = String(credentials?.api_user_id || '');
+      const apiKey = String(credentials?.api_key || '');
+      const credentialsValid =
+        data?.configured !== true ||
+        (
+          merchantUid.length >= 7 && merchantUid.length <= 15 &&
+          apiUserId.length >= 7 && apiUserId.length <= 15 &&
+          apiKey.length >= 20 && apiKey.length <= 40
+        );
+
+      return json({
+        success: true,
+        integration: { ...data, credentials_valid: credentialsValid },
+      });
     }
 
     if (action === 'save') {
