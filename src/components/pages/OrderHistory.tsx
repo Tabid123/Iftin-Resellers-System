@@ -14,6 +14,7 @@ import { fetchIftinCatalog, hasCatalog, mapProviders } from '@/lib/iftinCatalog'
 import { sellPriceFor } from '@/lib/resellerOverrides';
 import { fetchIftinIntentStatus, isIntentPending } from '@/lib/iftinIntent';
 import CachedImage from '@/components/CachedImage';
+import { useTenant } from '@/contexts/TenantContext';
 
 // Helper function to get invoice image - uses cached URL if available, otherwise generates on-demand
 const getInvoiceBlob = async (
