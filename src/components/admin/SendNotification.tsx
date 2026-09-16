@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, invokeEdgeFunction } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Bell, Send, Trash2, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { resolveTenantId } from "@/lib/iftinCatalog";
+import { useTenant } from "@/contexts/TenantContext";
 
 interface Notification {
   id: string;
@@ -32,6 +33,7 @@ export function SendNotification() {
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
 
   const isNativePush =
     typeof window !== "undefined" &&
@@ -75,15 +77,14 @@ export function SendNotification() {
         return { success: true, push_sent: false, in_app_only: true } as const;
       }
 
-      const { data, error } = await supabase.functions.invoke<SendNotificationResult>(
+      const { data, error } = await invokeEdgeFunction<SendNotificationResult>(
         "send-tenant-notification",
         {
-          body: {
-            tenant_id: tenantId,
-            title: title.trim(),
-            message: message.trim(),
-            path: "/notifications",
-          },
+          tenant_id: tenantId,
+          title: title.trim(),
+          message: message.trim(),
+          path: "/notifications",
+          logo_url: tenant?.logo_url || null,
         },
       );
 
