@@ -28,9 +28,14 @@ function waafiAccount(phone: string): string {
   return `252${phone}`;
 }
 
+// WaafiPay rejects long / punctuated reference ids with E10000
+// ("An error occurred while creating order"). Keep it short + alphanumeric.
 function referenceId(tenantId: string, clientReference: string): string {
-  const clean = clientReference.replace(/[^A-Za-z0-9._-]/g, '').slice(0, 36);
-  return `WP-${tenantId.slice(0, 8)}-${clean}`.slice(0, 50);
+  const seed = `${tenantId}:${clientReference}`;
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  const stamp = Date.now().toString(36).toUpperCase().slice(-6);
+  return `WP${stamp}${hash.toString(36).toUpperCase()}`.replace(/[^A-Z0-9]/g, '').slice(0, 20);
 }
 
 function waafiTimestamp(): string {
