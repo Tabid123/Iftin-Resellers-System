@@ -325,9 +325,11 @@ serve(async (req) => {
       }
 
       const params = waafiResponse?.params || {};
+      const code = String(waafiResponse?.responseCode || '');
       const state = String(params?.state || '').toUpperCase();
-      const approved = String(waafiResponse?.responseCode || '') === '2001' && state === 'APPROVED';
-      const finalStatus = approved ? 'approved' : state === 'DECLINED' ? 'declined' : 'failed';
+      const rejected = code === '5310' || String(waafiResponse?.responseMsg || '').toUpperCase().includes('REJECTED');
+      const approved = code === '2001' && state === 'APPROVED';
+      const finalStatus = approved ? 'approved' : (state === 'DECLINED' || rejected) ? 'declined' : 'failed';
 
       const { data: updated, error: updateError } = await admin
         .from('waafipay_transactions')
