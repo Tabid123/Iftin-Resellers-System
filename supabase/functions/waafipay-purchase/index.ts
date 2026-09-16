@@ -42,9 +42,39 @@ function waafiTimestamp(): string {
   return new Date().toISOString().replace('T', ' ').replace('Z', '');
 }
 
+// Kala saarid: user-ka ayaa cancel dhigay vs haraag kuma filna vs kale
+function classifyFailure(responseCode: string, responseMsg: string, state: string): string {
+  const code = String(responseCode || '').trim();
+  const msg = String(responseMsg || '').toUpperCase();
+  if (
+    code === '5206' ||
+    msg.includes('INSUFFICIENT') ||
+    msg.includes('NOT ENOUGH') ||
+    msg.includes('LOW BALANCE') ||
+    msg.includes('BALANCE')
+  ) {
+    return 'insufficient_balance';
+  }
+  if (
+    code === '5310' ||
+    msg.includes('REJECT') ||
+    msg.includes('CANCEL') ||
+    msg.includes('DENIED') ||
+    msg.includes('TIMEOUT') ||
+    msg.includes('EXPIRE')
+  ) {
+    return msg.includes('TIMEOUT') || msg.includes('EXPIRE') ? 'payment_timeout' : 'payment_cancelled';
+  }
+  if (String(state || '').toUpperCase() === 'DECLINED') return 'payment_declined';
+  return 'payment_failed';
+}
+
 function publicErrorMessage(code: string, fallback?: string) {
   const messages: Record<string, string> = {
     payment_declined: 'Lacag-bixinta waa la diiday.',
+    payment_cancelled: 'Waad joojisay lacag-bixinta.',
+    insufficient_balance: 'Haraagaagu kuma filna. Fadlan lacag shubo kadibna isku day mar kale.',
+    payment_timeout: 'Waqtigii lacag-bixinta wuu dhamaaday. Fadlan isku day mar kale.',
     payment_failed: 'Lacag-bixinta ma dhammaan.',
     payment_status_unknown: 'Xaaladda lacag-bixinta lama xaqiijin. Fadlan ha ku celin hadda; la xiriir adeegga macaamiisha.',
     waafipay_not_configured: 'WaafiPay tenant-kan looma diyaarin.',
