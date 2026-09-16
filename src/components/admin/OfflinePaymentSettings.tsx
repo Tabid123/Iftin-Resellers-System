@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Save, Phone } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTenant } from '@/contexts/TenantContext';
 
 interface AppSetting {
   id: string;
