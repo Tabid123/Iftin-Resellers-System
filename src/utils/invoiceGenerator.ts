@@ -209,7 +209,11 @@ export const generateInvoiceImage = async (order: InvoiceData): Promise<Blob> =>
   ctx.fillText('Mahadsanid-Soo dhawow', 400, yPos);
   ctx.font = 'bold 20px Arial';
   ctx.fillStyle = '#3b82f6';
-  ctx.fillText('Najax Data - Waqti kasta, Meel kasta', 400, yPos + 35);
+  ctx.fillText(
+    tenantName ? `${tenantName} - Waqti kasta, Meel kasta` : 'Waqti kasta, Meel kasta',
+    400,
+    yPos + 35
+  );
   
   // Convert to blob
   return new Promise((resolve, reject) => {
