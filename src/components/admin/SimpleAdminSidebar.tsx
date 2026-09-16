@@ -35,7 +35,6 @@ interface MenuItem {
 
 const menuGroups: MenuItem[] = [
   { label: 'Dashboard', labelSo: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-  { label: 'Notifications', labelSo: 'Farriimaha', icon: Bell, path: '/dashboard/send-notification' },
   
   {
     label: 'Payments & Analytics', labelSo: 'Lacagaha & Falanqayn', icon: BarChart3,
@@ -91,6 +90,8 @@ const menuGroups: MenuItem[] = [
   {
     label: 'Communication', labelSo: 'Xiriirka', icon: Send,
     children: [
+      { label: 'Send Message', labelSo: 'Farriin Dir', icon: Send, path: '/dashboard/send-notification' },
+      { label: 'Notification', labelSo: 'Notification', icon: Bell, path: '/dashboard/send-notification?mode=push' },
       { label: 'Bulk SMS', labelSo: 'Bulk SMS', icon: Megaphone, path: '/dashboard/bulk-sms' },
     ],
   },
@@ -212,7 +213,6 @@ export function SimpleAdminSidebar() {
 
           <div className="my-3 border-t border-gray-700" />
 
-          {/* Logout */}
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={handleLogout}
@@ -225,10 +225,8 @@ export function SimpleAdminSidebar() {
         </SidebarMenu>
       </SidebarContent>
 
-      {/* Footer: Language + Dark Mode */}
       <SidebarFooter className="bg-gray-900 dark:bg-gray-950 border-t border-gray-700 p-3">
         <div className="flex items-center justify-between gap-2">
-          {/* Language toggle */}
           <button
             onClick={() => setLanguage(isSo ? 'en' : 'so')}
             className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm transition-colors flex-1"
@@ -237,7 +235,6 @@ export function SimpleAdminSidebar() {
             <span>{isSo ? '🇬🇧 English' : '🇸🇴 Soomaali'}</span>
           </button>
 
-          {/* Dark mode toggle */}
           <button
             onClick={toggleTheme}
             className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm transition-colors"
