@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Send, Trash2, Loader2 } from "lucide-react";
+import { Bell, Send, Trash2, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { resolveTenantId } from "@/lib/iftinCatalog";
 
@@ -32,6 +32,10 @@ export function SendNotification() {
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const queryClient = useQueryClient();
+
+  const isNativePush =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("mode") === "push";
 
   const { data: tenantId, isLoading: isTenantLoading } = useQuery({
     queryKey: ["resolved-tenant-id", "send-notification"],
@@ -61,6 +65,16 @@ export function SendNotification() {
     mutationFn: async () => {
       if (!tenantId) throw new Error("Workspace-ka lama garanayo");
 
+      if (!isNativePush) {
+        const { error } = await supabase.from("notifications").insert({
+          title: title.trim(),
+          message: message.trim(),
+          tenant_id: tenantId,
+        });
+        if (error) throw error;
+        return { success: true, push_sent: false, in_app_only: true } as const;
+      }
+
       const { data, error } = await supabase.functions.invoke<SendNotificationResult>(
         "send-tenant-notification",
         {
@@ -74,8 +88,8 @@ export function SendNotification() {
       );
 
       if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || "Fariinta lama diri karin");
-      return data;
+      if (!data?.success) throw new Error(data?.error || "Notification-ka lama diri karin");
+      return { ...data, in_app_only: false };
     },
     onSuccess: (result) => {
       setTitle("");
@@ -83,16 +97,21 @@ export function SendNotification() {
       queryClient.invalidateQueries({ queryKey: notificationQueryKey });
       queryClient.invalidateQueries({ queryKey: ["user-notifications", tenantId] });
 
+      if (result.in_app_only) {
+        toast.success("Fariinta app-ka dhexdiisa waa la diray!");
+        return;
+      }
+
       if (result.push_sent) {
         const recipientText =
           typeof result.recipients === "number" && result.recipients >= 0
             ? ` (${result.recipients} qalab)`
             : "";
-        toast.success(`Fariinta iyo native notification-ka waa la diray${recipientText}`);
+        toast.success(`Native notification-ka waa la diray${recipientText}`);
       } else if (result.push_configured === false) {
-        toast.warning("Fariinta app-ka waa la kaydiyey; native push config weli lama dhameystirin");
+        toast.warning("Fariinta waa la kaydiyey; native push config weli lama dhameystirin");
       } else {
-        toast.warning("Fariinta app-ka waa la kaydiyey, laakiin native push ma gaarin provider-ka");
+        toast.warning("Fariinta waa la kaydiyey, laakiin native push ma gaarin provider-ka");
       }
     },
     onError: (error: Error) => {
@@ -138,11 +157,16 @@ export function SendNotification() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Send className="h-5 w-5" />
-            Dir Fariin Cusub
+            {isNativePush ? <Bell className="h-5 w-5" /> : <Send className="h-5 w-5" />}
+            {isNativePush ? "Dir Notification Cusub" : "Dir Fariin Cusub"}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {isNativePush && (
+            <p className="text-sm text-muted-foreground">
+              Notification-kan wuxuu u baxayaa qalabka tenant-kan ee OneSignal ku xiran.
+            </p>
+          )}
           <div>
             <label className="text-sm font-medium mb-1 block">Title</label>
             <Input
@@ -169,10 +193,12 @@ export function SendNotification() {
           >
             {sendMutation.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : isNativePush ? (
+              <Bell className="h-4 w-4 mr-2" />
             ) : (
               <Send className="h-4 w-4 mr-2" />
             )}
-            Dir Fariinta
+            {isNativePush ? "Dir Notification" : "Dir Fariinta"}
           </Button>
         </CardContent>
       </Card>
@@ -201,9 +227,7 @@ export function SendNotification() {
                   <TableRow key={notif.id}>
                     <TableCell className="font-medium">{notif.title}</TableCell>
                     <TableCell className="max-w-[300px] truncate">{notif.message}</TableCell>
-                    <TableCell>
-                      {format(new Date(notif.created_at), "MMM dd, yyyy HH:mm")}
-                    </TableCell>
+                    <TableCell>{format(new Date(notif.created_at), "MMM dd, yyyy HH:mm")}</TableCell>
                     <TableCell>
                       <Button
                         variant="ghost"
@@ -219,9 +243,7 @@ export function SendNotification() {
               </TableBody>
             </Table>
           ) : (
-            <p className="text-center text-muted-foreground py-8">
-              Weli fariin lama dirin
-            </p>
+            <p className="text-center text-muted-foreground py-8">Weli fariin lama dirin</p>
           )}
         </CardContent>
       </Card>
