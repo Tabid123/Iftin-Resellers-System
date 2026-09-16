@@ -2,18 +2,51 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
-const supabaseUrl = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
-const serviceKey = String(process.env.SERVICE_KEY || '').trim();
+async function readDotEnv() {
+  try {
+    const text = await fs.readFile(path.resolve('.env'), 'utf8');
+    const out = {};
+    for (const rawLine of text.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith('#')) continue;
+      const eq = line.indexOf('=');
+      if (eq <= 0) continue;
+      const key = line.slice(0, eq).trim();
+      let value = line.slice(eq + 1).trim();
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      out[key] = value;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+const dotEnv = await readDotEnv();
+const supabaseUrl = String(
+  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || dotEnv.VITE_SUPABASE_URL || '',
+).replace(/\/$/, '');
+const serviceKey = String(process.env.SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+const publicKey = String(
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    dotEnv.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    dotEnv.VITE_SUPABASE_ANON_KEY ||
+    '',
+).trim();
+const apiKey = serviceKey || publicKey;
 const tenantSlug = String(process.env.TENANT_SLUG || process.env.VITE_TENANT_SLUG || '').trim().toLowerCase();
 
-if (!supabaseUrl || !serviceKey || !tenantSlug) {
-  console.error('SUPABASE_URL, SERVICE_KEY and TENANT_SLUG are required');
+if (!supabaseUrl || !apiKey || !tenantSlug) {
+  console.error('Supabase URL/key and TENANT_SLUG are required for tenant offline bootstrap');
   process.exit(1);
 }
 
 const headers = {
-  apikey: serviceKey,
-  Authorization: `Bearer ${serviceKey}`,
+  apikey: apiKey,
+  Authorization: `Bearer ${apiKey}`,
   'Content-Type': 'application/json',
 };
 
@@ -29,15 +62,22 @@ async function fetchJson(url, options = {}) {
 async function rpc(name, tenantId, body = {}) {
   return fetchJson(`${supabaseUrl}/rest/v1/rpc/${name}`, {
     method: 'POST',
-    headers: { 'x-tenant-id': tenantId },
+    headers: tenantId ? { 'x-tenant-id': tenantId } : {},
     body: JSON.stringify(body),
   });
 }
 
-const tenantRows = await fetchJson(
-  `${supabaseUrl}/rest/v1/tenants?slug=eq.${encodeURIComponent(tenantSlug)}&select=id,slug,name,logo_url,primary_color,accent_color,status,trial_ends_at,current_period_end,support_phone&limit=1`,
-);
-const tenantRow = tenantRows?.[0];
+let tenantRow;
+if (serviceKey) {
+  const tenantRows = await fetchJson(
+    `${supabaseUrl}/rest/v1/tenants?slug=eq.${encodeURIComponent(tenantSlug)}&select=id,slug,name,logo_url,primary_color,accent_color,status,trial_ends_at,current_period_end,support_phone&limit=1`,
+  );
+  tenantRow = tenantRows?.[0];
+} else {
+  const resolved = await rpc('get_tenant_by_slug', null, { p_slug: tenantSlug });
+  tenantRow = Array.isArray(resolved) ? resolved[0] : resolved;
+}
+
 if (!tenantRow?.id) throw new Error(`Tenant not found for slug: ${tenantSlug}`);
 
 // Keep the APK snapshot strictly to storefront-safe identity fields. Internal
