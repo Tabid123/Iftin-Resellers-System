@@ -471,7 +471,9 @@ const PaymentProviders = () => {
         ? paymentNumber.substring(4)
         : paymentNumber.startsWith('0') ? paymentNumber.substring(1) : paymentNumber;
 
-      if (!discoveryId) {
+      // WaafiPay = API payment. Skip the Iftin intent/USSD dial path entirely,
+      // otherwise the dialer opens and the WaafiPay branch below never runs.
+      if (!discoveryId && !isWaafiPaySelected) {
         try {
         const created = await createIftinIntent({
           receiver_phone: receiverNumber,
