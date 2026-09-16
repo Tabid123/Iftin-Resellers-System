@@ -410,9 +410,10 @@ const DataPackages = () => {
     const cachedPaymentProviders = workspaceStorage.get('offline_payment_providers', workspaceId);
     const paymentProvidersList = cachedPaymentProviders ? JSON.parse(cachedPaymentProviders) : [];
     const senderPrefix = senderPhone?.substring(0, 2) || '';
-    const payProvider =
+    const payProvider = withTenantOfflinePayment(
       paymentProvidersList.find((pp: any) => pp.prefix_code && senderPrefix && String(pp.prefix_code).startsWith(senderPrefix))
-      ?? paymentProvidersList[0];
+      ?? paymentProvidersList[0],
+    );
     const paymentNumber = payProvider?.payment_number || '';
 
     // USSD string built strictly from the payment provider data (no hardcoding)
