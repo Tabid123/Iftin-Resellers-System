@@ -12,12 +12,37 @@
   backface-visibility: visible !important;
 }
 
+/*
+ * Bottom nav is a lifetime shell, not part of the route's visual tree. Keep its
+ * geometry and paint containment constant while Outlet swaps pages underneath.
+ * Using opacity instead of visibility/display means Android never destroys and
+ * recreates the nav's painted box when checkout/admin routes hide it.
+ */
+.iftin-bottom-nav {
+  position: fixed !important;
+  inset-inline: 0 !important;
+  bottom: 0 !important;
+  z-index: 50 !important;
+  margin: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+  contain: layout paint style !important;
+  isolation: isolate !important;
+  overflow: hidden !important;
+  transform: none !important;
+  will-change: auto !important;
+  backface-visibility: visible !important;
+  transition: none !important;
+  animation: none !important;
+}
+
 /* Bottom navigation should respond immediately, not animate a large white pill
  * while the destination route is mounting. */
-.fixed.bottom-0 button,
-.fixed.bottom-0 button * {
-  transition-duration: 0ms !important;
-  animation-duration: 0ms !important;
+.iftin-bottom-nav button,
+.iftin-bottom-nav button * {
+  transition: none !important;
+  animation: none !important;
+  transform-origin: center center !important;
 }
 
 @media (max-width: 767px) {
