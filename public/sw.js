@@ -9,10 +9,23 @@ const getCacheName = (prefix) => prefix + (CACHE_VERSION || 'default');
 
 const STATIC_ASSETS = [
   '/',
-  '/index.html',
   '/manifest.json',
-  '/offline.html'
+  '/offline.html',
+  '/icon-192.png'
 ];
+
+// Cache each asset on its own: one 404 must not fail the whole install,
+// otherwise the service worker never activates and offline stops working.
+const precache = async () => {
+  const cache = await caches.open(getCacheName(STATIC_CACHE_PREFIX));
+  await Promise.allSettled(
+    STATIC_ASSETS.map((asset) =>
+      fetch(asset, { cache: 'no-store' }).then((response) => {
+        if (response && response.ok) return cache.put(asset, response);
+      })
+    )
+  );
+};
 
 // Notify all clients about new version
 const notifyClientsOfUpdate = async () => {
@@ -44,12 +57,7 @@ const clearOldCaches = async () => {
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing service worker...');
   event.waitUntil(
-    caches.open(getCacheName(STATIC_CACHE_PREFIX))
-      .then((cache) => {
-        console.log('[SW] Caching static assets');
-        return cache.addAll(STATIC_ASSETS);
-      })
-      .then(() => self.skipWaiting())
+    precache().then(() => self.skipWaiting())
   );
 });
 
@@ -132,7 +140,10 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(() => {
-          return caches.match(request).then(cached => cached || caches.match('/offline.html'));
+          return caches.match(request)
+            .then(cached => cached || caches.match('/'))
+            .then(cached => cached || caches.match('/offline.html'))
+            .then(cached => cached || new Response('Offline', { status: 503 }));
         })
     );
     return;

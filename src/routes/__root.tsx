@@ -48,6 +48,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { registerServiceWorker } from "@/lib/registerServiceWorker";
 
 const CHUNK_RELOAD_KEY = "iftin:chunk-reload";
 const OFFLINE_CACHE_SCHEMA_KEY = "iftin:offline-cache-schema";
@@ -262,6 +263,8 @@ function RootComponent() {
   // previously installed service worker so an APK update cannot keep serving
   // the prior app shell or JavaScript bundle.
   useEffect(() => {
+    registerServiceWorker();
+
     const buildVersion = import.meta.env.VITE_BUILD_VERSION;
     if (!buildVersion || !("serviceWorker" in navigator)) return;
 
