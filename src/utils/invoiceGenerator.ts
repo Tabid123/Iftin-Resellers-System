@@ -58,15 +58,26 @@ export const generateInvoiceImage = async (order: InvoiceData): Promise<Blob> =>
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, 800, 150);
   
-  // Load and draw Najax Data logo (right side of header)
+  // Load and draw tenant (workspace) logo on the right side of the header
+  const tenantName = (order.tenantName || '').trim();
   try {
-    const najaxLogoModule = await import('@/assets/najax-logo.jpeg');
-    const najaxLogo = await loadLocalImage(najaxLogoModule.default);
-    const logoWidth = 120;
-    const logoHeight = 80;
-    ctx.drawImage(najaxLogo, 640, 35, logoWidth, logoHeight);
+    if (order.tenantLogo) {
+      const tenantLogo = await loadImageFromUrl(order.tenantLogo);
+      ctx.drawImage(tenantLogo, 640, 35, 120, 80);
+    } else if (tenantName) {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 26px Arial';
+      ctx.textAlign = 'right';
+      ctx.fillText(tenantName, 760, 90);
+    }
   } catch (error) {
-    console.error('Error loading Najax logo:', error);
+    console.error('Error loading tenant logo:', error);
+    if (tenantName) {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 26px Arial';
+      ctx.textAlign = 'right';
+      ctx.fillText(tenantName, 760, 90);
+    }
   }
   
   // Title (left side)
