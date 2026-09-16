@@ -9,10 +9,23 @@ const getCacheName = (prefix) => prefix + (CACHE_VERSION || 'default');
 
 const STATIC_ASSETS = [
   '/',
-  '/index.html',
   '/manifest.json',
-  '/offline.html'
+  '/offline.html',
+  '/icon-192.png'
 ];
+
+// Cache each asset on its own: one 404 must not fail the whole install,
+// otherwise the service worker never activates and offline stops working.
+const precache = async () => {
+  const cache = await caches.open(getCacheName(STATIC_CACHE_PREFIX));
+  await Promise.allSettled(
+    STATIC_ASSETS.map((asset) =>
+      fetch(asset, { cache: 'no-store' }).then((response) => {
+        if (response && response.ok) return cache.put(asset, response);
+      })
+    )
+  );
+};
 
 // Notify all clients about new version
 const notifyClientsOfUpdate = async () => {
