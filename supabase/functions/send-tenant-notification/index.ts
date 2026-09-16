@@ -86,7 +86,10 @@ serve(async (req) => {
   ]);
 
   if (!tenant) return json({ error: 'tenant_not_found' }, 404);
-  const authorized = tenant.owner_user_id === user.id || Boolean(membership) || Boolean(role);
+
+  const membershipRole = String(membership?.role || '').toLowerCase();
+  const isTenantAdmin = membershipRole === 'owner' || membershipRole === 'admin';
+  const authorized = tenant.owner_user_id === user.id || isTenantAdmin || Boolean(role);
   if (!authorized) return json({ error: 'forbidden' }, 403);
 
   const { data: notification, error: insertError } = await admin
