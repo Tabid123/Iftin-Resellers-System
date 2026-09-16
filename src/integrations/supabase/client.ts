@@ -82,6 +82,47 @@ const rawClient = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY,
 
 export const supabase = rawClient as unknown as ReturnType<typeof createClient<any, 'public', any>>;
 
+/**
+ * Calls an authenticated Edge Function without the storefront `x-tenant-id`
+ * request header. The tenant is still supplied explicitly in the JSON body and
+ * verified server-side. This avoids browser CORS preflight failures on Edge
+ * Functions that do not opt into the storefront-only header.
+ */
+export async function invokeEdgeFunction<T = unknown>(
+  functionName: string,
+  body: Record<string, unknown>,
+): Promise<{ data: T | null; error: Error | null }> {
+  const { data: { session }, error: sessionError } = await rawClient.auth.getSession();
+  if (sessionError) return { data: null, error: sessionError };
+  if (!session?.access_token) return { data: null, error: new Error('Session-ka admin-ka lama helin') };
+
+  try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/${functionName}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        apikey: SUPABASE_PUBLISHABLE_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = typeof payload?.error === 'string'
+        ? payload.error
+        : `Edge Function error (${response.status})`;
+      return { data: payload as T, error: new Error(message) };
+    }
+
+    return { data: payload as T, error: null };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error : new Error('Edge Function request failed'),
+    };
+  }
+}
 
 /**
  * Tenant guard: tenant kasta wuxuu arkaa xogtiisa oo keliya.
