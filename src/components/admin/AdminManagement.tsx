@@ -102,6 +102,7 @@ export function AdminManagement() {
 
       if (response.error) throw new Error(response.error.message);
       if (response.data?.error) throw new Error(response.data.error);
+      if (!response.data) throw new Error(language === 'so' ? 'Jawaabta server-ka lama helin' : 'No response from server');
       return response.data;
     },
     onSuccess: (data) => {
