@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Save, Phone } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTenant } from '@/contexts/TenantContext';
 
 interface AppSetting {
   id: string;
@@ -17,6 +18,8 @@ interface AppSetting {
 
 const OfflinePaymentSettings = () => {
   const queryClient = useQueryClient();
+  const tenantState = useTenant();
+  const tenantId = tenantState.tenant?.id ?? null;
   const [paymentNumber, setPaymentNumber] = useState('');
   const [paymentPrefix, setPaymentPrefix] = useState('');
   const [hasNumberChanges, setHasNumberChanges] = useState(false);
@@ -47,12 +50,31 @@ const OfflinePaymentSettings = () => {
   }, [settings]);
 
   const updateSetting = useMutation({
-    mutationFn: async ({ id, value }: { id: string; value: string }) => {
+    mutationFn: async ({
+      key,
+      value,
+      description,
+    }: {
+      key: string;
+      value: string;
+      description: string;
+    }) => {
+      const existing = settings.find((s) => s.setting_key === key);
+
+      if (existing) {
+        const { error } = await supabase
+          .from('app_settings')
+          .update({ text_value: value })
+          .eq('id', existing.id);
+        if (error) throw error;
+        return;
+      }
+
+      if (!tenantId) throw new Error('Tenant lama helin');
+
       const { error } = await supabase
         .from('app_settings')
-        .update({ text_value: value })
-        .eq('id', id);
-      
+        .insert({ tenant_id: tenantId, setting_key: key, text_value: value, description });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -60,8 +82,8 @@ const OfflinePaymentSettings = () => {
       queryClient.invalidateQueries({ queryKey: ['appSettings'] });
       toast.success('Settings la kaydisey si guul leh!');
     },
-    onError: (error) => {
-      toast.error('Khalad ayaa dhacay!');
+    onError: (error: any) => {
+      toast.error(error?.message || 'Khalad ayaa dhacay!');
       console.error('Error updating setting:', error);
     },
   });
@@ -79,19 +101,25 @@ const OfflinePaymentSettings = () => {
   };
 
   const handleSaveNumber = () => {
-    const setting = settings.find(s => s.setting_key === 'payment_number');
-    if (setting) {
-      updateSetting.mutate({ id: setting.id, value: paymentNumber });
-      setHasNumberChanges(false);
-    }
+    updateSetting.mutate(
+      {
+        key: 'payment_number',
+        value: paymentNumber.trim(),
+        description: 'Lambarka lacagta ee offline mode',
+      },
+      { onSuccess: () => setHasNumberChanges(false) },
+    );
   };
 
   const handleSavePrefix = () => {
-    const setting = settings.find(s => s.setting_key === 'payment_prefix');
-    if (setting) {
-      updateSetting.mutate({ id: setting.id, value: paymentPrefix });
-      setHasPrefixChanges(false);
-    }
+    updateSetting.mutate(
+      {
+        key: 'payment_prefix',
+        value: paymentPrefix.trim(),
+        description: 'Prefix-ka USSD code-ka ee offline mode',
+      },
+      { onSuccess: () => setHasPrefixChanges(false) },
+    );
   };
 
   const handleCallNumber = () => {
@@ -148,7 +176,7 @@ const OfflinePaymentSettings = () => {
               </Button>
               <Button
                 onClick={handleSaveNumber}
-                disabled={!hasNumberChanges}
+                disabled={updateSetting.isPending || !paymentNumber.trim()}
                 className="min-w-[100px]"
               >
                 <Save className="w-4 h-4 mr-2" />
@@ -187,7 +215,7 @@ const OfflinePaymentSettings = () => {
               />
               <Button
                 onClick={handleSavePrefix}
-                disabled={!hasPrefixChanges}
+                disabled={updateSetting.isPending || !paymentPrefix.trim()}
                 className="min-w-[100px]"
               >
                 <Save className="w-4 h-4 mr-2" />
