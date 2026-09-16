@@ -324,7 +324,7 @@ const PaymentProviders = () => {
     setPaymentNumber(value);
     const selectedPayment = paymentProviders.find(p => p.id === selectedProvider);
     const paymentProviderName = selectedPayment?.provider_name ?? '';
-    const allowed = getAllowedPrefixes(paymentProviderName);
+    const allowed = isWaafiProvider(selectedPayment) ? [] : getAllowedPrefixes(paymentProviderName);
     if (value.length >= 2 && !matchesAllowedPrefix(value, allowed)) {
       setPaymentNumberError(`Fadlan gali lambarka ${paymentProviderName} (${formatPrefixes(allowed)})`);
     } else setPaymentNumberError('');
