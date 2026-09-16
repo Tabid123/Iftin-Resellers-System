@@ -1,7 +1,6 @@
 import { startTransition, useEffect, useState } from 'react';
 import { useNavigate, useLocation } from "@/lib/router-compat";
 import { useNotifications } from '@/hooks/useNotifications';
-import { useVisualViewport } from '@/hooks/useVisualViewport';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTenant } from '@/contexts/TenantContext';
 
@@ -53,8 +52,6 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
   const t = useTenant();
   const tenant = t.status === 'ready' || t.status === 'suspended' ? t.tenant : null;
 
-  useVisualViewport();
-
   // Optimistic tab highlight: the tap must paint in the very next frame even
   // though rendering the destination screen costs a few hundred milliseconds
   // on a low-end phone. The pending path wins until the router catches up.
@@ -70,17 +67,10 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
     currentPath.startsWith('/packages/');
   const isActive = (path: string) => path === '/providers' ? isCatalogHome : currentPath === path;
   const go = (path: string) => {
-    // Re-navigating to the route already on screen creates pointless router
-    // work and a visible redraw on some Android WebViews.
     if (isActive(path)) {
-      // Home is also considered active on categories/packages. Only skip the
-      // navigation when we are actually on /providers; otherwise Home should
-      // still take the user back to the provider list.
       if (path !== '/providers' || currentPath === '/providers') return;
     }
     setPendingPath(path);
-    // Keep the current screen interactive while the next one renders instead
-    // of blocking the main thread inside the tap handler.
     startTransition(() => navigate(path));
   };
 
@@ -101,25 +91,31 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
   ];
 
   const navBackground = tenant?.primary_color ? tenant.primary_color : 'hsl(var(--primary))';
-  // Never resolve to a CSS variable here: on a white pill an unresolved/late
-  // variable would paint the icon invisible for a frame during navigation.
   const activeIconColor = tenant?.primary_color || '#0F4C81';
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-50"
+      className="iftin-bottom-nav fixed bottom-0 left-0 right-0 z-50"
       aria-hidden={!visible}
       style={{
-        paddingBottom: 'calc(8px + var(--effective-safe-area-bottom, env(safe-area-inset-bottom, 0px)))',
+        height: 'calc(76px + var(--effective-safe-area-bottom, 0px))',
+        minHeight: 'calc(76px + var(--effective-safe-area-bottom, 0px))',
+        paddingBottom: 'var(--effective-safe-area-bottom, 0px)',
+        boxSizing: 'border-box',
         background: navBackground,
         WebkitTapHighlightColor: 'transparent',
-        visibility: visible ? 'visible' : 'hidden',
+        opacity: visible ? 1 : 0,
         pointerEvents: visible ? 'auto' : 'none',
-        contain: 'layout paint',
+        contain: 'layout paint style',
+        isolation: 'isolate',
+        overflow: 'hidden',
+        transform: 'none',
+        willChange: 'auto',
+        backfaceVisibility: 'visible',
       }}
     >
-      <div className="mx-auto w-full max-w-md">
-        <div className="grid h-[68px] grid-cols-4 items-center px-2">
+      <div className="mx-auto h-full w-full max-w-md">
+        <div className="grid h-full grid-cols-4 items-center px-2">
           {navItems.map(({ icon: Icon, path, label, onClick, badge }) => {
             const active = isActive(path);
             return (
@@ -133,9 +129,7 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
                 aria-current={active ? 'page' : undefined}
               >
                 <div
-                  className={`flex h-9 w-14 items-center justify-center rounded-full ${
-                    active ? 'shadow-sm' : ''
-                  }`}
+                  className={`flex h-9 w-14 items-center justify-center rounded-full ${active ? 'shadow-sm' : ''}`}
                   style={{
                     backgroundColor: active ? '#ffffff' : 'transparent',
                     transition: 'none',
@@ -148,9 +142,7 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
                     <Icon active={active} />
                   </div>
                 </div>
-                <span className={`w-full truncate text-center text-[11px] leading-none ${
-                  active ? 'text-white font-bold' : 'text-white/60'
-                }`}>
+                <span className={`w-full truncate text-center text-[11px] leading-none ${active ? 'text-white font-bold' : 'text-white/60'}`}>
                   {label}
                 </span>
                 {badge != null && badge > 0 && (
