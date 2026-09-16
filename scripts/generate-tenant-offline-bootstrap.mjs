@@ -3,8 +3,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 
 const supabaseUrl = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
-const serviceKey = String(process.env.SERVICE_KEY || '');
-const tenantSlug = String(process.env.TENANT_SLUG || '').trim();
+const serviceKey = String(process.env.SERVICE_KEY || '').trim();
+const tenantSlug = String(process.env.TENANT_SLUG || process.env.VITE_TENANT_SLUG || '').trim().toLowerCase();
 
 if (!supabaseUrl || !serviceKey || !tenantSlug) {
   console.error('SUPABASE_URL, SERVICE_KEY and TENANT_SLUG are required');
@@ -38,9 +38,7 @@ const tenantRows = await fetchJson(
   `${supabaseUrl}/rest/v1/tenants?slug=eq.${encodeURIComponent(tenantSlug)}&select=id,slug,name,logo_url,primary_color,accent_color,status,trial_ends_at,current_period_end,support_phone&limit=1`,
 );
 const tenantRow = tenantRows?.[0];
-if (!tenantRow?.id) {
-  throw new Error(`Tenant not found for slug: ${tenantSlug}`);
-}
+if (!tenantRow?.id) throw new Error(`Tenant not found for slug: ${tenantSlug}`);
 
 // Keep the APK snapshot strictly to storefront-safe identity fields. Internal
 // notes, billing metadata, credit state and suspension details are never baked
@@ -59,7 +57,7 @@ const tenant = {
   support_phone: tenantRow.support_phone ?? null,
 };
 
-const tenantId = tenant.id;
+const tenantId = String(tenant.id);
 const [providers, paymentProviders, deliveryInstructions, featuredPackages, appSettingsRaw, banners] = await Promise.all([
   rpc('get_active_providers', tenantId),
   rpc('get_active_payment_providers', tenantId),
@@ -97,6 +95,7 @@ const snapshot = {
   deliveryInstructions: Array.isArray(deliveryInstructions) ? deliveryInstructions : [],
   appSettings,
   featuredPackages: Array.isArray(featuredPackages) ? featuredPackages : [],
+  popularPackages: [],
   banners: Array.isArray(banners) ? banners : [],
 };
 
@@ -112,6 +111,7 @@ const fields = [
   ...snapshot.banners.filter((item) => item?.media_type !== 'video').map((item) => [item, 'banner_image']),
 ];
 
+let bundledImageCount = 0;
 for (const [object, field] of fields) {
   const url = String(object?.[field] || '').trim();
   if (!/^https?:\/\//i.test(url)) continue;
@@ -130,6 +130,7 @@ for (const [object, field] of fields) {
     const name = `${crypto.createHash('sha256').update(url).digest('hex').slice(0, 20)}${ext}`;
     await fs.writeFile(path.join(assetsDir, name), bytes);
     object[field] = `/offline-assets/tenant-bootstrap/${name}`;
+    bundledImageCount += 1;
   } catch (error) {
     console.warn(`Could not bundle offline image ${url}:`, error?.message || error);
   }
@@ -143,4 +144,40 @@ await fs.writeFile(
   'utf8',
 );
 
-console.log(`Offline bootstrap generated for ${tenant.slug}: ${snapshot.providers.length} providers, ${snapshot.categories.length} categories`);
+// Capacitor loads this script before React. It seeds only tenant-scoped local
+// storage, so TenantContext starts with the authoritative id and the storefront
+// can hydrate providers/categories/packages on a brand-new offline install.
+const bootstrapScript = `(() => {\n` +
+  `  const snapshot = ${JSON.stringify(snapshot)};\n` +
+  `  try {\n` +
+  `    const tenant = snapshot.tenant;\n` +
+  `    if (!tenant || !tenant.id || !tenant.slug) return;\n` +
+  `    const id = String(tenant.id);\n` +
+  `    const slug = String(tenant.slug).toLowerCase();\n` +
+  `    const prefix = 'ws:' + id + ':';\n` +
+  `    localStorage.setItem('najax.tenant_slug', slug);\n` +
+  `    localStorage.setItem('najax.cache_owner_slug', slug);\n` +
+  `    localStorage.setItem('najax.tenant_cache.' + slug, JSON.stringify(tenant));\n` +
+  `    localStorage.setItem(prefix + 'offline_providers', JSON.stringify(snapshot.providers || []));\n` +
+  `    localStorage.setItem(prefix + 'offline_categories', JSON.stringify(snapshot.categories || []));\n` +
+  `    localStorage.setItem(prefix + 'offline_packages', JSON.stringify(snapshot.packages || {}));\n` +
+  `    localStorage.setItem(prefix + 'offline_payment_providers', JSON.stringify(snapshot.paymentProviders || []));\n` +
+  `    localStorage.setItem(prefix + 'offline_delivery_instructions', JSON.stringify(snapshot.deliveryInstructions || []));\n` +
+  `    localStorage.setItem(prefix + 'offline_app_settings', JSON.stringify(snapshot.appSettings || []));\n` +
+  `    localStorage.setItem(prefix + 'offline_featured_packages', JSON.stringify(snapshot.featuredPackages || []));\n` +
+  `    localStorage.setItem(prefix + 'offline_popular_packages_v2', JSON.stringify(snapshot.popularPackages || []));\n` +
+  `    localStorage.setItem(prefix + 'offline_banners', JSON.stringify(snapshot.banners || []));\n` +
+  `    localStorage.setItem(prefix + 'offline_banners_at', String(Date.now()));\n` +
+  `    localStorage.setItem(prefix + 'offline_cache_timestamp', String(Date.now()));\n` +
+  `    localStorage.setItem(prefix + 'offline_bootstrap_version', String(snapshot.version || 1));\n` +
+  `  } catch (_) {}\n` +
+  `})();\n`;
+
+await fs.writeFile(path.resolve('public/tenant-bootstrap.js'), bootstrapScript, 'utf8');
+await fs.writeFile(path.resolve('public/tenant-bootstrap.json'), JSON.stringify(snapshot), 'utf8');
+
+const packageCount = Object.values(snapshot.packages).reduce((total, list) => total + list.length, 0);
+console.log(
+  `Offline bootstrap generated for ${tenant.slug}: ${snapshot.providers.length} providers, ` +
+  `${snapshot.categories.length} categories, ${packageCount} packages, ${bundledImageCount} bundled images`,
+);
