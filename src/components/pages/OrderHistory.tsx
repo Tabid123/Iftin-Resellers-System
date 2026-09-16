@@ -16,21 +16,16 @@ import { fetchIftinIntentStatus, isIntentPending } from '@/lib/iftinIntent';
 import CachedImage from '@/components/CachedImage';
 
 // Helper function to get invoice image - uses cached URL if available, otherwise generates on-demand
-const getInvoiceBlob = async (order: any): Promise<Blob> => {
-  // If order has a cached invoice URL, fetch it
-  if (order.invoice_url) {
-    try {
-      const response = await fetch(order.invoice_url);
-      if (response.ok) {
-        return await response.blob();
-      }
-    } catch (error) {
-      console.log('Failed to fetch cached invoice, generating on-demand:', error);
-    }
-  }
-  
-  // Fallback: Generate invoice on-demand
-  return generateInvoiceImage(order);
+const getInvoiceBlob = async (
+  order: any,
+  branding?: { tenantName?: string | null; tenantLogo?: string | null }
+): Promise<Blob> => {
+  // Had iyo jeer dib u samee si logo-ga shirkadda (tenant) uu ugu soo baxo
+  return generateInvoiceImage({
+    ...order,
+    tenantName: branding?.tenantName ?? null,
+    tenantLogo: branding?.tenantLogo ?? null,
+  });
 };
 
 const PENDING_STATES = ['pending', 'processing', 'matched', 'delivering', 'awaiting_payment', 'pending_payment'];
