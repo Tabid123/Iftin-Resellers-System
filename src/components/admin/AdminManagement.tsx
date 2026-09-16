@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { invokeEdgeFunction, supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useTenant } from '@/contexts/TenantContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -47,14 +48,19 @@ export function AdminManagement() {
   const [invitePermissions, setInvitePermissions] = useState<string[]>([]);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [editPermissions, setEditPermissions] = useState<string[]>([]);
+  const tenantState = useTenant();
+  const tenantId = tenantState.tenant?.id ?? null;
 
   const { data: admins, isLoading } = useQuery({
-    queryKey: ['admin-users'],
+    queryKey: ['admin-users', tenantId],
+    enabled: Boolean(tenantId),
     queryFn: async () => {
+      if (!tenantId) throw new Error('Tenant lama helin');
       const { data: roles, error } = await supabase
-        .from('user_roles')
+        .from('tenant_members')
         .select('*')
-        .eq('role', 'admin');
+        .eq('tenant_id', tenantId)
+        .in('role', ['owner', 'admin']);
       if (error) throw error;
 
       // Get admin emails and names via edge function
@@ -74,10 +80,12 @@ export function AdminManagement() {
       }
 
       // Fetch user details
-      const response = await supabase.functions.invoke('get-admin-details', {
-        body: { user_ids: adminUsers.map(a => a.user_id) },
-      });
+      const response = await invokeEdgeFunction<{ users?: Array<{ id: string; email?: string; full_name?: string }> }>(
+        'get-admin-details',
+        { user_ids: adminUsers.map(a => a.user_id), tenant_id: tenantId },
+      );
 
+      if (response.error) throw response.error;
       if (response.data?.users) {
         for (const admin of adminUsers) {
           const userDetail = response.data.users.find((u: any) => u.id === admin.user_id);
@@ -98,7 +106,7 @@ export function AdminManagement() {
         error?: string;
         full_name?: string;
         email?: string;
-      }>('add-admin-user', { email, password, full_name, permissions });
+      }>('add-admin-user', { email, password, full_name, permissions, tenant_id: tenantId });
 
       if (response.error) throw new Error(response.error.message);
       if (response.data?.error) throw new Error(response.data.error);
@@ -106,7 +114,7 @@ export function AdminManagement() {
       return response.data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-users', tenantId] });
       setShowInvite(false);
       setInviteEmail('');
       setInvitePassword('');
@@ -129,13 +137,13 @@ export function AdminManagement() {
       await supabase.from('admin_permissions').delete().eq('user_id', userId);
       if (permissions.length > 0) {
         const { error } = await supabase.from('admin_permissions').insert(
-          permissions.map(key => ({ user_id: userId, permission_key: key }))
+          permissions.map(key => ({ user_id: userId, permission_key: key, tenant_id: tenantId }))
         );
         if (error) throw error;
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-users', tenantId] });
       setEditingUser(null);
       toast({ title: language === 'so' ? 'Guul' : 'Success', description: language === 'so' ? 'Permissions waa la kaydiyay' : 'Permissions saved' });
     },
@@ -147,11 +155,14 @@ export function AdminManagement() {
   const removeAdmin = useMutation({
     mutationFn: async (userId: string) => {
       await supabase.from('admin_permissions').delete().eq('user_id', userId);
-      const { error } = await supabase.from('user_roles').delete().eq('user_id', userId).eq('role', 'admin');
+      const { error } = await supabase.from('tenant_members').delete()
+        .eq('tenant_id', tenantId)
+        .eq('user_id', userId)
+        .eq('role', 'admin');
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-users', tenantId] });
       toast({ title: language === 'so' ? 'Guul' : 'Success', description: language === 'so' ? 'Admin waa la saaray' : 'Admin removed' });
     },
   });

@@ -17,7 +17,7 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Verify caller is admin
+    // Verify caller and restrict lookups to the requested tenant.
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(
@@ -35,19 +35,33 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { data: callerRole } = await supabaseAdmin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", caller.id)
-      .eq("role", "admin")
-      .single();
-    if (!callerRole) throw new Error("Not authorized");
-
-    const { user_ids } = await req.json();
+    const { user_ids, tenant_id } = await req.json();
     if (!user_ids || !Array.isArray(user_ids)) throw new Error("user_ids array required");
+    if (!tenant_id) throw new Error("Tenant lama helin");
+
+    const [{ data: membership }, { data: platformRole }] = await Promise.all([
+      supabaseAdmin.from("tenant_members").select("role")
+        .eq("tenant_id", tenant_id).eq("user_id", caller.id).maybeSingle(),
+      supabaseAdmin.from("user_roles").select("role")
+        .eq("user_id", caller.id).eq("role", "super_admin").maybeSingle(),
+    ]);
+    if (!membership && !platformRole) {
+      return new Response(
+        JSON.stringify({ error: "Ma lihid fasax tenant-kan." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { data: allowedMembers, error: membersError } = await supabaseAdmin
+      .from("tenant_members")
+      .select("user_id")
+      .eq("tenant_id", tenant_id)
+      .in("user_id", user_ids);
+    if (membersError) throw membersError;
+    const allowedIds = new Set((allowedMembers || []).map((member: any) => member.user_id));
 
     const users = [];
-    for (const uid of user_ids) {
+    for (const uid of user_ids.filter((id: string) => allowedIds.has(id))) {
       const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(uid);
       if (user) {
         users.push({
