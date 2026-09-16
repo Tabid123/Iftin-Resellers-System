@@ -35,6 +35,7 @@ interface MenuItem {
 
 const menuGroups: MenuItem[] = [
   { label: 'Dashboard', labelSo: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
+  { label: 'Notifications', labelSo: 'Farriimaha', icon: Bell, path: '/dashboard/send-notification' },
   
   {
     label: 'Payments & Analytics', labelSo: 'Lacagaha & Falanqayn', icon: BarChart3,
@@ -90,7 +91,6 @@ const menuGroups: MenuItem[] = [
   {
     label: 'Communication', labelSo: 'Xiriirka', icon: Send,
     children: [
-      { label: 'Send Notification', labelSo: 'Farriin Dir', icon: Bell, path: '/dashboard/send-notification' },
       { label: 'Bulk SMS', labelSo: 'Bulk SMS', icon: Megaphone, path: '/dashboard/bulk-sms' },
     ],
   },
@@ -211,7 +211,6 @@ export function SimpleAdminSidebar() {
           ))}
 
           <div className="my-3 border-t border-gray-700" />
-
 
           {/* Logout */}
           <SidebarMenuItem>
