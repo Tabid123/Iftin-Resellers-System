@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
-import { useTenant } from '@/contexts/TenantContext';
 import { toast } from '@/hooks/use-toast';
 
 type WaafiPayStatus = {
@@ -28,9 +27,7 @@ const EMPTY_STATUS: WaafiPayStatus = {
   has_api_key: false,
 };
 
-export default function WaafiPayIntegrationSettings() {
-  const { tenant } = useTenant();
-  const tenantId = tenant?.id ?? null;
+export default function WaafiPayIntegrationSettings({ tenantId }: { tenantId: string }) {
   const [status, setStatus] = useState<WaafiPayStatus>(EMPTY_STATUS);
   const [merchantUid, setMerchantUid] = useState('');
   const [apiUserId, setApiUserId] = useState('');
@@ -107,8 +104,8 @@ export default function WaafiPayIntegrationSettings() {
       toast({
         title: 'WaafiPay waa la kaydiyey',
         description: isActive
-          ? 'Payment-ka APPROVED noqda ayaa si toos ah delivery-ga u gelaya.'
-          : 'Credentials waa kaydsan yihiin; integration-ku weli waa hakad.',
+          ? 'WaafiPay payment method-ka tenant-kan si automatic ah ayaa loo active-gareeyey; APPROVED ayaa delivery galaya.'
+          : 'Credentials waa kaydsan yihiin; WaafiPay payment method-ka tenant-kan waa inactive.',
       });
     } catch (error: any) {
       toast({
@@ -153,7 +150,7 @@ export default function WaafiPayIntegrationSettings() {
                 <CreditCard className="h-5 w-5" /> WaafiPay Direct Purchase
               </CardTitle>
               <CardDescription className="mt-1">
-                Tenant kasta wuxuu leeyahay merchant credentials u gaar ah.
+                Super Admin-ka ayaa tenant-kan u gelinaya merchant credentials-ka.
               </CardDescription>
             </div>
             <div className={`rounded-full px-3 py-1 text-xs font-semibold ${
