@@ -1,11 +1,10 @@
 import { useEffect } from 'react';
-import { cacheImages } from '@/lib/imageCache';
-import { bundledStaticImages, getLocalImage } from '@/lib/localImages';
+import { bundledStaticImages } from '@/lib/localImages';
 import { useTenant } from '@/contexts/TenantContext';
 import { workspaceStorage } from '@/lib/workspaceKeys';
 
-const PRELOAD_BATCH_SIZE = 4;
-const PRELOAD_BATCH_DELAY_MS = 100;
+const PRELOAD_BATCH_SIZE = 3;
+const PRELOAD_BATCH_DELAY_MS = 140;
 
 export const useGlobalImagePreloader = () => {
   const tenantState = useTenant();
@@ -29,16 +28,19 @@ export const useGlobalImagePreloader = () => {
         if (cancelled) return;
 
         const batch = urls.slice(index, index + PRELOAD_BATCH_SIZE);
-        batch.forEach((url) => {
+        batch.forEach((url, batchIndex) => {
           const img = new Image();
           img.decoding = 'async';
+          // The first item is the current/first banner. Give it network priority;
+          // everything else stays background work.
+          if (index === 0 && batchIndex === 0 && 'fetchPriority' in img) {
+            (img as HTMLImageElement).fetchPriority = 'high';
+          }
           img.src = url;
         });
         index += batch.length;
 
         if (index < urls.length) {
-          // Give Android WebView a chance to paint and respond to taps between
-          // batches instead of decoding every cached image in one main-thread burst.
           batchTimer = window.setTimeout(loadNextBatch, PRELOAD_BATCH_DELAY_MS);
         }
       };
@@ -57,28 +59,22 @@ export const useGlobalImagePreloader = () => {
           workspaceId,
         );
 
-        const cachedImageUrls: string[] = [
-          ...providers.map((p: any) => p.provider_logo).filter(Boolean),
-          ...categories.map((c: any) => c.category_image).filter(Boolean),
+        // Above-the-fold banner first, then provider/payment logos, then category
+        // artwork. Previously every custom URL was also fetched a second time by
+        // cacheImages(), which competed for bandwidth/decoding and made Android
+        // WebView feel heavy during the first taps.
+        const orderedUrls: string[] = [
           ...banners.map((b: any) => b.banner_image).filter(Boolean),
+          ...providers.map((p: any) => p.provider_logo).filter(Boolean),
           ...paymentProviders.map((pp: any) => pp.provider_logo).filter(Boolean),
+          ...categories.map((c: any) => c.category_image).filter(Boolean),
+          ...bundledStaticImages,
         ];
 
-        const uniqueUrls = [...new Set([...bundledStaticImages, ...cachedImageUrls])];
+        const uniqueUrls = [...new Set(orderedUrls)];
         preloadInBatches(uniqueUrls);
 
-        // Known static images are already in the bundle. Cache only custom
-        // remote uploads; known provider/category/banner images never need I/O.
-        const customRemoteUrls = cachedImageUrls.filter((url) =>
-          /^https?:/i.test(url) &&
-          !getLocalImage('provider', null, url) &&
-          !getLocalImage('payment', null, url) &&
-          !getLocalImage('category', null, url) &&
-          !getLocalImage('banner', null, url),
-        );
-        void cacheImages(customRemoteUrls);
-
-        console.log(`[ImagePreloader] Scheduled ${uniqueUrls.length} tenant images in small batches`);
+        console.log(`[ImagePreloader] Scheduled ${uniqueUrls.length} tenant images without duplicate cache fetches`);
       } catch (error) {
         console.error('[ImagePreloader] Error preloading images:', error);
       }
