@@ -140,7 +140,10 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(() => {
-          return caches.match(request).then(cached => cached || caches.match('/offline.html'));
+          return caches.match(request)
+            .then(cached => cached || caches.match('/'))
+            .then(cached => cached || caches.match('/offline.html'))
+            .then(cached => cached || new Response('Offline', { status: 503 }));
         })
     );
     return;
