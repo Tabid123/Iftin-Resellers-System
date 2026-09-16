@@ -82,7 +82,7 @@ serve(async (req) => {
           message: 'API User ID-ga waa inuu ahaadaa 7 ilaa 15 xaraf.',
         }, 400);
       }
-      if ((!body?.configured && !apiKey) || (apiKey && (apiKey.length < 20 || apiKey.length > 40))) {
+      if (apiKey && (apiKey.length < 20 || apiKey.length > 40)) {
         return json({
           error: 'invalid_api_key',
           message: 'WaafiPay API Key-ga buuxa geli; waa inuu ahaadaa 20 ilaa 40 xaraf.',
