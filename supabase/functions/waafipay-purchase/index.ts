@@ -44,7 +44,7 @@ function publicErrorMessage(code: string, fallback?: string) {
     payment_status_unknown: 'Xaaladda lacag-bixinta lama xaqiijin. Fadlan ha ku celin hadda; la xiriir adeegga macaamiisha.',
     waafipay_not_configured: 'WaafiPay tenant-kan looma diyaarin.',
     waafipay_inactive: 'WaafiPay tenant-kan waa hakad.',
-    waafipay_credentials_invalid: 'WaafiPay credentials-ka tenant-kan ma dhammaystirna. Super Admin-ku ha geliyo API Key-ga buuxa (20–40 xaraf).',
+    waafipay_credentials_invalid: 'WaafiPay credentials-ka tenant-kan ma dhammaystirna. Super Admin-ku ha hubiyo credentials-ka WaafiPay bixiyey.',
     waafipay_delivery_mode_not_supported: 'WaafiPay Direct Purchase wuxuu u baahan yahay Android/USSD delivery.',
   };
   return messages[code] || fallback || 'WaafiPay request failed';
@@ -144,7 +144,7 @@ serve(async (req) => {
     const credentialsValid =
       merchantUid.length >= 7 && merchantUid.length <= 15 &&
       apiUserId.length >= 7 && apiUserId.length <= 15 &&
-      apiKey.length >= 20 && apiKey.length <= 40;
+      apiKey.length >= 10 && apiKey.length <= 100;
     if (!credentialsValid) {
       return json({
         error: 'waafipay_credentials_invalid',
