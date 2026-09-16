@@ -359,9 +359,8 @@ serve(async (req) => {
         throw new Error('Delivery instruction not configured for this package/category/provider');
       }
 
-      // 4. Build final USSD code - format amount correctly
-      // Decimal amounts use * as separator in USSD: $4.25 -> "4*25", $0.10 -> "0*10"
-      // Integer amounts stay as-is: $4 -> "4", $20 -> "20"
+      // 4. Build final USSD code using the same carrier format as manual delivery:
+      // $4.25 -> "4*25", $0.10 -> "010", integers stay unchanged.
       const formatAmountForUssd = (amount: number) => {
         const numericAmount = Number(amount);
         if (!Number.isFinite(numericAmount)) return '0';
@@ -369,9 +368,9 @@ serve(async (req) => {
         if (Math.abs(numericAmount - Math.round(numericAmount)) < 0.000001) {
           return String(Math.round(numericAmount));
         }
-        // Decimal amount: 4.25 -> "4*25", 0.10 -> "0*10"
-        const parts = numericAmount.toFixed(2).split('.');
-        return `${parts[0]}*${parts[1]}`;
+        const fixed = numericAmount.toFixed(2);
+        if (numericAmount < 1) return fixed.replace('.', '');
+        return fixed.replace('.', '*');
       };
 
       // No longer split amounts — send full amount in single USSD
