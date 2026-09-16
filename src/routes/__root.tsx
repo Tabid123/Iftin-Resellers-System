@@ -47,6 +47,7 @@ import { onStorefront } from "@/lib/storefrontEvents";
 import { useQueryClient } from "@tanstack/react-query";
 
 import appCss from "../styles.css?url";
+import mobileStabilityCss from "../mobile-stability.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { registerServiceWorker } from "@/lib/registerServiceWorker";
 
@@ -174,6 +175,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         rel: "stylesheet",
         href: appCss,
+      },
+      {
+        rel: "stylesheet",
+        href: mobileStabilityCss,
       },
       { rel: "icon", href: "/favicon.png", type: "image/png" },
       { rel: "manifest", href: "/manifest.json" },
