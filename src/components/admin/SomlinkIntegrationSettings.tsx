@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import WaafiPayIntegrationSettings from '@/components/admin/WaafiPayIntegrationSettings';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { toast } from '@/hooks/use-toast';
@@ -29,7 +31,7 @@ const EMPTY_STATUS: SomlinkStatus = {
   has_password: false,
 };
 
-export default function SomlinkIntegrationSettings() {
+function SomlinkPanel() {
   const { tenant } = useTenant();
   const tenantId = tenant?.id ?? null;
   const [status, setStatus] = useState<SomlinkStatus>(EMPTY_STATUS);
@@ -264,5 +266,23 @@ export default function SomlinkIntegrationSettings() {
         <p>Password-ka waxaa server-side loogu kaydiyaa Supabase Vault. Master Template-ku wuxuu clone-gareeyaa Somlink packages iyo bundle IDs oo keliya; wallet/password tenant kale looma gudbinayo.</p>
       </div>
     </div>
+  );
+}
+
+
+export default function SomlinkIntegrationSettings() {
+  return (
+    <Tabs defaultValue="waafipay" className="w-full">
+      <TabsList className="mb-4 grid w-full max-w-md grid-cols-2">
+        <TabsTrigger value="waafipay">WaafiPay</TabsTrigger>
+        <TabsTrigger value="somlink">Somlink</TabsTrigger>
+      </TabsList>
+      <TabsContent value="waafipay">
+        <WaafiPayIntegrationSettings />
+      </TabsContent>
+      <TabsContent value="somlink">
+        <SomlinkPanel />
+      </TabsContent>
+    </Tabs>
   );
 }
