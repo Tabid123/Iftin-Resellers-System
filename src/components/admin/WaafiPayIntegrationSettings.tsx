@@ -92,10 +92,10 @@ export default function WaafiPayIntegrationSettings({ tenantId }: { tenantId: st
       toast({ title: 'API Key geli', variant: 'destructive' });
       return;
     }
-    if (apiKey.trim() && (apiKey.trim().length < 20 || apiKey.trim().length > 40)) {
+    if (apiKey.trim() && (apiKey.trim().length < 10 || apiKey.trim().length > 100)) {
       toast({
         title: 'API Key-ga ma dhammaystirna',
-        description: 'WaafiPay API Key-gu waa inuu ahaadaa 20 ilaa 40 xaraf.',
+        description: 'Fadlan geli API Key-ga buuxa ee WaafiPay kuu soo diray.',
         variant: 'destructive',
       });
       return;
@@ -221,11 +221,11 @@ export default function WaafiPayIntegrationSettings({ tenantId }: { tenantId: st
               autoComplete="new-password"
             />
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <EyeOff className="h-3.5 w-3.5" /> API Key-ga buuxa waa 20–40 xaraf; browser-ka dib looguma soo celiyo.
+              <EyeOff className="h-3.5 w-3.5" /> Geli API Key-ga saxda ah ee WaafiPay bixiyey; browser-ka dib looguma soo celiyo.
             </p>
             {status.configured && status.credentials_valid === false && (
               <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs font-medium text-red-700">
-                API Key-ga kaydsan ma dhammaystirna. Ku paste-garee key-ga buuxa ee WaafiPay kadibna Save WaafiPay riix.
+                Credentials-ka kaydsan ma dhammaystirna. Ku paste-garee xogta saxda ah ee WaafiPay kadibna Save WaafiPay riix.
               </p>
             )}
           </div>
