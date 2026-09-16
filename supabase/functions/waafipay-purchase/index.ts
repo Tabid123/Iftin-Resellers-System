@@ -215,7 +215,7 @@ serve(async (req) => {
       paymentProviderId
         ? admin
             .from('payment_providers_config')
-            .select('id, provider_name, is_active')
+            .select('id, provider_name, is_active, is_waafipay')
             .eq('id', paymentProviderId)
             .eq('tenant_id', tenantId)
             .maybeSingle()
