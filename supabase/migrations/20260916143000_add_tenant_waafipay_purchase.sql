@@ -169,9 +169,48 @@ begin
     where tenant_id = p_tenant_id;
   end if;
 
+  -- Keep the storefront payment option in sync with the integration.
+  -- The row belongs only to this tenant and is never copied with credentials.
+  update public.payment_providers_config
+  set is_active = p_is_active,
+      updated_at = now()
+  where tenant_id = p_tenant_id
+    and lower(btrim(provider_name)) = 'waafipay';
+
+  if not found and p_is_active then
+    insert into public.payment_providers_config (
+      tenant_id,
+      provider_name,
+      provider_logo,
+      commission_rate,
+      is_active,
+      display_order,
+      prefix_code,
+      ussd_code_template,
+      payment_number,
+      updated_at
+    )
+    values (
+      p_tenant_id,
+      'WaafiPay',
+      null,
+      0,
+      true,
+      coalesce((
+        select max(display_order) + 1
+        from public.payment_providers_config
+        where tenant_id = p_tenant_id
+      ), 1),
+      null,
+      null,
+      null,
+      now()
+    );
+  end if;
+
   return public.waafipay_admin_status(p_tenant_id);
 end;
-$$;
+$;
 
 create or replace function public.waafipay_admin_credentials(p_tenant_id uuid)
 returns jsonb
@@ -209,6 +248,12 @@ begin
   if v_secret_id is not null then
     delete from vault.secrets where id = v_secret_id;
   end if;
+
+  update public.payment_providers_config
+  set is_active = false,
+      updated_at = now()
+  where tenant_id = p_tenant_id
+    and lower(btrim(provider_name)) = 'waafipay';
 
   return public.waafipay_admin_status(p_tenant_id);
 end;
