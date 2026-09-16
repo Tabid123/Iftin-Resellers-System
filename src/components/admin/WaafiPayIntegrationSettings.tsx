@@ -15,6 +15,7 @@ type WaafiPayStatus = {
   environment: 'sandbox' | 'production';
   is_active: boolean;
   has_api_key: boolean;
+  credentials_valid?: boolean;
   updated_at?: string | null;
 };
 
@@ -25,6 +26,7 @@ const EMPTY_STATUS: WaafiPayStatus = {
   environment: 'production',
   is_active: false,
   has_api_key: false,
+  credentials_valid: true,
 };
 
 export default function WaafiPayIntegrationSettings({ tenantId }: { tenantId: string }) {
@@ -163,13 +165,21 @@ export default function WaafiPayIntegrationSettings({ tenantId }: { tenantId: st
               </CardDescription>
             </div>
             <div className={`rounded-full px-3 py-1 text-xs font-semibold ${
-              status.configured && isActive
-                ? 'bg-green-100 text-green-700'
-                : status.configured
-                  ? 'bg-amber-100 text-amber-700'
-                  : 'bg-gray-100 text-gray-700'
+              status.configured && status.credentials_valid === false
+                ? 'bg-red-100 text-red-700'
+                : status.configured && isActive
+                  ? 'bg-green-100 text-green-700'
+                  : status.configured
+                    ? 'bg-amber-100 text-amber-700'
+                    : 'bg-gray-100 text-gray-700'
             }`}>
-              {status.configured && isActive ? 'Active' : status.configured ? 'Paused' : 'Not configured'}
+              {status.configured && status.credentials_valid === false
+                ? 'Credentials invalid'
+                : status.configured && isActive
+                  ? 'Active'
+                  : status.configured
+                    ? 'Paused'
+                    : 'Not configured'}
             </div>
           </div>
         </CardHeader>
@@ -213,6 +223,11 @@ export default function WaafiPayIntegrationSettings({ tenantId }: { tenantId: st
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <EyeOff className="h-3.5 w-3.5" /> API Key-ga buuxa waa 20–40 xaraf; browser-ka dib looguma soo celiyo.
             </p>
+            {status.configured && status.credentials_valid === false && (
+              <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs font-medium text-red-700">
+                API Key-ga kaydsan ma dhammaystirna. Ku paste-garee key-ga buuxa ee WaafiPay kadibna Save WaafiPay riix.
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
