@@ -18,10 +18,22 @@ Deno.serve(async (req) => {
     );
 
     // Verify caller is admin
-    const authHeader = req.headers.get("Authorization")!;
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user: caller } } = await supabaseAdmin.auth.getUser(token);
-    if (!caller) throw new Error("Not authenticated");
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(
+        JSON.stringify({ error: "Session-ka admin-ka lama helin. Fadlan dib u gal." }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const token = authHeader.slice("Bearer ".length).trim();
+    const { data: { user: caller }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    if (authError || !caller) {
+      return new Response(
+        JSON.stringify({ error: "Session-ka admin-ka wuu dhacay. Fadlan dib u gal." }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const { data: callerRole } = await supabaseAdmin
       .from("user_roles")
