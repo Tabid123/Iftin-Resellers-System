@@ -348,7 +348,9 @@ export function formatUssdAmount(amount: number | string): string {
 
 function normalizePaymentAmount(amount: number | string): string {
   const raw = String(amount).replace('$', '').trim();
+  // Horay ayaa loo qaabeeyay: "1*50" ama "010" — sidiisa ha ahaato.
   if (/^\d+\*\d{2}$/.test(raw)) return raw;
+  if (/^0\d+$/.test(raw)) return raw;
   if (/^\d+(?:\.\d+)?$/.test(raw)) return formatUssdAmount(raw);
   return raw;
 }
