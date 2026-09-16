@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core';
+import OneSignal from '@onesignal/capacitor-plugin';
 
 const ONESIGNAL_APP_ID = String(import.meta.env.VITE_ONESIGNAL_APP_ID ?? '').trim();
 const ALLOWED_NOTIFICATION_PATHS = [
@@ -12,11 +13,6 @@ const ALLOWED_NOTIFICATION_PATHS = [
 
 let initialized = false;
 let clickHandlerRegistered = false;
-
-function getOneSignal(): any | null {
-  if (typeof window === 'undefined' || !Capacitor.isNativePlatform()) return null;
-  return (window as any).plugins?.OneSignal ?? null;
-}
 
 function getSafeNotificationPath(event: any): string | null {
   const data =
@@ -33,9 +29,9 @@ function getSafeNotificationPath(event: any): string | null {
     : null;
 }
 
-function registerClickHandler(OneSignal: any) {
+function registerClickHandler() {
   if (clickHandlerRegistered) return;
-  OneSignal.Notifications?.addEventListener?.('click', (event: any) => {
+  OneSignal.Notifications.addEventListener('click', (event: any) => {
     const path = getSafeNotificationPath(event);
     if (!path || typeof window === 'undefined') return;
     window.location.assign(path);
@@ -47,35 +43,29 @@ function registerClickHandler(OneSignal: any) {
  * Initialize native push for the tenant APK.
  *
  * The OneSignal app id is supplied at APK build time. It is deliberately not
- * hard-coded so two tenant builds cannot accidentally share the wrong push app.
- * Provider REST/API secrets must stay server-side and must never be exposed here.
+ * hard-coded so tenant APK builds cannot accidentally inherit another app id.
+ * Provider REST/API secrets stay server-side and are never exposed here.
  */
 export async function initializeOneSignal(
   tenant?: { id?: string | null; slug?: string | null } | null,
 ): Promise<boolean> {
   if (!Capacitor.isNativePlatform() || !ONESIGNAL_APP_ID) return false;
 
-  const OneSignal = getOneSignal();
-  if (!OneSignal) {
-    console.info('OneSignal native plugin is not available in this APK');
-    return false;
-  }
-
   try {
     if (!initialized) {
-      OneSignal.initialize(ONESIGNAL_APP_ID);
-      registerClickHandler(OneSignal);
+      await OneSignal.initialize(ONESIGNAL_APP_ID);
+      registerClickHandler();
       initialized = true;
     }
 
     const tags: Record<string, string> = {};
     if (tenant?.id) tags.tenant_id = tenant.id;
     if (tenant?.slug) tags.tenant_slug = tenant.slug;
-    if (Object.keys(tags).length > 0) OneSignal.User?.addTags?.(tags);
+    if (Object.keys(tags).length > 0) await OneSignal.User.addTags(tags);
 
     // Android 13+ requires runtime notification permission. Older Android
-    // versions safely ignore this request.
-    await Promise.resolve(OneSignal.Notifications?.requestPermission?.(true));
+    // versions safely resolve without a permission dialog.
+    await OneSignal.Notifications.requestPermission(true);
     return true;
   } catch (error) {
     console.error('OneSignal initialization error:', error);
@@ -84,36 +74,34 @@ export async function initializeOneSignal(
 }
 
 /** Keep the native subscription scoped to the currently resolved tenant. */
-export function syncOneSignalTenant(
+export async function syncOneSignalTenant(
   tenant?: { id?: string | null; slug?: string | null } | null,
-): void {
-  const OneSignal = getOneSignal();
-  if (!OneSignal || !initialized) return;
+): Promise<void> {
+  if (!Capacitor.isNativePlatform() || !initialized) return;
 
   try {
     if (!tenant?.id) {
-      OneSignal.User?.removeTags?.(['tenant_id', 'tenant_slug']);
+      await OneSignal.User.removeTags(['tenant_id', 'tenant_slug']);
       return;
     }
 
     const tags: Record<string, string> = { tenant_id: tenant.id };
     if (tenant.slug) tags.tenant_slug = tenant.slug;
-    OneSignal.User?.addTags?.(tags);
+    await OneSignal.User.addTags(tags);
   } catch (error) {
     console.error('OneSignal tenant sync error:', error);
   }
 }
 
-export function setUserPhone(phone: string): void {
-  const OneSignal = getOneSignal();
-  if (!OneSignal || !initialized) return;
+export async function setUserPhone(phone: string): Promise<void> {
+  if (!Capacitor.isNativePlatform() || !initialized) return;
 
   const normalizedPhone = phone.trim();
   if (!normalizedPhone) return;
 
   try {
-    OneSignal.login?.(normalizedPhone);
-    OneSignal.User?.addTags?.({ phone: normalizedPhone });
+    await OneSignal.login(normalizedPhone);
+    await OneSignal.User.addTags({ phone: normalizedPhone });
   } catch (error) {
     console.error('OneSignal setUserPhone error:', error);
   }
