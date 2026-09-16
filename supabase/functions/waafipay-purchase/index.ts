@@ -230,7 +230,8 @@ serve(async (req) => {
       !paymentProviderId ||
       !provider ||
       provider.is_active !== true ||
-      String(provider.provider_name || '').trim().toLowerCase() !== 'waafipay'
+      ((provider as any).is_waafipay !== true &&
+        String(provider.provider_name || '').trim().toLowerCase() !== 'waafipay')
     ) {
       return json({ error: 'waafipay_payment_provider_not_available' }, 404);
     }
