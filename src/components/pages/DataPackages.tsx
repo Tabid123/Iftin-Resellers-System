@@ -69,6 +69,27 @@ const DataPackages = () => {
   const [discoveryRootPackage, setDiscoveryRootPackage] = useState<any | null>(null);
   const { queueOrder } = useOfflineSync();
   const { toast } = useToast();
+
+  /**
+   * Offline mode uses the number/prefix the tenant entered in the
+   * "Offline Payment Settings" tab (app_settings). It overrides whatever
+   * the cached payment provider row says.
+   */
+  const withTenantOfflinePayment = (pp: any) => {
+    const settings = workspaceStorage.getJson<any[]>('offline_app_settings', [], workspaceId) || [];
+    const number = String(
+      settings.find((s: any) => s?.setting_key === 'payment_number')?.text_value ?? '',
+    ).replace(/\D/g, '');
+    const prefix = String(
+      settings.find((s: any) => s?.setting_key === 'payment_prefix')?.text_value ?? '',
+    ).trim();
+    if (!number && !prefix) return pp ?? {};
+    return {
+      ...(pp ?? {}),
+      ...(number ? { payment_number: number } : {}),
+      ...(prefix ? { ussd_prefix: prefix, ussd_code_template: null } : {}),
+    };
+  };
   
 
   // Show AdMob banner on mount, hide on unmount
@@ -389,9 +410,10 @@ const DataPackages = () => {
     const cachedPaymentProviders = workspaceStorage.get('offline_payment_providers', workspaceId);
     const paymentProvidersList = cachedPaymentProviders ? JSON.parse(cachedPaymentProviders) : [];
     const senderPrefix = senderPhone?.substring(0, 2) || '';
-    const payProvider =
+    const payProvider = withTenantOfflinePayment(
       paymentProvidersList.find((pp: any) => pp.prefix_code && senderPrefix && String(pp.prefix_code).startsWith(senderPrefix))
-      ?? paymentProvidersList[0];
+      ?? paymentProvidersList[0],
+    );
     const paymentNumber = payProvider?.payment_number || '';
 
     // USSD string built strictly from the payment provider data (no hardcoding)
@@ -767,7 +789,9 @@ const DataPackages = () => {
               const sp = senderPhone?.substring(0, 2) || '';
               const cachedPP = workspaceStorage.get('offline_payment_providers', workspaceId);
               const ppList = cachedPP ? JSON.parse(cachedPP) : [];
-              const pp = ppList.find((x: any) => x.prefix_code && sp && String(x.prefix_code).startsWith(sp)) ?? ppList[0];
+              const pp = withTenantOfflinePayment(
+                ppList.find((x: any) => x.prefix_code && sp && String(x.prefix_code).startsWith(sp)) ?? ppList[0],
+              );
 
               const amountFormatted = formatUssdAmount(amount);
               const ussdCode = buildPaymentUssd(pp ?? {}, amountFormatted) ?? '';
