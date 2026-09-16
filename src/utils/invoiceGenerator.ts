@@ -32,6 +32,10 @@ export interface InvoiceData {
   status: string;
   delivery_status?: string;
   payment_source?: string | null;
+  /** Magaca shirkadda (tenant) ee invoice-ka lagu qorayo */
+  tenantName?: string | null;
+  /** Logo-ga shirkadda (tenant) */
+  tenantLogo?: string | null;
 }
 
 // Generate beautiful invoice image
