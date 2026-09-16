@@ -161,7 +161,7 @@ serve(async (req) => {
       paymentProviderId
         ? admin
             .from('payment_providers_config')
-            .select('id')
+            .select('id, provider_name, is_active')
             .eq('id', paymentProviderId)
             .eq('tenant_id', tenantId)
             .maybeSingle()
@@ -172,7 +172,14 @@ serve(async (req) => {
     if (!pkg || pkg.is_active !== true || pkg.is_discovery_root === true) {
       return json({ error: 'package_not_available' }, 404);
     }
-    if (paymentProviderId && !provider) return json({ error: 'payment_provider_not_found' }, 404);
+    if (
+      !paymentProviderId ||
+      !provider ||
+      provider.is_active !== true ||
+      String(provider.provider_name || '').trim().toLowerCase() !== 'waafipay'
+    ) {
+      return json({ error: 'waafipay_payment_provider_not_available' }, 404);
+    }
 
     const { data: providerConfig, error: providerConfigError } = await admin
       .from('providers_config')
