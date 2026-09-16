@@ -40,6 +40,7 @@ export default function WaafiPayIntegrationSettings({ tenantId }: { tenantId: st
 
   const applyStatus = useCallback((next: Partial<WaafiPayStatus> | null | undefined) => {
     const merged = { ...EMPTY_STATUS, ...(next || {}) } as WaafiPayStatus;
+    if (!merged.configured) merged.is_active = true;
     setStatus(merged);
     setMerchantUid(merged.merchant_uid || '');
     setApiUserId(merged.api_user_id || '');
