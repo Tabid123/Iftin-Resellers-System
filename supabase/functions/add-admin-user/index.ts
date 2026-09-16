@@ -17,7 +17,7 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Verify caller is admin
+    // Verify the caller and resolve the tenant they are allowed to manage.
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(
@@ -35,19 +35,47 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { data: callerRole } = await supabaseAdmin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", caller.id)
-      .eq("role", "admin")
-      .single();
-    if (!callerRole) throw new Error("Not authorized");
-
     const body = await req.json();
+    const tenantId = String(body.tenant_id || "").trim();
     const email = (body.email || "").trim().toLowerCase();
     const password = (body.password || "").trim();
     const full_name = (body.full_name || "").trim();
     const permissions = body.permissions || [];
+
+    if (!tenantId) throw new Error("Tenant lama helin. Fadlan bogga dib u fur.");
+
+    const [{ data: membership }, { data: platformRole }] = await Promise.all([
+      supabaseAdmin
+        .from("tenant_members")
+        .select("role")
+        .eq("tenant_id", tenantId)
+        .eq("user_id", caller.id)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", caller.id)
+        .eq("role", "super_admin")
+        .maybeSingle(),
+    ]);
+
+    let canManage = membership?.role === "owner" || platformRole?.role === "super_admin";
+    if (!canManage && membership) {
+      const { data: permission } = await supabaseAdmin
+        .from("admin_permissions")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("user_id", caller.id)
+        .eq("permission_key", "manage_admins")
+        .maybeSingle();
+      canManage = Boolean(permission);
+    }
+    if (!canManage) {
+      return new Response(
+        JSON.stringify({ error: "Ma lihid fasax aad admin ugu darto tenant-kan." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     if (!email) throw new Error("Email is required");
     // Basic email format validation
@@ -65,13 +93,13 @@ Deno.serve(async (req) => {
     let targetUser;
 
     if (existingUser) {
-      // Check if already admin
+      // Check if this user is already an admin in this tenant.
       const { data: existingRole } = await supabaseAdmin
-        .from("user_roles")
+        .from("tenant_members")
         .select("id")
         .eq("user_id", existingUser.id)
-        .eq("role", "admin")
-        .single();
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
 
       if (existingRole) {
         return new Response(
@@ -99,10 +127,11 @@ Deno.serve(async (req) => {
       targetUser = newUser.user;
     }
 
-    // Add admin role
+    // Bind the admin to this tenant only. Platform roles are intentionally
+    // separate and must never be granted from a tenant admin screen.
     const { error: roleError } = await supabaseAdmin
-      .from("user_roles")
-      .insert({ user_id: targetUser.id, role: "admin" });
+      .from("tenant_members")
+      .insert({ tenant_id: tenantId, user_id: targetUser.id, role: "admin" });
     if (roleError) throw roleError;
 
     // Add permissions if provided
@@ -112,6 +141,7 @@ Deno.serve(async (req) => {
         .insert(permissions.map((key: string) => ({
           user_id: targetUser.id,
           permission_key: key,
+          tenant_id: tenantId,
         })));
       if (permError) throw permError;
     }
