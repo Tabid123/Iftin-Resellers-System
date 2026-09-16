@@ -215,7 +215,7 @@ const OfflinePaymentSettings = () => {
               />
               <Button
                 onClick={handleSavePrefix}
-                disabled={!hasPrefixChanges}
+                disabled={updateSetting.isPending || !paymentPrefix.trim()}
                 className="min-w-[100px]"
               >
                 <Save className="w-4 h-4 mr-2" />
