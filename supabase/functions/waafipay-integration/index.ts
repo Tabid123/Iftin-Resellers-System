@@ -51,23 +51,11 @@ serve(async (req) => {
     const { data: userData, error: userError } = await userClient.auth.getUser();
     if (userError || !userData?.user) return json({ error: 'unauthorized' }, 401);
 
-    const [{ data: authorizedTenant }, { data: isSuperAdmin }, membershipResult] = await Promise.all([
-      userClient.rpc('authorized_tenant_id'),
-      userClient.rpc('is_super_admin'),
-      admin
-        .from('tenant_members')
-        .select('role')
-        .eq('tenant_id', tenantId)
-        .eq('user_id', userData.user.id)
-        .maybeSingle(),
-    ]);
-
-    if (isSuperAdmin !== true) {
-      if (membershipResult.error) throw membershipResult.error;
-      if (String(authorizedTenant || '') !== tenantId || membershipResult.data?.role !== 'owner') {
-        return json({ error: 'forbidden' }, 403);
-      }
-    }
+    // WaafiPay merchant credentials are platform-managed. Tenant owners cannot
+    // create, rotate, activate or delete them.
+    const { data: isSuperAdmin, error: roleError } = await userClient.rpc('is_super_admin');
+    if (roleError) throw roleError;
+    if (isSuperAdmin !== true) return json({ error: 'super_admin_required' }, 403);
 
     if (action === 'status') {
       const { data, error } = await admin.rpc('waafipay_admin_status', { p_tenant_id: tenantId });
