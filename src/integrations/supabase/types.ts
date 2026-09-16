@@ -2412,6 +2412,41 @@ export type Database = {
           },
         ]
       }
+      tenant_push_config: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          onesignal_app_id: string
+          rest_api_key_secret_id: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          onesignal_app_id: string
+          rest_api_key_secret_id?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          onesignal_app_id?: string
+          rest_api_key_secret_id?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_push_config_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_subscriptions: {
         Row: {
           amount: number
@@ -2783,6 +2818,116 @@ export type Database = {
           },
         ]
       }
+      waafipay_transactions: {
+        Row: {
+          amount: number
+          approved_at: string | null
+          client_reference: string
+          created_at: string
+          currency: string
+          environment: string
+          error_message: string | null
+          id: string
+          issuer_transaction_id: string | null
+          order_id: string | null
+          package_id: string
+          payer_phone: string
+          payment_provider_id: string | null
+          raw_response: Json | null
+          receiver_phone: string
+          reference_id: string
+          request_id: string
+          response_code: string | null
+          response_message: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          waafi_state: string | null
+          waafi_transaction_id: string | null
+        }
+        Insert: {
+          amount: number
+          approved_at?: string | null
+          client_reference: string
+          created_at?: string
+          currency?: string
+          environment: string
+          error_message?: string | null
+          id?: string
+          issuer_transaction_id?: string | null
+          order_id?: string | null
+          package_id: string
+          payer_phone: string
+          payment_provider_id?: string | null
+          raw_response?: Json | null
+          receiver_phone: string
+          reference_id: string
+          request_id: string
+          response_code?: string | null
+          response_message?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          waafi_state?: string | null
+          waafi_transaction_id?: string | null
+        }
+        Update: {
+          amount?: number
+          approved_at?: string | null
+          client_reference?: string
+          created_at?: string
+          currency?: string
+          environment?: string
+          error_message?: string | null
+          id?: string
+          issuer_transaction_id?: string | null
+          order_id?: string | null
+          package_id?: string
+          payer_phone?: string
+          payment_provider_id?: string | null
+          raw_response?: Json | null
+          receiver_phone?: string
+          reference_id?: string
+          request_id?: string
+          response_code?: string | null
+          response_message?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          waafi_state?: string | null
+          waafi_transaction_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waafipay_transactions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waafipay_transactions_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "data_packages_config"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waafipay_transactions_payment_provider_id_fkey"
+            columns: ["payment_provider_id"]
+            isOneToOne: false
+            referencedRelation: "payment_providers_config"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waafipay_transactions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -3103,6 +3248,14 @@ export type Database = {
           tenant_id: string
         }[]
       }
+      get_tenant_push_credentials: {
+        Args: { p_tenant_id: string }
+        Returns: {
+          enabled: boolean
+          onesignal_app_id: string
+          rest_api_key: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -3142,6 +3295,15 @@ export type Database = {
       seed_tenant_from_template: {
         Args: { p_source: string; p_target: string }
         Returns: Json
+      }
+      set_tenant_push_config: {
+        Args: {
+          p_enabled?: boolean
+          p_onesignal_app_id: string
+          p_rest_api_key: string
+          p_tenant_id: string
+        }
+        Returns: undefined
       }
       somlink_admin_configure_runtime: {
         Args: { p_edge_base_url: string; p_enabled?: boolean }
@@ -3204,6 +3366,23 @@ export type Database = {
       ussd_duration_key: { Args: { p_label: string }; Returns: string }
       ussd_normalize_label: { Args: { p_label: string }; Returns: string }
       ussd_strip_price_prefix: { Args: { p_label: string }; Returns: string }
+      waafipay_admin_credentials: {
+        Args: { p_tenant_id: string }
+        Returns: Json
+      }
+      waafipay_admin_delete: { Args: { p_tenant_id: string }; Returns: Json }
+      waafipay_admin_save: {
+        Args: {
+          p_api_key?: string
+          p_api_user_id: string
+          p_environment?: string
+          p_is_active?: boolean
+          p_merchant_uid: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      waafipay_admin_status: { Args: { p_tenant_id: string }; Returns: Json }
     }
     Enums: {
       app_role: "admin" | "super_admin" | "moderator"
