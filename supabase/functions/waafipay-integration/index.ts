@@ -73,7 +73,7 @@ serve(async (req) => {
         (
           merchantUid.length >= 7 && merchantUid.length <= 15 &&
           apiUserId.length >= 7 && apiUserId.length <= 15 &&
-          apiKey.length >= 20 && apiKey.length <= 40
+          apiKey.length >= 10 && apiKey.length <= 100
         );
 
       return json({
@@ -101,10 +101,10 @@ serve(async (req) => {
           message: 'API User ID-ga waa inuu ahaadaa 7 ilaa 15 xaraf.',
         }, 400);
       }
-      if (apiKey && (apiKey.length < 20 || apiKey.length > 40)) {
+      if (apiKey && (apiKey.length < 10 || apiKey.length > 100)) {
         return json({
           error: 'invalid_api_key',
-          message: 'WaafiPay API Key-ga buuxa geli; waa inuu ahaadaa 20 ilaa 40 xaraf.',
+          message: 'WaafiPay API Key-ga la bixiyey oo buuxa geli.',
         }, 400);
       }
 
