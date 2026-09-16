@@ -1,10 +1,10 @@
 /**
- * Dib u dirista dalab (resend).
+ * Dib u dirista dalab (resend) — dalab cusub LAMA ABUURIN.
  *
- * Dalab hore (delivered ama failed) waxaa laga sameeyaa dalab cusub oo isku
- * package/qiimo ah laakiin lambar cusub. USSD-ka waxaa laga soo qaadaa
- * safkii hore ee delivery_queue (lambarkii hore ayaa lagu beddelaa kan cusub);
- * haddii uusan jirin, waxaa la isticmaalaa delivery_instructions template-ka.
+ * Dalabka hore ayaa dib loo diraa: waxaa la cusboonaysayaa receiver_phone-ka
+ * (haddii la beddelo), delivery_status waxaa loo beddelaa 'pending', oo waxaa
+ * la darayaa saf cusub oo delivery_queue ah oo isku dalabka (order_id) qabta.
+ * Mid cusub ma abuurmaa.
  */
 import { supabase } from '@/integrations/supabase/client';
 
@@ -89,37 +89,34 @@ export type ResendResult = { ok: true; orderId: string } | { ok: false; message:
 export async function resendOrder(order: any, newReceiverRaw: string): Promise<ResendResult> {
   const phone = digits9(newReceiverRaw);
   if (phone.length !== 9) return { ok: false, message: 'Lambarka sax ma aha' };
+  if (!order?.id) return { ok: false, message: 'Dalabka lama helin — ma dib u diri kartid' };
 
   const { ussd, provider, deviceId, simSlot } = await lookupUssd(order, phone);
   if (!ussd) return { ok: false, message: 'USSD-ka xirmadan lama helin — delivery instructions hubi' };
 
-  const { data: created, error: orderErr } = await supabase
+  // Dalab cusub MA ABUURINNO — midkii hore ayaa dib loo diraa.
+  // 1) Cusbooneysi lambarka qaataha (haddii la beddelo) iyo dib-u-dejiinta status-ka.
+  const update: Record<string, any> = {
+    delivery_status: 'pending',
+    status: 'paid',
+    delivered_at: null,
+    delivery_notes: `Dib loo diray ${new Date().toISOString()}`,
+  };
+  if (phone !== digits9(order.receiver_phone)) {
+    update.receiver_phone = phone;
+    update.customer_phone = order.customer_phone ?? phone;
+  }
+
+  const { error: orderErr } = await supabase
     .from('orders')
-    .insert({
-      provider_id: order.provider_id ?? null,
-      package_id: order.package_id ?? null,
-      package_name: order.package_name,
-      data_amount: order.data_amount ?? null,
-      selling_price: order.selling_price,
-      cost_price: order.cost_price ?? 0,
-      receiver_phone: phone,
-      sender_phone: order.sender_phone ?? null,
-      customer_phone: order.customer_phone ?? phone,
-      payment_number: order.payment_number ?? 'RESEND',
-      payment_provider_id: order.payment_provider_id ?? null,
-      payment_source: order.payment_source ?? 'manual',
-      status: 'completed',
-      delivery_status: 'pending',
-      is_manual: true,
-      delivery_notes: order.id ? `Resend of order ${order.id}` : (order.delivery_notes ?? 'Manual dispatch'),
-    })
-    .select('id')
-    .single();
+    .update(update)
+    .eq('id', order.id);
 
-  if (orderErr || !created) return { ok: false, message: orderErr?.message ?? 'Dalabka lama abuurin' };
+  if (orderErr) return { ok: false, message: orderErr.message };
 
+  // 2) Ku dar saf cusub oo delivery_queue ah oo isku dalabka qabta.
   const { error: queueErr } = await supabase.from('delivery_queue').insert({
-    order_id: created.id,
+    order_id: order.id,
     receiver_phone: phone,
     provider_name: provider ?? 'unknown',
     ussd_code: ussd,
@@ -129,5 +126,5 @@ export async function resendOrder(order: any, newReceiverRaw: string): Promise<R
   });
   if (queueErr) return { ok: false, message: queueErr.message };
 
-  return { ok: true, orderId: created.id };
+  return { ok: true, orderId: order.id };
 }
