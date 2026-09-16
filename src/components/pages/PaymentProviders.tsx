@@ -310,7 +310,9 @@ const PaymentProviders = () => {
     setSelectedProvider(paymentId);
     const selectedPayment = paymentProviders.find(p => p.id === paymentId);
     if (selectedPayment) {
-      const prefix = getAllowedPrefixes(selectedPayment.provider_name)[0] ?? '';
+      const prefix = isWaafiProvider(selectedPayment)
+        ? ''
+        : getAllowedPrefixes(selectedPayment.provider_name)[0] ?? '';
       setPaymentProviderPrefix(prefix);
       if (!offlineSenderRef.current) setPaymentNumber(prefix);
     }
