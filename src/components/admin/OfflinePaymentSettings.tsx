@@ -101,19 +101,25 @@ const OfflinePaymentSettings = () => {
   };
 
   const handleSaveNumber = () => {
-    const setting = settings.find(s => s.setting_key === 'payment_number');
-    if (setting) {
-      updateSetting.mutate({ id: setting.id, value: paymentNumber });
-      setHasNumberChanges(false);
-    }
+    updateSetting.mutate(
+      {
+        key: 'payment_number',
+        value: paymentNumber.trim(),
+        description: 'Lambarka lacagta ee offline mode',
+      },
+      { onSuccess: () => setHasNumberChanges(false) },
+    );
   };
 
   const handleSavePrefix = () => {
-    const setting = settings.find(s => s.setting_key === 'payment_prefix');
-    if (setting) {
-      updateSetting.mutate({ id: setting.id, value: paymentPrefix });
-      setHasPrefixChanges(false);
-    }
+    updateSetting.mutate(
+      {
+        key: 'payment_prefix',
+        value: paymentPrefix.trim(),
+        description: 'Prefix-ka USSD code-ka ee offline mode',
+      },
+      { onSuccess: () => setHasPrefixChanges(false) },
+    );
   };
 
   const handleCallNumber = () => {
