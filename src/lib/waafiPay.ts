@@ -27,6 +27,9 @@ const FALLBACK_CODES = new Set([
 
 const FINAL_FAILURE_CODES = new Set([
   'payment_declined',
+  'payment_cancelled',
+  'insufficient_balance',
+  'payment_timeout',
   'payment_failed',
 ]);
 
