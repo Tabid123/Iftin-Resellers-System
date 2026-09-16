@@ -40,6 +40,11 @@ const UserIcon = (_: { active: boolean }) => (
   </svg>
 );
 
+function normalizeStorefrontPath(pathname: string) {
+  const tenantPrefixed = pathname.match(/^\/t\/[^/]+(\/.*)?$/);
+  return tenantPrefixed ? (tenantPrefixed[1] || '/') : pathname;
+}
+
 export function BottomNavigation({ onNotificationsClick, visible = true }: BottomNavigationProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -55,15 +60,24 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
   // on a low-end phone. The pending path wins until the router catches up.
   const [pendingPath, setPendingPath] = useState<string | null>(null);
   useEffect(() => {
-    if (pendingPath && location.pathname === pendingPath) setPendingPath(null);
+    if (pendingPath && normalizeStorefrontPath(location.pathname) === pendingPath) setPendingPath(null);
   }, [location.pathname, pendingPath]);
 
-  const currentPath = pendingPath ?? location.pathname;
-  const isActive = (path: string) => currentPath === path;
+  const currentPath = pendingPath ?? normalizeStorefrontPath(location.pathname);
+  const isCatalogHome =
+    currentPath === '/providers' ||
+    currentPath.startsWith('/categories/') ||
+    currentPath.startsWith('/packages/');
+  const isActive = (path: string) => path === '/providers' ? isCatalogHome : currentPath === path;
   const go = (path: string) => {
     // Re-navigating to the route already on screen creates pointless router
     // work and a visible redraw on some Android WebViews.
-    if (isActive(path)) return;
+    if (isActive(path)) {
+      // Home is also considered active on categories/packages. Only skip the
+      // navigation when we are actually on /providers; otherwise Home should
+      // still take the user back to the provider list.
+      if (path !== '/providers' || currentPath === '/providers') return;
+    }
     setPendingPath(path);
     // Keep the current screen interactive while the next one renders instead
     // of blocking the main thread inside the tap handler.
@@ -101,6 +115,7 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
         WebkitTapHighlightColor: 'transparent',
         visibility: visible ? 'visible' : 'hidden',
         pointerEvents: visible ? 'auto' : 'none',
+        contain: 'layout paint',
       }}
     >
       <div className="mx-auto w-full max-w-md">
