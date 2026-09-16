@@ -1910,6 +1910,7 @@ export type Database = {
           display_order: number
           id: string
           is_active: boolean
+          is_waafipay: boolean
           payment_number: string | null
           prefix_code: string | null
           provider_logo: string | null
@@ -1924,6 +1925,7 @@ export type Database = {
           display_order?: number
           id?: string
           is_active?: boolean
+          is_waafipay?: boolean
           payment_number?: string | null
           prefix_code?: string | null
           provider_logo?: string | null
@@ -1938,6 +1940,7 @@ export type Database = {
           display_order?: number
           id?: string
           is_active?: boolean
+          is_waafipay?: boolean
           payment_number?: string | null
           prefix_code?: string | null
           provider_logo?: string | null
@@ -3031,6 +3034,7 @@ export type Database = {
           created_at: string
           id: string
           is_active: boolean
+          is_waafipay: boolean
           payment_number: string
           prefix_code: string
           provider_logo: string
