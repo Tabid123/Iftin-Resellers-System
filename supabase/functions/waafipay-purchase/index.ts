@@ -387,10 +387,10 @@ serve(async (req) => {
       transaction = updated;
 
       if (!approved) {
-        const errorCode = finalStatus === 'declined' ? 'payment_declined' : 'payment_failed';
+        const errorCode = classifyFailure(code, String(waafiResponse?.responseMsg || ''), state);
         return json({
           error: errorCode,
-          message: publicErrorMessage(errorCode, waafiResponse?.responseMsg),
+          message: publicErrorMessage(errorCode),
           state,
           reference_id: transaction.reference_id,
         }, 402);
