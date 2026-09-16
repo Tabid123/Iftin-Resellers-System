@@ -1,0 +1,45 @@
+name: Verify first-launch offline tenant bundle
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/verify-capacitor-offline-once.yml"
+
+jobs:
+  offline-bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build real tenant bundle with packaged offline snapshot
+        env:
+          CAPACITOR_BUILD: "true"
+          TENANT_SLUG: "marwaan"
+          VITE_TENANT_SLUG: "marwaan"
+          VITE_TENANT_NAME: "Offline verification"
+          VITE_SPLASH_COLOR: "#0F4C81"
+          VITE_BUILD_VERSION: ${{ github.sha }}
+        run: bun run build
+
+      - name: Verify tenant data is packaged before React startup
+        run: |
+          SRC=""
+          for d in dist .output/public dist/client dist/public build/client build; do
+            if [ -f "$d/index.html" ]; then SRC="$d"; break; fi
+          done
+          test -n "$SRC"
+          test -s "$SRC/tenant-bootstrap.js"
+          test -s "$SRC/tenant-bootstrap.json"
+          grep -Fq "tenant-bootstrap.js" "$SRC/index.html"
+          grep -Fq '"slug":"marwaan"' "$SRC/tenant-bootstrap.json"
+          grep -Fq "offline_providers" "$SRC/tenant-bootstrap.js"
+          grep -Fq "offline_packages" "$SRC/tenant-bootstrap.js"
+          echo "Fresh-install tenant snapshot verified in Capacitor web bundle"
