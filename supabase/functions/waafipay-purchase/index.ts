@@ -137,9 +137,14 @@ serve(async (req) => {
           reference_id: transaction.reference_id,
         }, 409);
       }
+      const priorCode = classifyFailure(
+        transaction.response_code || '',
+        transaction.response_message || transaction.error_message || '',
+        transaction.waafi_state || '',
+      );
       return json({
-        error: transaction.status === 'declined' ? 'payment_declined' : 'payment_failed',
-        message: publicErrorMessage(transaction.status === 'declined' ? 'payment_declined' : 'payment_failed'),
+        error: priorCode,
+        message: publicErrorMessage(priorCode),
         state: transaction.waafi_state,
         reference_id: transaction.reference_id,
       }, 409);
