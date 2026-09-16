@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-tenant-id',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
@@ -29,6 +29,17 @@ function safePath(value: unknown): string | null {
   return allowed.some((prefix) => prefix.endsWith('/') ? path.startsWith(prefix) : path === prefix)
     ? path
     : null;
+}
+
+function safeImageUrl(value: unknown): string | null {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 serve(async (req) => {
@@ -66,7 +77,7 @@ serve(async (req) => {
   if (!title || !message) return json({ error: 'title_and_message_required' }, 400);
 
   const [{ data: tenant }, { data: membership }, { data: role }] = await Promise.all([
-    admin.from('tenants').select('id, owner_user_id, status').eq('id', tenantId).maybeSingle(),
+    admin.from('tenants').select('id, owner_user_id, status, logo_url').eq('id', tenantId).maybeSingle(),
     admin.from('tenant_members').select('id, role').eq('tenant_id', tenantId).eq('user_id', user.id).maybeSingle(),
     admin.from('user_roles').select('role').eq('user_id', user.id).eq('role', 'super_admin').maybeSingle(),
   ]);
@@ -89,11 +100,6 @@ serve(async (req) => {
     return json({ error: 'notification_create_failed' }, 500);
   }
 
-  // Prefer a tenant-dedicated OneSignal app. The App ID is safe to bake into
-  // that tenant's APK; its REST key remains encrypted in Supabase Vault and is
-  // only decrypted by this service-role-only RPC. Existing deployments can
-  // temporarily fall back to the old global Edge Function secrets when no
-  // tenant-specific row exists yet.
   const { data: tenantPushRows, error: tenantPushError } = await admin.rpc(
     'get_tenant_push_credentials',
     { p_tenant_id: tenantId },
@@ -131,15 +137,18 @@ serve(async (req) => {
   }
 
   try {
+    const tenantLogo = safeImageUrl(tenant.logo_url);
     const payload: Record<string, unknown> = {
       app_id: oneSignalAppId,
       headings: { en: title },
       contents: { en: message },
-      // Tenant-dedicated apps already isolate recipients physically. Keep the
-      // tenant tag filter as a second guard and for the legacy shared app.
       filters: [{ field: 'tag', key: 'tenant_id', relation: '=', value: tenantId }],
       data: path ? { path } : {},
     };
+
+    // Android will keep the tenant APK's native small icon; when the tenant has
+    // a public logo URL, also show that brand logo as the notification large icon.
+    if (tenantLogo) payload.large_icon = tenantLogo;
 
     const pushResponse = await fetch('https://api.onesignal.com/notifications', {
       method: 'POST',
