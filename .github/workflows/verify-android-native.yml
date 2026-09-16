@@ -16,6 +16,8 @@ on:
 jobs:
   android-debug:
     runs-on: ubuntu-latest
+    env:
+      ONESIGNAL_DISABLE_LOCATION: "true"
     steps:
       - uses: actions/checkout@v4
 
@@ -54,8 +56,8 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Install OneSignal native bridge
-        run: bun add onesignal-cordova-plugin@5.5.7 --no-save
+      - name: Install official OneSignal Capacitor plugin
+        run: bun add @onesignal/capacitor-plugin@1.0.6 --no-save
 
       - name: Prepare minimal Capacitor web directory
         run: |
@@ -67,10 +69,10 @@ jobs:
 
       - name: Verify notification permission and OneSignal bridge
         run: |
-          grep -Rqs "android.permission.POST_NOTIFICATIONS" android/app/src/main android/app/build.gradle android/capacitor-cordova-android-plugins \
+          grep -Rqs "android.permission.POST_NOTIFICATIONS" android/app/src/main android/app/build.gradle android \
             || { echo "::error::POST_NOTIFICATIONS permission missing"; exit 1; }
-          grep -Rqs "OneSignal" android/capacitor-cordova-android-plugins android/app 2>/dev/null \
-            || { echo "::error::OneSignal native plugin was not synced"; exit 1; }
+          grep -Rqi "onesignal" android 2>/dev/null \
+            || { echo "::error::OneSignal Capacitor plugin was not synced"; exit 1; }
 
       - name: Assemble debug APK
         working-directory: android
