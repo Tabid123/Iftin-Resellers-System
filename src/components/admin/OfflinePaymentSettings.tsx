@@ -47,12 +47,31 @@ const OfflinePaymentSettings = () => {
   }, [settings]);
 
   const updateSetting = useMutation({
-    mutationFn: async ({ id, value }: { id: string; value: string }) => {
+    mutationFn: async ({
+      key,
+      value,
+      description,
+    }: {
+      key: string;
+      value: string;
+      description: string;
+    }) => {
+      const existing = settings.find((s) => s.setting_key === key);
+
+      if (existing) {
+        const { error } = await supabase
+          .from('app_settings')
+          .update({ text_value: value })
+          .eq('id', existing.id);
+        if (error) throw error;
+        return;
+      }
+
+      if (!tenantId) throw new Error('Tenant lama helin');
+
       const { error } = await supabase
         .from('app_settings')
-        .update({ text_value: value })
-        .eq('id', id);
-      
+        .insert({ tenant_id: tenantId, setting_key: key, text_value: value, description });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -60,8 +79,8 @@ const OfflinePaymentSettings = () => {
       queryClient.invalidateQueries({ queryKey: ['appSettings'] });
       toast.success('Settings la kaydisey si guul leh!');
     },
-    onError: (error) => {
-      toast.error('Khalad ayaa dhacay!');
+    onError: (error: any) => {
+      toast.error(error?.message || 'Khalad ayaa dhacay!');
       console.error('Error updating setting:', error);
     },
   });
