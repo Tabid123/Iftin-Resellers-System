@@ -331,23 +331,25 @@ export function mapPaymentProviders(catalog: IftinCatalog) {
 
 const DEFAULT_USSD_PREFIX: Record<string, string> = { '61': '*712*', '77': '*712*', '68': '*812*' };
 
+/**
+ * Qaabka lacagta ee USSD-ka — sida gacanta (manual) loogu diro:
+ *  - 1      -> "1"
+ *  - 0.10   -> "010"   (ka yar $1: nuqul aan calaamad lahayn)
+ *  - 1.50   -> "1*50"
+ */
 export function formatUssdAmount(amount: number | string): string {
   const n = Number(String(amount).replace('$', '').trim());
   if (!isFinite(n)) return String(amount);
-  const dollars = Math.floor(n);
-  const cents = Math.round((n - dollars) * 100);
-  return cents > 0 ? `${dollars}*${String(cents).padStart(2, '0')}` : `${dollars}`;
+  if (Number.isInteger(n)) return String(n);
+  const str = n.toFixed(2);
+  if (n < 1) return str.replace('.', '').replace(/^0+/, '0');
+  return str.replace('.', '*');
 }
 
 function normalizePaymentAmount(amount: number | string): string {
   const raw = String(amount).replace('$', '').trim();
   if (/^\d+\*\d{2}$/.test(raw)) return raw;
-  if (/^\d+(?:\.\d+)?$/.test(raw)) {
-    const n = Number(raw);
-    const dollars = Math.floor(n);
-    const cents = Math.round((n - dollars) * 100);
-    return `${dollars}*${String(cents).padStart(2, '0')}`;
-  }
+  if (/^\d+(?:\.\d+)?$/.test(raw)) return formatUssdAmount(raw);
   return raw;
 }
 
