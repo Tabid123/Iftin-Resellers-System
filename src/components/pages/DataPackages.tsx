@@ -789,7 +789,9 @@ const DataPackages = () => {
               const sp = senderPhone?.substring(0, 2) || '';
               const cachedPP = workspaceStorage.get('offline_payment_providers', workspaceId);
               const ppList = cachedPP ? JSON.parse(cachedPP) : [];
-              const pp = ppList.find((x: any) => x.prefix_code && sp && String(x.prefix_code).startsWith(sp)) ?? ppList[0];
+              const pp = withTenantOfflinePayment(
+                ppList.find((x: any) => x.prefix_code && sp && String(x.prefix_code).startsWith(sp)) ?? ppList[0],
+              );
 
               const amountFormatted = formatUssdAmount(amount);
               const ussdCode = buildPaymentUssd(pp ?? {}, amountFormatted) ?? '';
