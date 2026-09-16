@@ -38,6 +38,7 @@ jobs:
       APP_NAME: ${{ inputs.app_name }}
       APP_VERSION_NAME: ${{ inputs.version_name }}
       APP_VERSION_CODE: ${{ inputs.version_code }}
+      ONESIGNAL_DISABLE_LOCATION: "true"
     steps:
       - uses: actions/checkout@v4
 
@@ -80,11 +81,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      # The storefront currently talks to the stable Cordova bridge API
-      # (window.plugins.OneSignal). Install the plugin only for native builds so
-      # the web dependency graph/lockfile stays unchanged.
-      - name: Install native OneSignal bridge
-        run: bun add onesignal-cordova-plugin@5.5.7 --no-save
+      - name: Verify OneSignal Capacitor dependency
+        run: |
+          node -e 'const p=require("./package.json"); if(!p.dependencies?.["@onesignal/capacitor-plugin"]) process.exit(1)'
 
       - name: Configure app identity for this tenant
         run: |
@@ -120,6 +119,8 @@ jobs:
           node scripts/generate-tenant-offline-bootstrap.mjs
           grep -Fq "tenantOfflineBootstrap" src/generated/tenantOfflineBootstrap.ts
           grep -Fq "\"slug\":\"${TENANT_SLUG}\"" src/generated/tenantOfflineBootstrap.ts
+          test -s public/tenant-bootstrap.js
+          test -s public/tenant-bootstrap.json
           echo "Tenant storefront snapshot packaged for first-launch offline mode"
 
       - name: Stamp Android web bundle
@@ -136,6 +137,8 @@ jobs:
           VITE_SPLASH_COLOR: ${{ inputs.splash_color }}
           VITE_BUILD_VERSION: ${{ github.sha }}
           VITE_ONESIGNAL_APP_ID: ${{ secrets.ONESIGNAL_APP_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Prepare web assets for Capacitor
         run: |
@@ -166,7 +169,6 @@ jobs:
 
       - name: Sync Capacitor
         run: |
-          # Never allow files from an earlier APK build to survive the copy.
           rm -rf android/app/src/main/assets/public
           npx cap sync android
 
@@ -178,6 +180,8 @@ jobs:
 
           test -f "$ASSETS/public/index.html" || fail "index.html missing from Android assets"
           test -f "$ASSETS/public/apk-build.json" || fail "apk-build.json missing from Android assets"
+          test -f "$ASSETS/public/tenant-bootstrap.js" || fail "tenant-bootstrap.js missing from Android assets"
+          test -f "$ASSETS/public/tenant-bootstrap.json" || fail "tenant-bootstrap.json missing from Android assets"
 
           if [ -f "$ASSETS/public/apk-build.json" ]; then
             echo "apk-build.json: $(cat "$ASSETS/public/apk-build.json")"
@@ -188,20 +192,20 @@ jobs:
             grep -Fq '"offlineBootstrap":"packaged-v1"' "$ASSETS/public/apk-build.json" || fail "offline bootstrap stamp missing"
           fi
 
-          # captureInput must stay false so the native numeric keyboard is used.
+          grep -Fq "tenant-bootstrap.js" "$ASSETS/public/index.html" || fail "offline bootstrap is not loaded before app startup"
+          grep -Fq "offline_bootstrap_version" "$ASSETS/public/tenant-bootstrap.js" || fail "offline bootstrap cache seed missing"
+          grep -Fq "\"slug\":\"${TENANT_SLUG}\"" "$ASSETS/public/tenant-bootstrap.json" || fail "offline snapshot belongs to the wrong tenant"
+
           grep -Eq '"captureInput"[[:space:]]*:[[:space:]]*false' capacitor.config.json \
             || fail "captureInput is not false in capacitor.config.json"
           if [ -f "$ASSETS/capacitor.config.json" ]; then
             grep -Eq '"captureInput"[[:space:]]*:[[:space:]]*false' "$ASSETS/capacitor.config.json" \
               || fail "captureInput is not false in the synced Android capacitor.config.json"
-          else
-            echo "Note: $ASSETS/capacitor.config.json not present (Capacitor 7 keeps config in the APK resources)."
           fi
 
           grep -Rqs "offline_banners" "$ASSETS/public" || fail "tenant banner cache code missing from bundle"
-          grep -Rqs "offline_packaged_bootstrap_at" "$ASSETS/public" || fail "packaged offline bootstrap code missing from bundle"
           grep -Rqs "SET_VERSION" "$ASSETS/public" || fail "service worker version handshake missing from bundle"
-          grep -Rqs "OneSignal" android/app/src/main 2>/dev/null || echo "Note: OneSignal native sources are provided through Gradle dependencies"
+          grep -Rqi "onesignal" android 2>/dev/null || fail "OneSignal Capacitor native plugin was not synced"
 
           if [ "$FAILED" != "0" ]; then
             echo "Android assets tree:"
@@ -215,9 +219,6 @@ jobs:
           SPLASH_COLOR: ${{ inputs.splash_color }}
         run: |
           sed -i "s/applicationId \".*\"/applicationId \"${APP_ID}\"/" android/app/build.gradle
-          # Keep the Android namespace fixed because MainActivity is compiled as
-          # com.iftin.agents.MainActivity. The applicationId may safely vary per
-          # tenant without moving or renaming the Java activity class.
           python3 - <<'PY'
           import os, re
           p = "android/app/src/main/res/values/strings.xml"
@@ -233,7 +234,6 @@ jobs:
           c = "android/app/src/main/res/values/colors.xml"
           s = open(c).read()
           s = re.sub(r'(<color name="[A-Za-z_]+">)#[0-9A-Fa-f]{6}(</color>)', r'\g<1>' + color + r'\g<2>', s)
-
           open(c, "w").write(s)
           PY
 
@@ -303,7 +303,6 @@ jobs:
             -H "x-upsert: true" \
             -H "Content-Type: application/vnd.android.package-archive" \
             --data-binary "@$APK"
-          # Private bucket: store the object path; the app creates signed URLs.
           STORED_PATH="${TENANT_SLUG}-${APP_VERSION_NAME}.apk"
           curl -fsS -X PATCH "$SUPABASE_URL/rest/v1/tenants?slug=eq.$TENANT_SLUG" \
             -H "apikey: $SERVICE_KEY" \
