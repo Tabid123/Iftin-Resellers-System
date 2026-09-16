@@ -50,10 +50,19 @@ if (isCapacitorBuild) {
     process.exit(1);
   }
 
-  const indexHtml = fs.readFileSync(path.join(output, 'index.html'), 'utf8');
+  // TanStack's SPA prerender writes the final index.html after Vite's
+  // transformIndexHtml hook has run. Ensure the bootstrap script is therefore
+  // present in the actual prerendered shell, before any module script starts.
+  const indexPath = path.join(output, 'index.html');
+  let indexHtml = fs.readFileSync(indexPath, 'utf8');
   if (!indexHtml.includes('tenant-bootstrap.js')) {
-    console.error('Capacitor build verification failed: tenant-bootstrap.js is not loaded before the app');
-    process.exit(1);
+    const bootstrapTag = '<script src="/tenant-bootstrap.js"></script>';
+    if (indexHtml.includes('</head>')) {
+      indexHtml = indexHtml.replace('</head>', `${bootstrapTag}</head>`);
+    } else {
+      indexHtml = `${bootstrapTag}${indexHtml}`;
+    }
+    fs.writeFileSync(indexPath, indexHtml, 'utf8');
   }
 
   if (!fs.existsSync(path.join(output, 'tenant-bootstrap.js'))) {
@@ -63,6 +72,14 @@ if (isCapacitorBuild) {
 
   if (!fs.existsSync(path.join(output, 'tenant-bootstrap.json'))) {
     console.error('Capacitor build verification failed: tenant-bootstrap.json is missing from static assets');
+    process.exit(1);
+  }
+
+  indexHtml = fs.readFileSync(indexPath, 'utf8');
+  const bootstrapIndex = indexHtml.indexOf('tenant-bootstrap.js');
+  const firstModuleIndex = indexHtml.search(/<script[^>]*type=["']module["']/i);
+  if (bootstrapIndex < 0 || (firstModuleIndex >= 0 && bootstrapIndex > firstModuleIndex)) {
+    console.error('Capacitor build verification failed: tenant bootstrap does not run before the app module');
     process.exit(1);
   }
 
