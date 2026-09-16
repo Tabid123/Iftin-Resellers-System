@@ -33,6 +33,7 @@ import { getAllowedPrefixes, matchesAllowedPrefix, formatPrefixes } from '@/lib/
 import CachedImage from '@/components/CachedImage';
 import DiscoverySearchOverlay from '@/components/ussd/DiscoverySearchOverlay';
 import { localizeImage } from '@/lib/localImages';
+import { purchaseWithWaafiPay, WaafiPayPurchaseError } from '@/lib/waafiPay';
 
 interface PaymentProvider {
   id: string;
@@ -45,6 +46,36 @@ interface PaymentProvider {
   prefix_code: string | null;
   ussd_code_template: string | null;
   payment_number: string | null;
+}
+
+
+function waafiAttemptStorageKey(workspaceId: string) {
+  return `waafipay:attempt:${workspaceId}`;
+}
+
+function getWaafiClientReference(workspaceId: string, signature: string) {
+  const key = waafiAttemptStorageKey(workspaceId);
+  try {
+    const stored = JSON.parse(sessionStorage.getItem(key) || 'null');
+    if (stored?.signature === signature && typeof stored?.clientReference === 'string') {
+      return stored.clientReference as string;
+    }
+  } catch {
+    // Invalid/stale storage is replaced below.
+  }
+  const clientReference = typeof crypto?.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  sessionStorage.setItem(key, JSON.stringify({ signature, clientReference }));
+  return clientReference;
+}
+
+function clearWaafiClientReference(workspaceId: string) {
+  try {
+    sessionStorage.removeItem(waafiAttemptStorageKey(workspaceId));
+  } catch {
+    // Storage can be unavailable in restricted webviews.
+  }
 }
 
 const PaymentProviders = () => {
@@ -200,6 +231,8 @@ const PaymentProviders = () => {
   });
 
   const [selectedProvider, setSelectedProvider] = useState('');
+  const selectedPaymentProviderForUi = paymentProviders.find(p => p.id === selectedProvider);
+  const isWaafiPaySelected = /waafipay/i.test(selectedPaymentProviderForUi?.provider_name || '');
   const [paymentNumber, setPaymentNumber] = useState('');
   const [receiverNumber, setReceiverNumber] = useState('');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -484,6 +517,68 @@ const PaymentProviders = () => {
       }
       }
 
+      if (!discoveryId && workspaceId && isWaafiPaySelected) {
+        const waafiSignature = [
+          workspaceId,
+          String(packageData?.id || ''),
+          cleanCustomerPaymentPhone,
+          receiverNumber,
+          String(selectedProvider || ''),
+          amount,
+        ].join(':');
+        const clientReference = getWaafiClientReference(workspaceId, waafiSignature);
+
+        try {
+          const waafiResult = await purchaseWithWaafiPay({
+            tenant_id: workspaceId,
+            client_reference: clientReference,
+            payer_phone: cleanCustomerPaymentPhone,
+            receiver_phone: receiverNumber,
+            package_id: String(packageData?.id || ''),
+            payment_provider_id: selectedProvider || null,
+          });
+
+          clearWaafiClientReference(workspaceId);
+          setShowConfirmationScreen(false);
+          setIsProcessingPayment(false);
+
+          if (!waafiResult.delivery_queued) {
+            toast({
+              title: 'Lacagta waa la xaqiijiyey',
+              description: waafiResult.message || 'Delivery-ga admin-ka ayaa dib u hubinaya.',
+            });
+          }
+
+          navigate('/payment-success', {
+            state: {
+              package: packageData,
+              paymentMethod: 'WaafiPay',
+              receiverNumber,
+              paymentNumber: cleanCustomerPaymentPhone,
+              orderId: waafiResult.order_id,
+              referenceId: waafiResult.reference_id,
+            },
+          });
+          return;
+        } catch (waafiError: any) {
+          const typed = waafiError instanceof WaafiPayPurchaseError ? waafiError : null;
+          if (typed?.allowLegacyFallback) {
+            clearWaafiClientReference(workspaceId);
+          } else {
+            if (typed?.canStartNewAttempt) clearWaafiClientReference(workspaceId);
+            setIsProcessingPayment(false);
+            setShowConfirmationScreen(false);
+            setErrorType(typed?.code === 'payment_declined' ? 'insufficient_balance' : 'general');
+            setErrorMessage(
+              typed?.message ||
+              'Xaaladda WaafiPay lama xaqiijin. Fadlan ha ku celin payment-ka isla markiiba.',
+            );
+            setShowErrorModal(true);
+            return;
+          }
+        }
+      }
+
       const pendingPaymentData = {
         verified_phone: customerPhone,
         sender_phone: cleanCustomerPaymentPhone,
@@ -610,7 +705,7 @@ const PaymentProviders = () => {
       <div className="space-y-2"><p className="text-xs text-muted-foreground font-medium uppercase">Lambarka lacagta diraayo</p><div className="flex items-center gap-3 bg-muted rounded-lg p-3 border border-border">{getProviderFromPrefix(paymentNumber).logo ? <img src={getProviderFromPrefix(paymentNumber).logo} alt={getProviderFromPrefix(paymentNumber).name} className="w-10 h-10 rounded-full object-contain" /> : <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold">{getProviderFromPrefix(paymentNumber).name.charAt(0)}</div>}<span className="text-lg font-bold text-foreground">+252-{paymentNumber}</span></div></div>
       <div className="space-y-2"><p className="text-xs text-muted-foreground font-medium uppercase">Lambarka xirmada helaayo</p><div className="flex items-center gap-3 bg-muted rounded-lg p-3 border border-border">{getProviderFromPrefix(receiverNumber).logo ? <img src={getProviderFromPrefix(receiverNumber).logo} alt={getProviderFromPrefix(receiverNumber).name} className="w-10 h-10 rounded-full object-contain" /> : <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold">{getProviderFromPrefix(receiverNumber).name.charAt(0)}</div>}<span className="text-lg font-bold text-foreground">+252-{receiverNumber}</span></div></div>
       <div className="bg-destructive text-destructive-foreground p-3 rounded-lg text-center"><p className="font-semibold text-sm">Ma hubtaa inaad {packageData?.price} ka dirtid {paymentNumber}?</p></div>
-      <div className="flex items-center justify-between bg-muted rounded-lg p-3 border border-border"><code className="text-lg font-bold text-primary select-all">{ussdCodeForDisplay}</code><Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(ussdCodeForDisplay); toast({ title: "La copy-gareeye!", description: "USSD code-ka la copy-gareeye" }); }} className="ml-2"><Copy className="w-4 h-4" /></Button></div>
+      {isWaafiPaySelected ? <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-center text-sm font-medium text-blue-800">WaafiPay ayaa lacagta si ammaan ah u xaqiijinaya. Order-ka waxaa la diri doonaa marka payment-ku APPROVED noqdo.</div> : <div className="flex items-center justify-between bg-muted rounded-lg p-3 border border-border"><code className="text-lg font-bold text-primary select-all">{ussdCodeForDisplay}</code><Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(ussdCodeForDisplay); toast({ title: "La copy-gareeye!", description: "USSD code-ka la copy-gareeye" }); }} className="ml-2"><Copy className="w-4 h-4" /></Button></div>}
       <div className="flex gap-3 pt-2"><Button variant="outline" onClick={() => { setShowConfirmationScreen(false); setShowPaymentModal(true); }} className="flex-1 py-5 text-base font-bold border-2">MAYA</Button><Button onClick={() => { if (!isProcessingPayment) handlePaymentComplete(); }} disabled={isProcessingPayment} className="flex-1 py-5 text-base font-bold bg-green-600 hover:bg-green-700 text-white disabled:opacity-50">HAA IIBSO</Button></div>
     </div></div>}
 

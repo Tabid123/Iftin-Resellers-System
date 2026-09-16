@@ -10,6 +10,7 @@ import { toast } from '@/hooks/use-toast'
 import { ArrowLeft, Loader2, Upload, X, KeyRound, Copy, Check, UserCog, Trash2 } from 'lucide-react'
 import ThemePreview from '@/components/platform/ThemePreview'
 import PartnerApiTab from '@/components/platform/PartnerApiTab'
+import WaafiPayIntegrationSettings from '@/components/admin/WaafiPayIntegrationSettings'
 import CachedImage from '@/components/CachedImage'
 
 
@@ -613,6 +614,8 @@ export default function ResellerDetailPage() {
 
         </CardContent>
       </Card>
+
+      {tenant && <WaafiPayIntegrationSettings tenantId={tenant.id} />}
 
       {tenant && <PartnerApiTab tenant={tenant} onRefresh={load} />}
 
