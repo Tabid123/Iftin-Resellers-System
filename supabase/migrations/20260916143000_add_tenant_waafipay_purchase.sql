@@ -210,7 +210,7 @@ begin
 
   return public.waafipay_admin_status(p_tenant_id);
 end;
-$;
+$$;
 
 create or replace function public.waafipay_admin_credentials(p_tenant_id uuid)
 returns jsonb
