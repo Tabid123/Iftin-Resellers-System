@@ -18,6 +18,8 @@ interface AppSetting {
 
 const OfflinePaymentSettings = () => {
   const queryClient = useQueryClient();
+  const tenantState = useTenant();
+  const tenantId = tenantState.tenant?.id ?? null;
   const [paymentNumber, setPaymentNumber] = useState('');
   const [paymentPrefix, setPaymentPrefix] = useState('');
   const [hasNumberChanges, setHasNumberChanges] = useState(false);
