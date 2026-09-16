@@ -44,6 +44,7 @@ function publicErrorMessage(code: string, fallback?: string) {
     payment_status_unknown: 'Xaaladda lacag-bixinta lama xaqiijin. Fadlan ha ku celin hadda; la xiriir adeegga macaamiisha.',
     waafipay_not_configured: 'WaafiPay tenant-kan looma diyaarin.',
     waafipay_inactive: 'WaafiPay tenant-kan waa hakad.',
+    waafipay_credentials_invalid: 'WaafiPay credentials-ka tenant-kan ma dhammaystirna. Super Admin-ku ha geliyo API Key-ga buuxa (20–40 xaraf).',
     waafipay_delivery_mode_not_supported: 'WaafiPay Direct Purchase wuxuu u baahan yahay Android/USSD delivery.',
   };
   return messages[code] || fallback || 'WaafiPay request failed';
@@ -135,6 +136,19 @@ serve(async (req) => {
       return json({
         error: 'waafipay_not_configured',
         message: publicErrorMessage('waafipay_not_configured'),
+      }, 409);
+    }
+    const merchantUid = String(credentials.merchant_uid || '');
+    const apiUserId = String(credentials.api_user_id || '');
+    const apiKey = String(credentials.api_key || '');
+    const credentialsValid =
+      merchantUid.length >= 7 && merchantUid.length <= 15 &&
+      apiUserId.length >= 7 && apiUserId.length <= 15 &&
+      apiKey.length >= 20 && apiKey.length <= 40;
+    if (!credentialsValid) {
+      return json({
+        error: 'waafipay_credentials_invalid',
+        message: publicErrorMessage('waafipay_credentials_invalid'),
       }, 409);
     }
     if (credentials.is_active !== true) {
