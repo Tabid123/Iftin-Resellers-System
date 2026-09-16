@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { invokeEdgeFunction, supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -94,9 +94,11 @@ export function AdminManagement() {
 
   const inviteAdmin = useMutation({
     mutationFn: async ({ email, password, full_name, permissions }: { email: string; password: string; full_name: string; permissions: string[] }) => {
-      const response = await supabase.functions.invoke('add-admin-user', {
-        body: { email, password, full_name, permissions },
-      });
+      const response = await invokeEdgeFunction<{
+        error?: string;
+        full_name?: string;
+        email?: string;
+      }>('add-admin-user', { email, password, full_name, permissions });
 
       if (response.error) throw new Error(response.error.message);
       if (response.data?.error) throw new Error(response.data.error);
