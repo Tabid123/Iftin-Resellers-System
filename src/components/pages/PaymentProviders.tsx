@@ -33,6 +33,7 @@ import { getAllowedPrefixes, matchesAllowedPrefix, formatPrefixes } from '@/lib/
 import CachedImage from '@/components/CachedImage';
 import DiscoverySearchOverlay from '@/components/ussd/DiscoverySearchOverlay';
 import { localizeImage } from '@/lib/localImages';
+import { purchaseWithWaafiPay, WaafiPayPurchaseError } from '@/lib/waafiPay';
 
 interface PaymentProvider {
   id: string;
@@ -45,6 +46,36 @@ interface PaymentProvider {
   prefix_code: string | null;
   ussd_code_template: string | null;
   payment_number: string | null;
+}
+
+
+function waafiAttemptStorageKey(workspaceId: string) {
+  return `waafipay:attempt:${workspaceId}`;
+}
+
+function getWaafiClientReference(workspaceId: string, signature: string) {
+  const key = waafiAttemptStorageKey(workspaceId);
+  try {
+    const stored = JSON.parse(sessionStorage.getItem(key) || 'null');
+    if (stored?.signature === signature && typeof stored?.clientReference === 'string') {
+      return stored.clientReference as string;
+    }
+  } catch {
+    // Invalid/stale storage is replaced below.
+  }
+  const clientReference = typeof crypto?.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  sessionStorage.setItem(key, JSON.stringify({ signature, clientReference }));
+  return clientReference;
+}
+
+function clearWaafiClientReference(workspaceId: string) {
+  try {
+    sessionStorage.removeItem(waafiAttemptStorageKey(workspaceId));
+  } catch {
+    // Storage can be unavailable in restricted webviews.
+  }
 }
 
 const PaymentProviders = () => {
@@ -482,6 +513,68 @@ const PaymentProviders = () => {
           return;
         }
       }
+      }
+
+      if (!discoveryId && workspaceId) {
+        const waafiSignature = [
+          workspaceId,
+          String(packageData?.id || ''),
+          cleanCustomerPaymentPhone,
+          receiverNumber,
+          String(selectedProvider || ''),
+          amount,
+        ].join(':');
+        const clientReference = getWaafiClientReference(workspaceId, waafiSignature);
+
+        try {
+          const waafiResult = await purchaseWithWaafiPay({
+            tenant_id: workspaceId,
+            client_reference: clientReference,
+            payer_phone: cleanCustomerPaymentPhone,
+            receiver_phone: receiverNumber,
+            package_id: String(packageData?.id || ''),
+            payment_provider_id: selectedProvider || null,
+          });
+
+          clearWaafiClientReference(workspaceId);
+          setShowConfirmationScreen(false);
+          setIsProcessingPayment(false);
+
+          if (!waafiResult.delivery_queued) {
+            toast({
+              title: 'Lacagta waa la xaqiijiyey',
+              description: waafiResult.message || 'Delivery-ga admin-ka ayaa dib u hubinaya.',
+            });
+          }
+
+          navigate('/payment-success', {
+            state: {
+              package: packageData,
+              paymentMethod: 'WaafiPay',
+              receiverNumber,
+              paymentNumber: cleanCustomerPaymentPhone,
+              orderId: waafiResult.order_id,
+              referenceId: waafiResult.reference_id,
+            },
+          });
+          return;
+        } catch (waafiError: any) {
+          const typed = waafiError instanceof WaafiPayPurchaseError ? waafiError : null;
+          if (typed?.allowLegacyFallback) {
+            clearWaafiClientReference(workspaceId);
+          } else {
+            if (typed?.canStartNewAttempt) clearWaafiClientReference(workspaceId);
+            setIsProcessingPayment(false);
+            setShowConfirmationScreen(false);
+            setErrorType(typed?.code === 'payment_declined' ? 'insufficient_balance' : 'general');
+            setErrorMessage(
+              typed?.message ||
+              'Xaaladda WaafiPay lama xaqiijin. Fadlan ha ku celin payment-ka isla markiiba.',
+            );
+            setShowErrorModal(true);
+            return;
+          }
+        }
       }
 
       const pendingPaymentData = {
