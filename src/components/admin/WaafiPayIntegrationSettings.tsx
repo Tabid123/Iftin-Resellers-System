@@ -55,7 +55,7 @@ export default function WaafiPayIntegrationSettings({ tenantId }: { tenantId: st
       body: { tenant_id: tenantId, ...payload },
     });
     if (error || data?.error) {
-      throw new Error(data?.error || error?.message || 'WaafiPay integration error');
+      throw new Error(data?.message || data?.error || error?.message || 'WaafiPay integration error');
     }
     return data;
   }, [tenantId]);
@@ -88,6 +88,14 @@ export default function WaafiPayIntegrationSettings({ tenantId }: { tenantId: st
     }
     if (!status.configured && !apiKey.trim()) {
       toast({ title: 'API Key geli', variant: 'destructive' });
+      return;
+    }
+    if (apiKey.trim() && (apiKey.trim().length < 20 || apiKey.trim().length > 40)) {
+      toast({
+        title: 'API Key-ga ma dhammaystirna',
+        description: 'WaafiPay API Key-gu waa inuu ahaadaa 20 ilaa 40 xaraf.',
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -203,7 +211,7 @@ export default function WaafiPayIntegrationSettings({ tenantId }: { tenantId: st
               autoComplete="new-password"
             />
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <EyeOff className="h-3.5 w-3.5" /> API Key-ga browser-ka dib looguma soo celiyo.
+              <EyeOff className="h-3.5 w-3.5" /> API Key-ga buuxa waa 20–40 xaraf; browser-ka dib looguma soo celiyo.
             </p>
           </div>
 
