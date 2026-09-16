@@ -8,11 +8,31 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 const isCapacitorBuild = process.env.CAPACITOR_BUILD === "true";
 
+const tenantOfflineBootstrapPlugin = {
+  name: "tenant-offline-bootstrap",
+  transformIndexHtml: {
+    order: "pre" as const,
+    handler() {
+      if (!isCapacitorBuild) return [];
+      return [
+        {
+          tag: "script",
+          attrs: { src: "/tenant-bootstrap.js" },
+          injectTo: "head-prepend" as const,
+        },
+      ];
+    },
+  },
+};
+
 export default defineConfig({
   // Nitro repackages the server entry as `index.mjs`. TanStack's SPA
   // prerender preview expects its own `server.js`, so skip Nitro only for the
   // local Capacitor bundle. Normal web builds keep the Cloudflare adapter.
   ...(isCapacitorBuild ? { nitro: false } : {}),
+  vite: {
+    plugins: [tenantOfflineBootstrapPlugin],
+  },
   tanstackStart: {
     // The web deployment uses our SSR error wrapper. Capacitor's SPA shell must
     // use TanStack Start's default entry so its build-time shell request can be
