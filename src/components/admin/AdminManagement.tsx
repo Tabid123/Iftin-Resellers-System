@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { invokeEdgeFunction, supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useTenant } from '@/contexts/TenantContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -136,7 +137,7 @@ export function AdminManagement() {
       await supabase.from('admin_permissions').delete().eq('user_id', userId);
       if (permissions.length > 0) {
         const { error } = await supabase.from('admin_permissions').insert(
-          permissions.map(key => ({ user_id: userId, permission_key: key }))
+          permissions.map(key => ({ user_id: userId, permission_key: key, tenant_id: tenantId }))
         );
         if (error) throw error;
       }
@@ -154,7 +155,10 @@ export function AdminManagement() {
   const removeAdmin = useMutation({
     mutationFn: async (userId: string) => {
       await supabase.from('admin_permissions').delete().eq('user_id', userId);
-      const { error } = await supabase.from('user_roles').delete().eq('user_id', userId).eq('role', 'admin');
+      const { error } = await supabase.from('tenant_members').delete()
+        .eq('tenant_id', tenantId)
+        .eq('user_id', userId)
+        .eq('role', 'admin');
       if (error) throw error;
     },
     onSuccess: () => {
