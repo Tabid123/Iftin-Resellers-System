@@ -568,7 +568,15 @@ const PaymentProviders = () => {
             if (typed?.canStartNewAttempt) clearWaafiClientReference(workspaceId);
             setIsProcessingPayment(false);
             setShowConfirmationScreen(false);
-            setErrorType(typed?.code === 'payment_declined' ? 'insufficient_balance' : 'general');
+            setErrorType(
+              typed?.code === 'insufficient_balance'
+                ? 'insufficient_balance'
+                : typed?.code === 'payment_cancelled' || typed?.code === 'payment_declined'
+                  ? 'user_cancelled'
+                  : typed?.code === 'payment_timeout'
+                    ? 'timeout'
+                    : 'general',
+            );
             setErrorMessage(
               typed?.message ||
               'Xaaladda WaafiPay lama xaqiijin. Fadlan ha ku celin payment-ka isla markiiba.',
