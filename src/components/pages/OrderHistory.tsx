@@ -36,6 +36,11 @@ const normalizeSomaliPhone = (phone?: string | null) => (phone || '').replace(/^
 let historyCache: any[] | null = null;
 
 const OrderHistory = () => {
+  const { tenant } = useTenant();
+  const invoiceBranding = {
+    tenantName: tenant?.name ?? null,
+    tenantLogo: tenant?.logo_url ?? null,
+  };
   const navigate = useNavigate();
   const {
     toast
