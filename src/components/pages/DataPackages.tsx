@@ -69,6 +69,27 @@ const DataPackages = () => {
   const [discoveryRootPackage, setDiscoveryRootPackage] = useState<any | null>(null);
   const { queueOrder } = useOfflineSync();
   const { toast } = useToast();
+
+  /**
+   * Offline mode uses the number/prefix the tenant entered in the
+   * "Offline Payment Settings" tab (app_settings). It overrides whatever
+   * the cached payment provider row says.
+   */
+  const withTenantOfflinePayment = (pp: any) => {
+    const settings = workspaceStorage.getJson<any[]>('offline_app_settings', [], workspaceId) || [];
+    const number = String(
+      settings.find((s: any) => s?.setting_key === 'payment_number')?.text_value ?? '',
+    ).replace(/\D/g, '');
+    const prefix = String(
+      settings.find((s: any) => s?.setting_key === 'payment_prefix')?.text_value ?? '',
+    ).trim();
+    if (!number && !prefix) return pp ?? {};
+    return {
+      ...(pp ?? {}),
+      ...(number ? { payment_number: number } : {}),
+      ...(prefix ? { ussd_prefix: prefix, ussd_code_template: null } : {}),
+    };
+  };
   
 
   // Show AdMob banner on mount, hide on unmount
