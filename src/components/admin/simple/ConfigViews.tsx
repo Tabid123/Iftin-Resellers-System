@@ -912,6 +912,10 @@ export const PaymentSettingsCustomView = ({ isSo }: { isSo: boolean }) => {
             <input value={newPay.prefix_code} onChange={e => setNewPay(p => ({...p, prefix_code: e.target.value}))} inputMode="numeric" placeholder="Prefix Code" className="px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700 border text-sm outline-none" />
           </div>
           <input value={newPay.ussd_code_template} onChange={e => setNewPay(p => ({...p, ussd_code_template: e.target.value}))} placeholder="USSD Template" className="w-full px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700 border text-sm outline-none" />
+          <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700 border text-sm">
+            <input type="checkbox" checked={newPay.is_waafipay} onChange={e => setNewPay(p => ({...p, is_waafipay: e.target.checked}))} className="w-4 h-4" />
+            <span className="font-medium">{isSo ? 'WaafiPay API (online, USSD ma furmo)' : 'WaafiPay API (online, no USSD)'}</span>
+          </label>
           <ImageUploader value={newPay.provider_logo} onChange={url => setNewPay(p => ({...p, provider_logo: url}))} bucket="provider-logos" label="Logo" />
           <div className="flex gap-2">
             <button onClick={savePaymentProvider} className="flex-1 py-2 bg-green-500 text-white rounded-lg text-sm font-medium">{editingId ? '💾 Save' : '➕ Add'}</button>
