@@ -176,7 +176,7 @@ const OfflinePaymentSettings = () => {
               </Button>
               <Button
                 onClick={handleSaveNumber}
-                disabled={!hasNumberChanges}
+                disabled={updateSetting.isPending || !paymentNumber.trim()}
                 className="min-w-[100px]"
               >
                 <Save className="w-4 h-4 mr-2" />
