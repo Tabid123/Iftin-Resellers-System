@@ -46,6 +46,7 @@ interface PaymentProvider {
   prefix_code: string | null;
   ussd_code_template: string | null;
   payment_number: string | null;
+  is_waafipay?: boolean | null;
 }
 
 
