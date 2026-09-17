@@ -145,19 +145,14 @@ serve(async (req) => {
       filters: [{ field: 'tag', key: 'tenant_id', relation: '=', value: tenantId }],
       data: path ? { path } : {},
 
-      // Android small icons are monochrome status-bar resources. Every tenant
-      // APK builds this resource from its own launcher artwork.
+      // Android requires a local monochrome small icon. New tenant APKs bundle
+      // this resource from that tenant's launcher artwork.
       small_icon: 'ic_stat_onesignal_default',
 
-      // Full-colour tenant logo. This resource is bundled into each tenant APK
-      // as drawable-nodpi/tenant_notification_logo.png, so delivery does not
-      // depend on OneSignal downloading a remote image at notification time.
-      large_icon: 'tenant_notification_logo',
+      // Existing APKs can show the tenant logo immediately from its public URL.
+      // New APKs also bundle tenant_notification_logo as a no-network fallback.
+      large_icon: tenantLogo || 'tenant_notification_logo',
     };
-
-    // Keep the public tenant artwork as an expanded-image fallback/extra brand
-    // surface on devices that choose to render a big picture.
-    if (tenantLogo) payload.big_picture = tenantLogo;
 
     const pushResponse = await fetch('https://api.onesignal.com/notifications', {
       method: 'POST',
