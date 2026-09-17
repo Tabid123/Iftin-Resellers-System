@@ -139,28 +139,46 @@ const PaymentProviders = () => {
         }
       };
 
-      const catalog = await fetchIftinCatalog();
-      if (hasCatalog(catalog)) {
-        const fromIftin = mapPaymentProviders(catalog!);
-        if (fromIftin.length) {
-          workspaceStorage.set('offline_payment_providers', JSON.stringify(fromIftin));
-          return fromIftin;
+      // Lambarka lacagta ee tenant-ku gudaha ka galiyo (Payment Settings) waa
+      // kan ugu mudnaanta sarreeya — katalooggu wuxuu keliya buuxiyaa waxa maqan.
+      const fetchLocal = async () => {
+        try {
+          const { data, error } = await (supabase as any).rpc('get_active_payment_providers');
+          if (error || !Array.isArray(data)) return [] as any[];
+          return localizePayments(data as any);
+        } catch {
+          return [] as any[];
         }
-        const cached = readCache();
-        if (cached.length) return cached;
+      };
+
+      const nameKey = (n: any) => String(n ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      const [local, catalog] = await Promise.all([fetchLocal(), fetchIftinCatalog()]);
+      const fromIftin = hasCatalog(catalog) ? mapPaymentProviders(catalog!) : [];
+
+      let merged: any[] = [];
+      if (fromIftin.length) {
+        const localByName = new Map(local.map((p: any) => [nameKey(p.provider_name), p]));
+        merged = fromIftin.map((p: any) => {
+          const own = localByName.get(nameKey(p.provider_name));
+          if (!own) return p;
+          localByName.delete(nameKey(p.provider_name));
+          return {
+            ...p,
+            payment_number: own.payment_number || p.payment_number,
+            prefix_code: own.prefix_code || p.prefix_code,
+            ussd_code_template: own.ussd_code_template || p.ussd_code_template,
+            is_waafipay: own.is_waafipay ?? p.is_waafipay,
+          };
+        });
+        merged = [...merged, ...Array.from(localByName.values())];
+      } else {
+        merged = local;
       }
 
-      const { data, error } = await (supabase as any).rpc('get_active_payment_providers');
-      if (error) {
-        const cached = readCache();
-        if (cached.length) return cached;
-        throw error;
-      }
-
-      if (Array.isArray(data) && data.length) {
-        const localized = localizePayments(data);
-        workspaceStorage.set('offline_payment_providers', JSON.stringify(localized));
-        return localized;
+      if (merged.length) {
+        workspaceStorage.set('offline_payment_providers', JSON.stringify(merged));
+        return merged;
       }
       return readCache();
     },
