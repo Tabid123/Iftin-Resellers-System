@@ -86,50 +86,21 @@ const chunkRecoveryScript = `
   })();
 `;
 
-// Android WebView can report a transient 100dvh/innerHeight change for one frame
-// while a route is swapping or system chrome is settling. Because the storefront
-// bottom nav is now a normal-flow shell row, that transient viewport change moved
-// the whole shell and looked like the nav "jumped". Capture one real pixel height
-// before React paints and only refresh it after a genuine orientation change.
+// Keep the storefront shell independent from Android's transient system-bar
+// visibility changes. Some devices expose the gesture/navigation bar on every
+// tap and keep the smaller visual viewport long enough to pass a debounce. The
+// shell height must therefore never follow resize events; only a real device
+// rotation is allowed to establish a new baseline.
 const stableShellHeightScript = `
   (() => {
-    var applied = 0;
-    var timer = 0;
     var read = function () {
-      var vv = window.visualViewport;
-      var h = (vv && vv.height) || window.innerHeight || document.documentElement.clientHeight || 0;
+      var h = window.innerHeight || document.documentElement.clientHeight || 0;
       return Math.max(1, Math.round(h));
     };
     var set = function (h) {
-      if (h === applied) return;
-      applied = h;
       document.documentElement.style.setProperty('--iftin-shell-height', h + 'px');
     };
-    var keyboardOpen = function () {
-      var el = document.activeElement;
-      if (!el) return false;
-      var tag = (el.tagName || '').toLowerCase();
-      return tag === 'input' || tag === 'textarea' || el.isContentEditable === true;
-    };
-    var schedule = function () {
-      // Android WebView toggles the system/gesture bar on touch, which resizes the
-      // WebView for a few frames. Only commit a height that is still the same after
-      // a short settle window, and never shrink the shell for the soft keyboard.
-      if (timer) window.clearTimeout(timer);
-      var target = read();
-      timer = window.setTimeout(function () {
-        timer = 0;
-        var now = read();
-        if (now !== target) { schedule(); return; }
-        if (now < applied && keyboardOpen()) return;
-        set(now);
-      }, 220);
-    };
     set(read());
-    window.addEventListener('resize', schedule, { passive: true });
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', schedule, { passive: true });
-    }
     window.addEventListener('orientationchange', function () {
       window.setTimeout(function () { set(read()); }, 350);
     }, { passive: true });
