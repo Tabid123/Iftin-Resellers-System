@@ -52,9 +52,6 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
   const t = useTenant();
   const tenant = t.status === 'ready' || t.status === 'suspended' ? t.tenant : null;
 
-  // Optimistic tab highlight: the tap must paint in the very next frame even
-  // though rendering the destination screen costs a few hundred milliseconds
-  // on a low-end phone. The pending path wins until the router catches up.
   const [pendingPath, setPendingPath] = useState<string | null>(null);
   useEffect(() => {
     if (pendingPath && normalizeStorefrontPath(location.pathname) === pendingPath) setPendingPath(null);
@@ -98,9 +95,12 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
       className="iftin-bottom-nav fixed bottom-0 left-0 right-0 z-50"
       aria-hidden={!visible}
       style={{
-        height: 'calc(76px + var(--effective-safe-area-bottom, 0px))',
-        minHeight: 'calc(76px + var(--effective-safe-area-bottom, 0px))',
-        paddingBottom: 'var(--effective-safe-area-bottom, 0px)',
+        // Do not bind nav geometry to a live safe-area env() value. Android
+        // WebView briefly changes that inset during route swaps, which was the
+        // exact one-frame upward jump visible in device recordings.
+        height: '76px',
+        minHeight: '76px',
+        paddingBottom: '0px',
         boxSizing: 'border-box',
         background: navBackground,
         WebkitTapHighlightColor: 'transparent',
