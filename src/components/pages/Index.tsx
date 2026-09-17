@@ -7,6 +7,7 @@ import najaxLogoSplash from '@/assets/najax-logo.jpeg';
 import { useTenant } from '@/contexts/TenantContext';
 import { hideNativeSplash } from '@/lib/nativeSplash';
 import CachedImage from '@/components/CachedImage';
+import { phoneEntryPrompt } from '@/lib/phoneEntryPrompt';
 
 // Validate Somali phone format: 9 digits starting with 61, 77, 62, or 68.
 const isValidSomaliPhone = (phone: string | null): boolean => {
@@ -21,6 +22,7 @@ const Index = () => {
   const wasAlreadyInitialized = sessionStorage.getItem('appInitialized') === 'true';
   const [isChecking, setIsChecking] = useState(!wasAlreadyInitialized);
   const hasInitialized = useRef(false);
+  const phonePromptPlayed = useRef(false);
 
   const hasOfflineRegistration = (): boolean => {
     const hasSkipped = localStorage.getItem('hasSkippedOfflineRegistration') === 'true';
@@ -60,6 +62,57 @@ const Index = () => {
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wasAlreadyInitialized, isChecking]);
+
+  // Voice guidance for first-time phone entry. Try autoplay as soon as the form
+  // is visible. If a browser/WebView blocks audible autoplay, the first pointer,
+  // keyboard or focus interaction unlocks and plays the same prompt once.
+  useEffect(() => {
+    if (isChecking || phonePromptPlayed.current) return;
+
+    const audio = new Audio(phoneEntryPrompt);
+    audio.preload = 'auto';
+    audio.volume = 1;
+
+    let disposed = false;
+    let fallbackAttached = false;
+
+    const cleanupFallback = () => {
+      if (!fallbackAttached) return;
+      fallbackAttached = false;
+      window.removeEventListener('pointerdown', playPrompt, true);
+      window.removeEventListener('keydown', playPrompt, true);
+      window.removeEventListener('focusin', playPrompt, true);
+    };
+
+    const markPlayed = () => {
+      phonePromptPlayed.current = true;
+      cleanupFallback();
+    };
+
+    const playPrompt = () => {
+      if (disposed || phonePromptPlayed.current) return;
+      audio.currentTime = 0;
+      void audio.play().then(markPlayed).catch(() => {
+        if (disposed || fallbackAttached) return;
+        fallbackAttached = true;
+        window.addEventListener('pointerdown', playPrompt, true);
+        window.addEventListener('keydown', playPrompt, true);
+        window.addEventListener('focusin', playPrompt, true);
+      });
+    };
+
+    // Let the phone form paint first so the spoken instruction matches what the
+    // customer can already see on screen.
+    const timer = window.setTimeout(playPrompt, 120);
+
+    return () => {
+      disposed = true;
+      window.clearTimeout(timer);
+      cleanupFallback();
+      audio.pause();
+      audio.src = '';
+    };
+  }, [isChecking]);
 
   // Storefront bootstrap/cache refresh is owned centrally by AppContent's
   // single useOfflineCache() instance. Keeping it out of this route prevents
