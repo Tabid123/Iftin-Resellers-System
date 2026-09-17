@@ -12,7 +12,7 @@ const PARTNER_HIDDEN = new Set<string>([
   // Devices & delivery engine — Iftin ayaa haya
   'devices', 'sms-logs', 'auto-topup', 'deliveries', 'bulk-sms',
   // Local catalog / USSD config — catalog-ka waxaa laga soo qaataa API-ga
-  'providers', 'packages', 'categories', 'featured', 'delivery-rules', 'system-codes', 'discovery-pricing',
+  'providers', 'packages', 'categories', 'featured', 'delivery-rules', 'system-codes', 'sim-pins', 'discovery-pricing',
   // SIM/bank/e-voucher accounting — ma khusayso partner
   'sms-lacago', 'bank-transactions', 'evoucher-rates',
   // Offline (SMS) ordering — device ayuu u baahan
