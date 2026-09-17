@@ -89,10 +89,52 @@ export type ResendResult = { ok: true; orderId: string } | { ok: false; message:
 export async function resendOrder(order: any, newReceiverRaw: string): Promise<ResendResult> {
   const phone = digits9(newReceiverRaw);
   if (phone.length !== 9) return { ok: false, message: 'Lambarka sax ma aha' };
-  if (!order?.id) return { ok: false, message: 'Dalabka lama helin — ma dib u diri kartid' };
 
   const { ussd, provider, deviceId, simSlot } = await lookupUssd(order, phone);
   if (!ussd) return { ok: false, message: 'USSD-ka xirmadan lama helin — delivery instructions hubi' };
+
+  // Lacag unmatched ah: dalab hore ma jiro — mid cusub ayaa la abuuraa.
+  if (!order?.id) {
+    if (!order?.package_id) return { ok: false, message: 'Fadlan dooro xirmada' };
+
+    const { data: created, error: createErr } = await supabase
+      .from('orders')
+      .insert({
+        provider_id: order.provider_id ?? null,
+        package_id: order.package_id,
+        package_name: order.package_name ?? 'Data Package',
+        data_amount: order.data_amount ?? null,
+        selling_price: order.selling_price ?? 0,
+        cost_price: order.cost_price ?? 0,
+        receiver_phone: phone,
+        sender_phone: order.sender_phone ? digits9(order.sender_phone) : null,
+        customer_phone: digits9(order.customer_phone ?? order.sender_phone ?? phone) || phone,
+        payment_number: order.payment_number ?? 'UNMATCHED',
+        payment_source: order.payment_source ?? 'offline',
+        status: 'paid',
+        delivery_status: 'pending',
+        delivery_notes: order.delivery_notes ?? null,
+      })
+      .select('id')
+      .single();
+
+    if (createErr || !created?.id) {
+      return { ok: false, message: createErr?.message ?? 'Dalabka lama abuurin' };
+    }
+
+    const { error: qErr } = await supabase.from('delivery_queue').insert({
+      order_id: created.id,
+      receiver_phone: phone,
+      provider_name: provider ?? 'unknown',
+      ussd_code: ussd,
+      ...(deviceId ? { android_device_id: deviceId } : {}),
+      ...(simSlot !== null ? { sim_slot: simSlot } : {}),
+      status: 'pending',
+    });
+    if (qErr) return { ok: false, message: qErr.message };
+
+    return { ok: true, orderId: created.id };
+  }
 
   // Dalab cusub MA ABUURINNO — midkii hore ayaa dib loo diraa.
   // 1) Cusbooneysi lambarka qaataha (haddii la beddelo) iyo dib-u-dejiinta status-ka.
