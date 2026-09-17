@@ -5,7 +5,10 @@ import { Keyboard, KeyboardInfo } from '@capacitor/keyboard';
 const KEYBOARD_CLASS = 'iftin-keyboard-open';
 
 const setKeyboardInset = (height: number) => {
-  document.documentElement.style.setProperty('--iftin-keyboard-inset', `${Math.max(0, Math.round(height))}px`);
+  document.documentElement.style.setProperty(
+    '--iftin-keyboard-inset',
+    `${Math.max(0, Math.round(height))}px`,
+  );
   document.documentElement.classList.toggle(KEYBOARD_CLASS, height > 0);
 };
 
@@ -17,28 +20,38 @@ const scrollFocusedFieldIntoView = (keyboardHeight: number) => {
   if (!(field instanceof HTMLElement)) return;
 
   const scroller = field.closest('.iftin-route-viewport') as HTMLElement | null;
-  const viewport = window.visualViewport;
-  const keyboardTopFromHeight = window.innerHeight - keyboardHeight;
-  const visibleBottom = Math.min(
-    scroller?.getBoundingClientRect().bottom ?? window.innerHeight,
-    viewport ? viewport.offsetTop + viewport.height : window.innerHeight,
-    keyboardTopFromHeight > 0 ? keyboardTopFromHeight : window.innerHeight,
-  ) - 24;
-  const visibleTop = Math.max(scroller?.getBoundingClientRect().top ?? 0, viewport?.offsetTop ?? 0) + 24;
-  const rect = field.getBoundingClientRect();
 
-  if (rect.bottom <= visibleBottom && rect.top >= visibleTop) return;
+  // First restore the old, reliable behavior: center the focused field in the
+  // scrollable storefront as soon as the keyboard appears.
+  field.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
 
-  const targetDelta = rect.bottom > visibleBottom
-    ? rect.bottom - visibleBottom
-    : rect.top - visibleTop;
+  // Then clamp it to the actually visible keyboard viewport. On modern Android
+  // visualViewport is authoritative; only subtract keyboardHeight as a fallback
+  // when visualViewport is unavailable, otherwise the keyboard gets counted twice.
+  requestAnimationFrame(() => {
+    const viewport = window.visualViewport;
+    const viewportTop = viewport?.offsetTop ?? 0;
+    const viewportBottom = viewport
+      ? viewport.offsetTop + viewport.height
+      : Math.max(1, window.innerHeight - keyboardHeight);
 
-  if (scroller) {
-    scroller.scrollTo({ top: scroller.scrollTop + targetDelta, behavior: 'smooth' });
-    return;
-  }
+    const scrollerRect = scroller?.getBoundingClientRect();
+    const visibleTop = Math.max(scrollerRect?.top ?? 0, viewportTop) + 24;
+    const visibleBottom = Math.min(scrollerRect?.bottom ?? viewportBottom, viewportBottom) - 24;
+    const rect = field.getBoundingClientRect();
 
-  field.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    let delta = 0;
+    if (rect.bottom > visibleBottom) delta = rect.bottom - visibleBottom;
+    else if (rect.top < visibleTop) delta = rect.top - visibleTop;
+
+    if (delta === 0) return;
+
+    if (scroller) {
+      scroller.scrollTo({ top: scroller.scrollTop + delta, behavior: 'auto' });
+    } else {
+      window.scrollBy({ top: delta, behavior: 'auto' });
+    }
+  });
 };
 
 export const useKeyboardInsets = () => {
@@ -48,26 +61,55 @@ export const useKeyboardInsets = () => {
   useEffect(() => {
     if (Capacitor.getPlatform() !== 'android') return;
 
-    const showListener = Keyboard.addListener('keyboardWillShow', (info: KeyboardInfo) => {
+    let currentKeyboardHeight = 0;
+
+    const revealFocusedField = (height: number) => {
+      [0, 70, 180, 320].forEach((delay) => {
+        window.setTimeout(() => scrollFocusedFieldIntoView(height), delay);
+      });
+    };
+
+    const handleShow = (info: KeyboardInfo) => {
       const height = Math.max(0, info.keyboardHeight || 0);
+      currentKeyboardHeight = height;
       setKeyboardHeight(height);
       setIsKeyboardVisible(true);
       setKeyboardInset(height);
+      revealFocusedField(height);
+    };
 
-      [80, 180, 320].forEach((delay) => {
-        window.setTimeout(() => scrollFocusedFieldIntoView(height), delay);
-      });
-    });
-
-    const hideListener = Keyboard.addListener('keyboardWillHide', () => {
+    const handleHide = () => {
+      currentKeyboardHeight = 0;
       setKeyboardHeight(0);
       setIsKeyboardVisible(false);
       setKeyboardInset(0);
-    });
+    };
+
+    const showListener = Keyboard.addListener('keyboardWillShow', handleShow);
+    const didShowListener = Keyboard.addListener('keyboardDidShow', handleShow);
+    const hideListener = Keyboard.addListener('keyboardWillHide', handleHide);
+    const didHideListener = Keyboard.addListener('keyboardDidHide', handleHide);
+
+    const handleFocusIn = () => {
+      if (currentKeyboardHeight <= 0) return;
+      revealFocusedField(currentKeyboardHeight);
+    };
+
+    const handleViewportResize = () => {
+      if (currentKeyboardHeight <= 0) return;
+      scrollFocusedFieldIntoView(currentKeyboardHeight);
+    };
+
+    document.addEventListener('focusin', handleFocusIn);
+    window.visualViewport?.addEventListener('resize', handleViewportResize, { passive: true });
 
     return () => {
       showListener.then(handle => handle.remove());
+      didShowListener.then(handle => handle.remove());
       hideListener.then(handle => handle.remove());
+      didHideListener.then(handle => handle.remove());
+      document.removeEventListener('focusin', handleFocusIn);
+      window.visualViewport?.removeEventListener('resize', handleViewportResize);
       setKeyboardInset(0);
     };
   }, []);
