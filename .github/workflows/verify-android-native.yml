@@ -11,6 +11,16 @@ on:
       - "src/services/onesignal.ts"
       - ".github/workflows/build-tenant-android.yml"
       - ".github/workflows/verify-android-native.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "android/**"
+      - "capacitor.config.json"
+      - "package.json"
+      - "bun.lock"
+      - "src/services/onesignal.ts"
+      - ".github/workflows/build-tenant-android.yml"
+      - ".github/workflows/verify-android-native.yml"
   workflow_dispatch:
 
 jobs:
@@ -60,6 +70,24 @@ jobs:
         run: |
           node -e 'const p=require("./package.json"); if(p.dependencies?.["@onesignal/capacitor-plugin"]!=="1.0.6") process.exit(1)'
 
+      - name: Verify single Android inset owner
+        run: |
+          node -e '
+            const c=require("./capacitor.config.json");
+            if (c.plugins?.SystemBars?.insetsHandling !== "disable") {
+              console.error("SystemBars.insetHandling must stay disabled while native MainActivity owns stable WebView insets");
+              process.exit(1);
+            }
+            if (c.plugins?.Keyboard?.resizeOnFullScreen !== false) {
+              console.error("Keyboard.resizeOnFullScreen must remain false for stable edge-to-edge geometry");
+              process.exit(1);
+            }
+          '
+          grep -Fq "getInsetsIgnoringVisibility" android/app/src/main/java/com/iftin/agents/MainActivity.java \
+            || { echo "::error::stable native system-bar inset handling missing"; exit 1; }
+          grep -Fq "WindowInsetsCompat.CONSUMED" android/app/src/main/java/com/iftin/agents/MainActivity.java \
+            || { echo "::error::native inset event is not consumed"; exit 1; }
+
       - name: Prepare minimal Capacitor web directory
         run: |
           mkdir -p dist
@@ -74,6 +102,10 @@ jobs:
             || { echo "::error::POST_NOTIFICATIONS permission missing"; exit 1; }
           grep -Rqi "onesignal" android 2>/dev/null \
             || { echo "::error::OneSignal Capacitor plugin was not synced"; exit 1; }
+          for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            test -f "android/app/src/main/res/drawable-${density}/ic_stat_onesignal_default.xml" \
+              || { echo "::error::missing OneSignal icon for ${density}"; exit 1; }
+          done
 
       - name: Assemble debug APK
         working-directory: android
