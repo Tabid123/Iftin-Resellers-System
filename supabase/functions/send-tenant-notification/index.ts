@@ -144,10 +144,15 @@ serve(async (req) => {
       contents: { en: message },
       filters: [{ field: 'tag', key: 'tenant_id', relation: '=', value: tenantId }],
       data: path ? { path } : {},
+      // Every tenant APK now bundles this resource name using that tenant's own
+      // launcher foreground. Android renders small notification icons as a
+      // monochrome silhouette, which is required by the platform.
+      small_icon: 'ic_stat_onesignal_default',
     };
 
-    // Android will keep the tenant APK's native small icon; when the tenant has
-    // a public logo URL, also show that brand logo as the notification large icon.
+    // Full-colour tenant branding is sent separately as the Android large icon.
+    // Remote URL keeps this working even before the next APK update; the new APK
+    // additionally contains a bundled tenant logo resource for future use.
     if (tenantLogo) payload.large_icon = tenantLogo;
 
     const pushResponse = await fetch('https://api.onesignal.com/notifications', {
