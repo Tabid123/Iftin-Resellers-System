@@ -13,20 +13,24 @@ const setVar = (name: string, value: string) => {
 };
 
 /**
- * Android's WebView is already laid out below the status bar in this app.
- * Reusing SystemBars' top inset there counts the status bar twice and makes
- * every tenant header too tall. The bottom inset remains measured because the
- * fixed navigation still needs to clear the gesture area.
+ * Android WebView safe areas must be stable across route transitions.
+ *
+ * The WebView in this app already owns its native system-bar layout. Reading
+ * env(safe-area-inset-bottom) live from CSS caused Android to briefly report a
+ * larger bottom inset while routes were swapping. Because the persistent nav
+ * used that live value for its height, it visibly jumped upward for a frame.
+ *
+ * Keep Android's effective top/bottom insets pinned to 0px. The nav itself has
+ * enough internal height to keep controls clear of the gesture indicator. iOS
+ * and normal web continue using browser-provided safe-area env() values.
  */
 export const useEdgeToEdge = () => {
   useEffect(() => {
     const setSafeArea = () => {
       if (isAndroidWebView()) {
-        // The native window already places the WebView below the status icons.
         setVar('--effective-safe-area-top', '0px');
-        setVar('--effective-safe-area-bottom', 'var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))');
+        setVar('--effective-safe-area-bottom', '0px');
       } else {
-        // iOS / web: the browser reports correct insets.
         setVar('--effective-safe-area-top', 'env(safe-area-inset-top, 0px)');
         setVar('--effective-safe-area-bottom', 'env(safe-area-inset-bottom, 0px)');
       }
@@ -49,16 +53,14 @@ export const useEdgeToEdge = () => {
     const handleVisibilityChange = () => {
       if (!document.hidden) setSafeArea();
     };
-    const handleResize = () => setSafeArea();
+    const handleOrientationChange = () => setSafeArea();
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', handleResize);
+    window.addEventListener('orientationchange', handleOrientationChange);
 
     return () => {
       resumeListener?.remove();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('orientationchange', handleResize);
+      window.removeEventListener('orientationchange', handleOrientationChange);
     };
   }, []);
 };
