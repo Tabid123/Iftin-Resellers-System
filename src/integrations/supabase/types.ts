@@ -2282,6 +2282,44 @@ export type Database = {
           },
         ]
       }
+      sim_pins: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          pin: string
+          provider_name: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          pin?: string
+          provider_name: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          pin?: string
+          provider_name?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sim_pins_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sms_logs: {
         Row: {
           amount: number | null
@@ -3298,6 +3336,10 @@ export type Database = {
           }
       seed_tenant_from_template: {
         Args: { p_source: string; p_target: string }
+        Returns: Json
+      }
+      set_sim_pin: {
+        Args: { _pin: string; _provider_name: string }
         Returns: Json
       }
       set_tenant_push_config: {
