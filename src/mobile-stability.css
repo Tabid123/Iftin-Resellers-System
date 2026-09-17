@@ -83,6 +83,14 @@
     align-items: center !important;
   }
 
+  /* DataPackages uses this direct child as its package list. Reserve enough
+   * scroll room for the persistent 76px nav so the final IIBSO button can be
+   * scrolled completely above the bar instead of sitting underneath it. */
+  .min-h-screen.bg-background > .p-4.space-y-4 {
+    padding-bottom: 108px !important;
+    scroll-padding-bottom: 108px !important;
+  }
+
   /* Avoid WebView touch highlight/selection flashes on navigation controls. */
   button,
   a {
