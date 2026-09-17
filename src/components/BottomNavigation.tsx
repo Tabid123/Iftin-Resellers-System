@@ -102,10 +102,10 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
       style={{
         // Geometry NEVER changes during route transitions. Android WebView was
         // visibly jumping when this flex row grew/shrank for a single frame.
-        flex: '0 0 76px',
-        height: '76px',
-        minHeight: '76px',
-        maxHeight: '76px',
+        flex: visible ? '0 0 76px' : '0 0 0px',
+        height: visible ? '76px' : '0px',
+        minHeight: visible ? '76px' : '0px',
+        maxHeight: visible ? '76px' : '0px',
         background: navBackground,
         opacity: visible ? 1 : 0,
         pointerEvents: visible ? 'auto' : 'none',
