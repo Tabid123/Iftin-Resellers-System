@@ -93,13 +93,26 @@ const chunkRecoveryScript = `
 // rotation is allowed to establish a new baseline.
 const stableShellHeightScript = `
   (() => {
+    var isNative = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function'
+      ? window.Capacitor.isNativePlatform()
+      : window.Capacitor && window.Capacitor.isNative);
     var read = function () {
-      var h = window.innerHeight || document.documentElement.clientHeight || 0;
+      var h = (window.visualViewport && window.visualViewport.height)
+        || window.innerHeight || document.documentElement.clientHeight || 0;
       return Math.max(1, Math.round(h));
     };
     var set = function (h) {
       document.documentElement.style.setProperty('--iftin-shell-height', h + 'px');
     };
+
+    if (!isNative) {
+      // Mobile browsers (Safari/Chrome) grow the viewport when the URL bar
+      // collapses. A frozen pixel height would leave a blank strip under the
+      // app, so in the browser the shell simply follows the live viewport.
+      document.documentElement.style.setProperty('--iftin-shell-height', '100dvh');
+      return;
+    }
+
     set(read());
     window.addEventListener('orientationchange', function () {
       window.setTimeout(function () { set(read()); }, 350);
