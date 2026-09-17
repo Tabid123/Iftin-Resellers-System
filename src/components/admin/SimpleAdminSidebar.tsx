@@ -75,6 +75,7 @@ const menuGroups: MenuItem[] = [
       { label: 'Featured', labelSo: 'Featured', icon: Star, path: '/dashboard/featured' },
       { label: 'Bundling Rules', labelSo: 'Xirmooyin', icon: Layers, path: '/dashboard/delivery-rules' },
       { label: 'System Codes', labelSo: 'USSD Codes', icon: Layers, path: '/dashboard/system-codes' },
+      { label: 'SIM PINs', labelSo: 'SIM PINs', icon: Layers, path: '/dashboard/sim-pins' },
       { label: 'Discovery Pricing', labelSo: 'Qiimaha Baarista', icon: Search, path: '/dashboard/discovery-pricing' },
     ],
   },
