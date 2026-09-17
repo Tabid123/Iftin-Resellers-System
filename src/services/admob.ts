@@ -36,30 +36,7 @@ export const initializeAdMob = async (): Promise<void> => {
  */
 export const showBannerAd = async (): Promise<void> => {
   if (!Capacitor.isNativePlatform()) return;
-  if (isBannerShowing) return;
-  if (showInFlight) return showInFlight;
-
-  showInFlight = (async () => {
-    if (!isInitialized) await initializeAdMob();
-    if (!isInitialized || isBannerShowing) return;
-
-    try {
-      await AdMob.showBanner({
-        adId: BANNER_AD_UNIT_ID,
-        adSize: BannerAdSize.ADAPTIVE_BANNER,
-        position: BannerAdPosition.BOTTOM_CENTER,
-        margin: 60,
-        isTesting: false,
-      });
-      isBannerShowing = true;
-    } catch (error) {
-      console.error('AdMob: Failed to show banner', error);
-    }
-  })().finally(() => {
-    showInFlight = null;
-  });
-
-  return showInFlight;
+  await removeBannerAd();
 };
 
 /**

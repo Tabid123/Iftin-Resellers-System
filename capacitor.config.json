@@ -19,7 +19,7 @@
     },
     "Keyboard": {
       "resize": "body",
-      "resizeOnFullScreen": false
+      "resizeOnFullScreen": true
     },
     "SplashScreen": {
       "launchShowDuration": 2000,
