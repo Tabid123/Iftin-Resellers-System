@@ -15,6 +15,14 @@
   --iftin-shell-height: 100dvh;
 }
 
+/* If the WebView height changes for a few frames (Android system/gesture bar),
+ * whatever shows under the shell should look like the nav, not a flashing gap. */
+html,
+body {
+  background: var(--iftin-nav-bg, hsl(var(--background)));
+}
+
+
 /*
  * Storefront shell: route content and navigation are two normal-flow rows.
  * The bottom navigation is deliberately NOT position:fixed. On Android the
