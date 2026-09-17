@@ -93,16 +93,49 @@ const chunkRecoveryScript = `
 // before React paints and only refresh it after a genuine orientation change.
 const stableShellHeightScript = `
   (() => {
-    const apply = () => {
-      const h = Math.max(1, Math.round(window.innerHeight || document.documentElement.clientHeight || 0));
+    var applied = 0;
+    var timer = 0;
+    var read = function () {
+      var vv = window.visualViewport;
+      var h = (vv && vv.height) || window.innerHeight || document.documentElement.clientHeight || 0;
+      return Math.max(1, Math.round(h));
+    };
+    var set = function (h) {
+      if (h === applied) return;
+      applied = h;
       document.documentElement.style.setProperty('--iftin-shell-height', h + 'px');
     };
-    apply();
-    window.addEventListener('orientationchange', () => {
-      window.setTimeout(apply, 350);
+    var keyboardOpen = function () {
+      var el = document.activeElement;
+      if (!el) return false;
+      var tag = (el.tagName || '').toLowerCase();
+      return tag === 'input' || tag === 'textarea' || el.isContentEditable === true;
+    };
+    var schedule = function () {
+      // Android WebView toggles the system/gesture bar on touch, which resizes the
+      // WebView for a few frames. Only commit a height that is still the same after
+      // a short settle window, and never shrink the shell for the soft keyboard.
+      if (timer) window.clearTimeout(timer);
+      var target = read();
+      timer = window.setTimeout(function () {
+        timer = 0;
+        var now = read();
+        if (now !== target) { schedule(); return; }
+        if (now < applied && keyboardOpen()) return;
+        set(now);
+      }, 220);
+    };
+    set(read());
+    window.addEventListener('resize', schedule, { passive: true });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', schedule, { passive: true });
+    }
+    window.addEventListener('orientationchange', function () {
+      window.setTimeout(function () { set(read()); }, 350);
     }, { passive: true });
   })();
 `;
+
 
 function NotFoundComponent() {
   return (

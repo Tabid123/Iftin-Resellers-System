@@ -88,6 +88,13 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
   const navBackground = tenant?.primary_color ? tenant.primary_color : 'hsl(var(--primary))';
   const activeIconColor = tenant?.primary_color || '#0F4C81';
 
+  useEffect(() => {
+    // Keep the document background in sync with the nav so a transient Android
+    // WebView resize never flashes a light gap under the navigation bar.
+    document.documentElement.style.setProperty('--iftin-nav-bg', navBackground);
+  }, [navBackground]);
+
+
   return (
     <div
       className="iftin-bottom-nav"
