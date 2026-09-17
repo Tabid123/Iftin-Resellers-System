@@ -63,6 +63,7 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
     currentPath.startsWith('/categories/') ||
     currentPath.startsWith('/packages/');
   const isActive = (path: string) => path === '/providers' ? isCatalogHome : currentPath === path;
+
   const go = (path: string) => {
     if (isActive(path)) {
       if (path !== '/providers' || currentPath === '/providers') return;
@@ -73,11 +74,8 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
 
   const handleNotificationsClick = () => {
     markAsSeen();
-    if (onNotificationsClick) {
-      onNotificationsClick();
-    } else if (!isActive('/notifications')) {
-      go('/notifications');
-    }
+    if (onNotificationsClick) onNotificationsClick();
+    else if (!isActive('/notifications')) go('/notifications');
   };
 
   const navItems = [
@@ -92,26 +90,17 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
 
   return (
     <div
-      className="iftin-bottom-nav fixed bottom-0 left-0 right-0 z-50"
+      className="iftin-bottom-nav"
       aria-hidden={!visible}
       style={{
-        // Do not bind nav geometry to a live safe-area env() value. Android
-        // WebView briefly changes that inset during route swaps, which was the
-        // exact one-frame upward jump visible in device recordings.
-        height: '76px',
-        minHeight: '76px',
-        paddingBottom: '0px',
-        boxSizing: 'border-box',
+        flex: visible ? '0 0 76px' : '0 0 0px',
+        height: visible ? '76px' : '0px',
+        minHeight: visible ? '76px' : '0px',
         background: navBackground,
-        WebkitTapHighlightColor: 'transparent',
         opacity: visible ? 1 : 0,
         pointerEvents: visible ? 'auto' : 'none',
-        contain: 'layout paint style',
-        isolation: 'isolate',
         overflow: 'hidden',
-        transform: 'none',
-        willChange: 'auto',
-        backfaceVisibility: 'visible',
+        WebkitTapHighlightColor: 'transparent',
       }}
     >
       <div className="mx-auto h-full w-full max-w-md">
@@ -130,10 +119,7 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
               >
                 <div
                   className={`flex h-9 w-14 items-center justify-center rounded-full ${active ? 'shadow-sm' : ''}`}
-                  style={{
-                    backgroundColor: active ? '#ffffff' : 'transparent',
-                    transition: 'none',
-                  }}
+                  style={{ backgroundColor: active ? '#ffffff' : 'transparent', transition: 'none' }}
                 >
                   <div
                     className="h-[26px] w-[26px]"
