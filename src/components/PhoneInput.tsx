@@ -7,6 +7,7 @@ import somaliaFlag from '@/assets/somalia-flag-hq.png';
 import { useNavigate } from "@/lib/router-compat";
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, ShieldCheck } from 'lucide-react';
+import { phoneEntryPrompt } from '@/lib/phoneEntryPrompt';
 
 const PhoneInput = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -18,9 +19,28 @@ const PhoneInput = () => {
   const [isReturningUser, setIsReturningUser] = useState(false);
   const [generatedCode, setGeneratedCode] = useState('');
   const codeInputRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const phonePromptAudioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { t } = useLanguage();
+
+  const playPhonePrompt = () => {
+    let audio = phonePromptAudioRef.current;
+    if (!audio) {
+      audio = new Audio(phoneEntryPrompt);
+      audio.preload = 'auto';
+      audio.volume = 1;
+      phonePromptAudioRef.current = audio;
+    }
+
+    // Every tap restarts the complete recording from the beginning.
+    audio.pause();
+    audio.currentTime = 0;
+    void audio.play().catch(() => {
+      // The call happens directly inside a user gesture, so modern WebViews
+      // normally allow it. If a device still refuses audio, leave typing usable.
+    });
+  };
 
   const generateVerificationCode = () => {
     return Math.floor(1000 + Math.random() * 9000).toString();
@@ -184,6 +204,7 @@ const PhoneInput = () => {
                 autoComplete="tel-national"
                 placeholder="61 xxx xxxx"
                 value={phoneNumber}
+                onPointerDown={playPhonePrompt}
                 onChange={handlePhoneNumberChange}
                 maxLength={9}
                 className="flex-1 h-12 text-base rounded-xl focus:border-primary focus:ring-primary/30 focus:outline-none focus:ring-2"
