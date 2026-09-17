@@ -86,6 +86,24 @@ const chunkRecoveryScript = `
   })();
 `;
 
+// Android WebView can report a transient 100dvh/innerHeight change for one frame
+// while a route is swapping or system chrome is settling. Because the storefront
+// bottom nav is now a normal-flow shell row, that transient viewport change moved
+// the whole shell and looked like the nav "jumped". Capture one real pixel height
+// before React paints and only refresh it after a genuine orientation change.
+const stableShellHeightScript = `
+  (() => {
+    const apply = () => {
+      const h = Math.max(1, Math.round(window.innerHeight || document.documentElement.clientHeight || 0));
+      document.documentElement.style.setProperty('--iftin-shell-height', h + 'px');
+    };
+    apply();
+    window.addEventListener('orientationchange', () => {
+      window.setTimeout(apply, 350);
+    }, { passive: true });
+  })();
+`;
+
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -161,6 +179,7 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        <script dangerouslySetInnerHTML={{ __html: stableShellHeightScript }} />
         <script dangerouslySetInnerHTML={{ __html: chunkRecoveryScript }} />
       </head>
       <body>
