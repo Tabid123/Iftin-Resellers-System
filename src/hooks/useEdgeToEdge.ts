@@ -1,11 +1,23 @@
 import { useEffect } from 'react';
 import { App } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 
-// Detect Android WebView using User-Agent (works even with Capacitor remote URL)
+// Detect Android native WebView reliably. Some tenant APK/WebView builds do not
+// expose the literal `wv` token in the user-agent, so Capacitor is authoritative
+// whenever it reports a native Android runtime; UA matching is only a fallback.
 const isAndroidWebView = (): boolean => {
-  if (typeof window === 'undefined' || !navigator?.userAgent) return false;
-  const ua = navigator.userAgent;
-  return /Android/.test(ua) && ua.includes('wv');
+  if (typeof window === 'undefined') return false;
+
+  try {
+    if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') return true;
+  } catch {
+    // Fall through to UA detection for older/custom WebView shells.
+  }
+
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
+  if (!/Android/i.test(ua)) return false;
+
+  return /\bwv\b/i.test(ua) || /Version\/4\.0/i.test(ua);
 };
 
 const setVar = (name: string, value: string) => {
@@ -64,7 +76,7 @@ export const useEdgeToEdge = () => {
     };
 
     // A real orientation change is the only time Android is allowed to choose a
-    // new shell height. Delay one frame so the new orientation layout settles.
+    // new shell height. Delay two frames so the new orientation layout settles.
     const handleOrientationChange = () => {
       if (!android) {
         setSafeArea();
