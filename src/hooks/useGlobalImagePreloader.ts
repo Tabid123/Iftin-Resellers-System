@@ -3,8 +3,8 @@ import { bundledStaticImages } from '@/lib/localImages';
 import { useTenant } from '@/contexts/TenantContext';
 import { workspaceStorage } from '@/lib/workspaceKeys';
 
-const PRELOAD_BATCH_SIZE = 3;
-const PRELOAD_BATCH_DELAY_MS = 140;
+const PRELOAD_BATCH_SIZE = 8;
+const PRELOAD_BATCH_DELAY_MS = 24;
 
 export const useGlobalImagePreloader = () => {
   const tenantState = useTenant();
@@ -31,9 +31,9 @@ export const useGlobalImagePreloader = () => {
         batch.forEach((url, batchIndex) => {
           const img = new Image();
           img.decoding = 'async';
-          // The first item is the current/first banner. Give it network priority;
-          // everything else stays background work.
-          if (index === 0 && batchIndex === 0 && 'fetchPriority' in img) {
+          // The first visible storefront artwork should start immediately. The
+          // remaining images are still decoded asynchronously so taps stay light.
+          if (index === 0 && batchIndex < 4 && 'fetchPriority' in img) {
             (img as HTMLImageElement).fetchPriority = 'high';
           }
           img.src = url;
@@ -59,22 +59,21 @@ export const useGlobalImagePreloader = () => {
           workspaceId,
         );
 
-        // Above-the-fold banner first, then provider/payment logos, then category
-        // artwork. Previously every custom URL was also fetched a second time by
-        // cacheImages(), which competed for bandwidth/decoding and made Android
-        // WebView feel heavy during the first taps.
+        // Prioritize what the customer sees/taps first: provider logos and
+        // category artwork. This prevents category images from appearing one by
+        // one after navigation. Banners/payment logos can warm immediately after.
         const orderedUrls: string[] = [
-          ...banners.map((b: any) => b.banner_image).filter(Boolean),
           ...providers.map((p: any) => p.provider_logo).filter(Boolean),
-          ...paymentProviders.map((pp: any) => pp.provider_logo).filter(Boolean),
           ...categories.map((c: any) => c.category_image).filter(Boolean),
+          ...banners.map((b: any) => b.banner_image).filter(Boolean),
+          ...paymentProviders.map((pp: any) => pp.provider_logo).filter(Boolean),
           ...bundledStaticImages,
         ];
 
         const uniqueUrls = [...new Set(orderedUrls)];
         preloadInBatches(uniqueUrls);
 
-        console.log(`[ImagePreloader] Scheduled ${uniqueUrls.length} tenant images without duplicate cache fetches`);
+        console.log(`[ImagePreloader] Prioritized ${uniqueUrls.length} tenant images for instant storefront paint`);
       } catch (error) {
         console.error('[ImagePreloader] Error preloading images:', error);
       }

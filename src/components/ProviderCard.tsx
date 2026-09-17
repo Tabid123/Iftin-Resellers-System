@@ -36,9 +36,9 @@ const ProviderCard = ({ name, logo, onClick, disabled = false }: ProviderCardPro
       style={disabled ? undefined : {
         borderColor: `hsl(${providerColor})`,
       }}
-      className={`group relative w-full rounded-2xl bg-card border-2 p-3 flex flex-col items-center justify-center gap-2 transition-all duration-300 ${
+      className={`group relative w-full rounded-2xl bg-card border-2 p-3 flex flex-col items-center justify-center gap-2 select-none touch-manipulation ${
         !disabled
-          ? 'hover:shadow-md hover:-translate-y-0.5 active:scale-[0.97]'
+          ? 'active:opacity-90'
           : 'opacity-50 cursor-not-allowed'
       }`}
     >
