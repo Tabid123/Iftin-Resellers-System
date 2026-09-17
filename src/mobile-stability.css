@@ -11,21 +11,21 @@
   backface-visibility: visible !important;
 }
 
+:root {
+  --iftin-shell-height: 100dvh;
+}
+
 /*
  * Storefront shell: route content and navigation are two normal-flow rows.
- * The bottom navigation is deliberately NOT position:fixed. This removes the
- * Android WebView compositor layer that was visibly jumping during route swaps.
- *
- * Use classic vh, not dvh or a percentage inherited from a changing route box.
- * Android WebView keeps the layout viewport stable across client-side route
- * changes; dynamic viewport units can briefly recalculate while system bars
- * settle and make the nav row appear to jump by a few pixels.
+ * The bottom navigation is deliberately NOT position:fixed. On Android the
+ * shell height is captured as a real pixel value at startup and is never tied
+ * to transient system-bar/viewport resizes during a route transition.
  */
 .iftin-app-shell {
   width: 100%;
-  height: 100vh;
-  min-height: 100vh;
-  max-height: 100vh;
+  height: var(--iftin-shell-height);
+  min-height: var(--iftin-shell-height);
+  max-height: var(--iftin-shell-height);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -83,14 +83,14 @@
 }
 
 @media (max-width: 767px) {
-  /* Keep the whole native storefront on one stable layout-viewport height. */
+  /* Keep the root locked to the same captured shell height as the nav layout. */
   html,
   body,
   #root {
     width: 100% !important;
-    height: 100vh !important;
-    min-height: 100vh !important;
-    max-height: 100vh !important;
+    height: var(--iftin-shell-height) !important;
+    min-height: var(--iftin-shell-height) !important;
+    max-height: var(--iftin-shell-height) !important;
     overflow: hidden !important;
   }
 
