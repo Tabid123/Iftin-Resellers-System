@@ -14,8 +14,6 @@ android {
         versionName (appVersionNameValue ?: "1.0.0")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
-             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
-             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
@@ -40,6 +38,36 @@ android {
         }
     }
 }
+
+/*
+ * OneSignal falls back to a generic bell when ic_stat_onesignal_default is not
+ * bundled. Tenant builds already replace ic_launcher_foreground with that
+ * tenant's own artwork, so copy the same transparent foreground into the
+ * density-specific drawable folders before Android resources are packaged.
+ * Android will render it as the required monochrome small-notification icon.
+ */
+tasks.register("prepareTenantNotificationIcons") {
+    doLast {
+        ["mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"].each { density ->
+            def candidates = [
+                file("src/main/res/mipmap-${density}/ic_launcher_foreground.png"),
+                file("src/main/res/mipmap-${density}/ic_launcher.png")
+            ]
+            def sourceIcon = candidates.find { it.exists() }
+            if (sourceIcon != null) {
+                def targetDir = file("src/main/res/drawable-${density}")
+                targetDir.mkdirs()
+                copy {
+                    from sourceIcon
+                    into targetDir
+                    rename { "ic_stat_onesignal_default.png" }
+                }
+            }
+        }
+    }
+}
+
+preBuild.dependsOn("prepareTenantNotificationIcons")
 
 repositories {
     flatDir{
