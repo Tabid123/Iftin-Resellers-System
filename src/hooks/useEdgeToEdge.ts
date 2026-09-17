@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { App } from '@capacitor/app';
 
 // Detect Android WebView using User-Agent (works even with Capacitor remote URL)
 const isAndroidWebView = (): boolean => {
@@ -13,73 +12,27 @@ const setVar = (name: string, value: string) => {
 };
 
 /**
- * Android WebView safe areas and shell height must stay stable while TanStack
- * swaps client-side routes. Device recordings showed a ~32px one/two-frame
- * viewport resize during navigation; even a normal-flow bottom bar moves when
- * its parent uses a live `100vh` value. Capture the native WebView height once
- * and keep it fixed for the current orientation instead.
+ * Native Android shell height is established before React paints by the root
+ * shell script. Do not write --iftin-shell-height again from React: two owners
+ * can disagree by a few pixels when Android briefly changes its visual viewport
+ * after a tap, which shows up as a small bottom-navigation jump.
  */
 export const useEdgeToEdge = () => {
   useEffect(() => {
     const android = isAndroidWebView();
 
-    const pinAndroidViewport = () => {
-      if (!android) return;
-      // innerHeight is read only at startup/orientation change, never during a
-      // route transition or transient system-bar resize.
-      const height = Math.max(1, Math.round(window.innerHeight));
-      setVar('--iftin-shell-height', `${height}px`);
+    if (android) {
+      // Capawesome EdgeToEdge owns the native WebView insets. The app content is
+      // already inset by the native plugin, so CSS must not add another safe area.
       setVar('--effective-safe-area-top', '0px');
       setVar('--effective-safe-area-bottom', '0px');
-    };
-
-    const setSafeArea = () => {
-      if (android) {
-        setVar('--effective-safe-area-top', '0px');
-        setVar('--effective-safe-area-bottom', '0px');
-      } else {
-        setVar('--iftin-shell-height', '100dvh');
-        setVar('--effective-safe-area-top', 'env(safe-area-inset-top, 0px)');
-        setVar('--effective-safe-area-bottom', 'env(safe-area-inset-bottom, 0px)');
-      }
-    };
-
-    setSafeArea();
-    pinAndroidViewport();
-
-    let resumeListener: { remove: () => void } | undefined;
-
-    if (typeof App !== 'undefined' && App.addListener) {
-      App.addListener('appStateChange', (state) => {
-        if (state.isActive) setSafeArea();
-      }).then(listener => {
-        resumeListener = listener;
-      }).catch(() => {
-        // App listener is not available in a normal browser.
-      });
+      return;
     }
 
-    const handleVisibilityChange = () => {
-      if (!document.hidden) setSafeArea();
-    };
-
-    // A real orientation change is the only time Android is allowed to choose a
-    // new shell height. Delay one frame so the new orientation layout settles.
-    const handleOrientationChange = () => {
-      if (!android) {
-        setSafeArea();
-        return;
-      }
-      requestAnimationFrame(() => requestAnimationFrame(pinAndroidViewport));
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('orientationchange', handleOrientationChange);
-
-    return () => {
-      resumeListener?.remove();
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('orientationchange', handleOrientationChange);
-    };
+    // Browsers should follow the live dynamic viewport so Safari/Chrome URL-bar
+    // changes never leave a white strip below the app.
+    setVar('--iftin-shell-height', '100dvh');
+    setVar('--effective-safe-area-top', 'env(safe-area-inset-top, 0px)');
+    setVar('--effective-safe-area-bottom', 'env(safe-area-inset-bottom, 0px)');
   }, []);
 };
