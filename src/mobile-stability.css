@@ -15,11 +15,14 @@
  * Storefront shell: route content and navigation are two normal-flow rows.
  * The bottom navigation is deliberately NOT position:fixed. This removes the
  * Android WebView compositor layer that was visibly jumping during route swaps.
+ *
+ * Do not use 100dvh here. Some Android WebViews recalculate dvh for one frame
+ * while native/system bars settle during a route swap. Percent height is tied
+ * to the already-laid-out WebView and therefore stays constant.
  */
 .iftin-app-shell {
   width: 100%;
-  height: 100vh;
-  height: 100dvh;
+  height: 100%;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -39,8 +42,8 @@
 }
 
 /* Pages historically used min-h-screen because they owned the viewport. Inside
- * the new shell, 100% means the area above the navigation rather than the whole
- * device height, preventing the last package from sliding underneath the nav. */
+ * the shell, 100% means the scroll area above the nav rather than the whole
+ * device. The last package can therefore always scroll fully above IIBSO/nav. */
 .iftin-route-viewport > .min-h-screen {
   min-height: 100% !important;
 }
@@ -52,6 +55,10 @@
   left: auto !important;
   right: auto !important;
   z-index: 50 !important;
+  flex: 0 0 76px !important;
+  height: 76px !important;
+  min-height: 76px !important;
+  max-height: 76px !important;
   margin: 0 !important;
   width: 100% !important;
   max-width: none !important;
@@ -73,6 +80,18 @@
 }
 
 @media (max-width: 767px) {
+  /* A single stable WebView-sized coordinate system. This is the key Android
+   * navigation fix: route content may change, but neither the shell nor nav row
+   * gets a new dynamic-viewport height. */
+  html,
+  body,
+  #root {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 100% !important;
+    overflow: hidden !important;
+  }
+
   .min-h-screen.bg-background.flex.flex-col > .fixed.top-0.left-0.right-0.z-50 > .grid.h-14 {
     height: 56px !important;
     min-height: 56px !important;
@@ -104,11 +123,11 @@
     align-items: center !important;
   }
 
-  /* Extra breathing room below the last package. The nav is no longer an
-   * overlay, so this is comfort spacing rather than overlap compensation. */
+  /* Comfort space after the last package. The route viewport itself ends above
+   * the nav, so the final IIBSO button is no longer trapped underneath it. */
   .min-h-screen.bg-background > .p-4.space-y-4 {
-    padding-bottom: 28px !important;
-    scroll-padding-bottom: 28px !important;
+    padding-bottom: 32px !important;
+    scroll-padding-bottom: 32px !important;
   }
 
   button,
