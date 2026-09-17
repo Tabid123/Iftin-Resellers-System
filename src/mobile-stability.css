@@ -23,12 +23,11 @@ body {
   background: var(--iftin-nav-bg, hsl(var(--background)));
 }
 
-
 /*
  * Storefront shell: route content and navigation are two normal-flow rows.
  * The bottom navigation is deliberately NOT position:fixed. On Android the
- * shell height is captured as a real pixel value at startup and is never tied
- * to transient system-bar/viewport resizes during a route transition.
+ * shell height is captured as a real pixel value before React paints and has a
+ * single owner, so a transient system-bar resize cannot move the navigation.
  */
 .iftin-app-shell {
   width: 100%;
@@ -46,6 +45,8 @@ body {
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
+  /* Reserve enough scroll room for the focused phone / OTP field to move above
+   * the Android keyboard while the native shell itself remains geometrically stable. */
   padding-bottom: var(--iftin-keyboard-inset);
   scroll-padding-bottom: calc(var(--iftin-keyboard-inset) + 24px);
   overflow-x: hidden;
@@ -80,12 +81,26 @@ body {
   isolation: isolate !important;
   overflow: hidden !important;
   transform: none !important;
+  translate: none !important;
+  scale: none !important;
   will-change: auto !important;
   backface-visibility: visible !important;
   transition: none !important;
   animation: none !important;
 }
 
+/* Hidden routes must not reserve an invisible 76px row. This was the full-width
+ * white strip seen at the bottom of dashboard/browser screens. aria-hidden is
+ * rendered synchronously with the route, so no effect/class race is involved. */
+.iftin-bottom-nav[aria-hidden="true"] {
+  flex-basis: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+}
+
+/* The app navigation is intentionally hidden while typing so all available
+ * height belongs to the focused form field. */
 .iftin-keyboard-open .iftin-bottom-nav {
   flex-basis: 0 !important;
   height: 0 !important;
@@ -93,10 +108,18 @@ body {
   max-height: 0 !important;
 }
 
+/* Never let browser :active/focus rules or a utility transform move a nav item
+ * even by a sub-pixel when it is tapped. Only colors/weight indicate active state. */
 .iftin-bottom-nav button,
-.iftin-bottom-nav button * {
+.iftin-bottom-nav button *,
+.iftin-bottom-nav button:active,
+.iftin-bottom-nav button:focus,
+.iftin-bottom-nav button:focus-visible {
   transition: none !important;
   animation: none !important;
+  transform: none !important;
+  translate: none !important;
+  scale: none !important;
   transform-origin: center center !important;
 }
 
@@ -110,13 +133,6 @@ body {
     min-height: var(--iftin-shell-height) !important;
     max-height: var(--iftin-shell-height) !important;
     overflow: hidden !important;
-  }
-
-  html:not(.iftin-bottom-nav-visible) .iftin-bottom-nav {
-    flex-basis: 0 !important;
-    height: 0 !important;
-    min-height: 0 !important;
-    max-height: 0 !important;
   }
 
   .min-h-screen.bg-background.flex.flex-col > .fixed.top-0.left-0.right-0.z-50 > .grid.h-14 {
