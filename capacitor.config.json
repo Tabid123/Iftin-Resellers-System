@@ -7,7 +7,7 @@
   },
   "plugins": {
     "SystemBars": {
-      "insetsHandling": "css",
+      "insetsHandling": "disable",
       "style": "LIGHT",
       "hidden": false,
       "animation": "NONE"
