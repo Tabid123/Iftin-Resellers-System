@@ -123,6 +123,30 @@ body {
   transform-origin: center center !important;
 }
 
+/* Customer storefront should react on the same frame as the tap. Long transform
+ * transitions make Android WebView feel like the card itself is waiting before
+ * navigation even when the route is already ready. Keep only a tiny visual
+ * feedback and never animate geometry on tap. */
+.iftin-route-viewport button {
+  transition-duration: 70ms !important;
+  transition-property: opacity, background-color, border-color, color, box-shadow !important;
+}
+
+.iftin-route-viewport button:active {
+  transform: none !important;
+  translate: none !important;
+  scale: none !important;
+}
+
+/* Category artwork used to be intentionally hidden and revealed with an
+ * index*100ms bounce. That looked like images loading late even when already
+ * cached. Paint them immediately and let the image cache/preloader do its job. */
+.iftin-route-viewport .animate-bounce-in.opacity-0 {
+  opacity: 1 !important;
+  animation: none !important;
+  transform: none !important;
+}
+
 @media (max-width: 767px) {
   /* Keep the root locked to the same captured shell height as the nav layout. */
   html,
