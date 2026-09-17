@@ -7,6 +7,7 @@ import najaxLogoSplash from '@/assets/najax-logo.jpeg';
 import { useTenant } from '@/contexts/TenantContext';
 import { hideNativeSplash } from '@/lib/nativeSplash';
 import CachedImage from '@/components/CachedImage';
+import { phoneEntryPrompt } from '@/lib/phoneEntryPrompt';
 
 // Validate Somali phone format: 9 digits starting with 61, 77, 62, or 68.
 const isValidSomaliPhone = (phone: string | null): boolean => {
@@ -15,7 +16,6 @@ const isValidSomaliPhone = (phone: string | null): boolean => {
 };
 
 const STARTUP_PAINT_MS = 450;
-const PHONE_ENTRY_PROMPT = '/audio/phone-entry-prompt.mp3';
 
 const Index = () => {
   const navigate = useNavigate();
@@ -69,7 +69,7 @@ const Index = () => {
   useEffect(() => {
     if (isChecking || phonePromptPlayed.current) return;
 
-    const audio = new Audio(PHONE_ENTRY_PROMPT);
+    const audio = new Audio(phoneEntryPrompt);
     audio.preload = 'auto';
     audio.volume = 1;
 
