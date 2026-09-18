@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from "@/lib/router-compat";
 import { useNotifications } from '@/hooks/useNotifications';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -64,18 +64,36 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
     currentPath.startsWith('/packages/');
   const isActive = (path: string) => path === '/providers' ? isCatalogHome : currentPath === path;
 
+  const primeTab = (path: string) => {
+    if (!visible) return;
+    if (path === '/providers' && isCatalogHome) {
+      if (currentPath !== '/providers') setPendingPath('/providers');
+      return;
+    }
+    if (!isActive(path)) setPendingPath(path);
+  };
+
   const go = (path: string) => {
     if (isActive(path)) {
       if (path !== '/providers' || currentPath === '/providers') return;
     }
+
+    // Paint the selected tab immediately, then navigate synchronously.
+    // Avoid React startTransition here: on slower Android WebViews it can defer
+    // route work long enough to make the bottom bar feel unresponsive.
     setPendingPath(path);
-    startTransition(() => navigate(path));
+    navigate(path);
   };
 
   const handleNotificationsClick = () => {
-    markAsSeen();
-    if (onNotificationsClick) onNotificationsClick();
-    else if (!isActive('/notifications')) go('/notifications');
+    if (onNotificationsClick) {
+      setPendingPath('/notifications');
+      onNotificationsClick();
+      queueMicrotask(markAsSeen);
+      return;
+    }
+    if (!isActive('/notifications')) go('/notifications');
+    queueMicrotask(markAsSeen);
   };
 
   const navItems = [
@@ -121,10 +139,16 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
               <button
                 key={path}
                 type="button"
+                onPointerDown={() => primeTab(path)}
                 onClick={onClick}
                 tabIndex={visible ? 0 : -1}
                 className="relative flex h-[68px] min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1.5 bg-transparent px-1 outline-none"
-                style={{ WebkitTapHighlightColor: 'transparent' }}
+                style={{
+                  WebkitTapHighlightColor: 'transparent',
+                  touchAction: 'manipulation',
+                  WebkitUserSelect: 'none',
+                  userSelect: 'none',
+                }}
                 aria-current={active ? 'page' : undefined}
               >
                 <div
