@@ -305,9 +305,26 @@ export const useOfflineCache = () => {
         }
 
         if (bannersResult.status === 'fulfilled' && Array.isArray(bannersResult.value)) {
-          workspaceStorage.setJson(CACHE_RESOURCES.banners, bannersResult.value, id);
-          workspaceStorage.set(CACHE_RESOURCES.bannersAt, Date.now().toString(), id);
-          queryClient.setQueryData(workspaceQueryKey(id, 'banners'), bannersResult.value);
+          const freshBanners = bannersResult.value;
+          const cachedBanners = workspaceStorage.getJson<any[]>(CACHE_RESOURCES.banners, [], id);
+
+          if (freshBanners.length > 0) {
+            workspaceStorage.setJson(CACHE_RESOURCES.banners, freshBanners, id);
+            workspaceStorage.set(CACHE_RESOURCES.bannersAt, Date.now().toString(), id);
+            queryClient.setQueryData(workspaceQueryKey(id, 'banners'), freshBanners);
+          } else if (cachedBanners.length > 0) {
+            // A startup request may fire before the x-tenant-id header is fully
+            // established. Never replace a known-good tenant banner with that
+            // transient empty response.
+            queryClient.setQueryData(workspaceQueryKey(id, 'banners'), cachedBanners);
+          } else {
+            // Do not stamp an empty startup response as fresh. RotatingBanner
+            // will retry directly until tenant resolution has settled.
+            queryClient.removeQueries({
+              queryKey: workspaceQueryKey(id, 'banners'),
+              exact: true,
+            });
+          }
         }
 
         cacheImages([
