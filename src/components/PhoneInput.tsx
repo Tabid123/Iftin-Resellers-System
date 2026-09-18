@@ -11,6 +11,17 @@ import phoneEntryPrompt from '@/assets/phone-number-prompt.wav.asset.json';
 import otpCodePrompt from '@/assets/otp-code-prompt.wav.asset.json';
 import offlineModePrompt from '@/assets/offline-mode-prompt.wav.asset.json';
 
+const LOVABLE_ASSET_ORIGIN = 'https://sweet-assist-network.lovable.app';
+
+const portableAudioUrl = (url: string) => {
+  if (/^https?:\/\//i.test(url)) return url;
+  return new URL(url, LOVABLE_ASSET_ORIGIN).toString();
+};
+
+const PHONE_PROMPT_URL = portableAudioUrl(phoneEntryPrompt.url);
+const OTP_PROMPT_URL = portableAudioUrl(otpCodePrompt.url);
+const OFFLINE_PROMPT_URL = portableAudioUrl(offlineModePrompt.url);
+
 const PhoneInput = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [showPrefixError, setShowPrefixError] = useState(false);
@@ -32,7 +43,7 @@ const PhoneInput = () => {
     otpPromptAudioRef.current?.pause();
     let audio = phonePromptAudioRef.current;
     if (!audio) {
-      audio = new Audio(phoneEntryPrompt.url);
+      audio = new Audio(PHONE_PROMPT_URL);
       audio.preload = 'auto';
       audio.volume = 1;
       phonePromptAudioRef.current = audio;
@@ -51,7 +62,7 @@ const PhoneInput = () => {
     phonePromptAudioRef.current?.pause();
     let audio = otpPromptAudioRef.current;
     if (!audio) {
-      audio = new Audio(otpCodePrompt.url);
+      audio = new Audio(OTP_PROMPT_URL);
       audio.preload = 'auto';
       audio.volume = 1;
       otpPromptAudioRef.current = audio;
@@ -69,7 +80,7 @@ const PhoneInput = () => {
     otpPromptAudioRef.current?.pause();
     let audio = verifyPromptAudioRef.current;
     if (!audio) {
-      audio = new Audio(offlineModePrompt.url);
+      audio = new Audio(OFFLINE_PROMPT_URL);
       audio.preload = 'auto';
       audio.volume = 1;
       verifyPromptAudioRef.current = audio;
