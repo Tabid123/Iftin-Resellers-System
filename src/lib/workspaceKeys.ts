@@ -76,7 +76,15 @@ export function workspaceQueryKey(
   resource: string,
   ...parts: Array<string | number | null | undefined>
 ): readonly unknown[] {
-  const id = requireWorkspace(`queryKey:${resource}`, workspaceId);
+  // Query keys are built during render, before the workspace can be resolved.
+  // They must never throw: the query itself stays disabled until the id exists,
+  // and the placeholder key can never match real workspace-owned data.
+  const id = workspaceId ?? activeWorkspaceId();
+  if (!id && IS_DEV) {
+    console.warn(
+      `[workspace] queryKey:${resource} built without an active workspace; query must stay disabled.`,
+    );
+  }
   return [WORKSPACE_KEY_PREFIX, id ?? '__no_workspace__', resource, ...parts];
 }
 
