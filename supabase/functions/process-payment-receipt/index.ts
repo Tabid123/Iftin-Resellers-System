@@ -1349,23 +1349,60 @@ serve(async (req) => {
           );
         }
 
-        const instruction = await getDeliveryInstruction(supabase, pendingOnline.provider_id, pendingOnline.package_id, packageData?.category_id);
-
-        if (instruction && packageData) {
+        if (packageData) {
           const providerSlug = normalizeProviderSlug(providerData?.provider_name || '');
-          const bundled = await queueDeliveryWithBundling(supabase, newOrder.id, pendingOnline.package_id, pendingOnline.provider_id, pendingOnline.receiver_phone, providerSlug);
-          
+          // Linked/bundled packages (e.g. 48 Saac = 24 Saac x2) do not need a
+          // delivery instruction on the source package. Always try the rules first.
+          const bundled = await queueDeliveryWithBundling(
+            supabase,
+            newOrder.id,
+            pendingOnline.package_id,
+            pendingOnline.provider_id,
+            pendingOnline.receiver_phone,
+            providerSlug,
+          );
+
           if (!bundled) {
-            const ussdCode = buildUssdCode(instruction.code_template, normalizePhoneForProvider(pendingOnline.receiver_phone), Number(packageData.cost_price), instruction.sim_password || '', packageData.ussd_code || '');
-            try {
-              const queued = await queueDirectDeliveryIfMissing(supabase, { order_id: newOrder.id, provider_name: providerSlug, ussd_code: ussdCode, receiver_phone: pendingOnline.receiver_phone, package_code: packageData.ussd_code, status: 'pending' });
-              if (queued) console.log('📬 Online payment queued for delivery');
-            } catch (queueError) {
-              console.error('❌ Queue error:', queueError);
+            const instruction = await getDeliveryInstruction(
+              supabase,
+              pendingOnline.provider_id,
+              pendingOnline.package_id,
+              packageData?.category_id,
+            );
+
+            if (!instruction?.code_template) {
+              await supabase.from('orders').update({
+                delivery_status: 'failed',
+                delivery_notes: 'No delivery instruction configured',
+              }).eq('id', newOrder.id);
+            } else {
+              const ussdCode = buildUssdCode(
+                instruction.code_template,
+                normalizePhoneForProvider(pendingOnline.receiver_phone),
+                Number(packageData.cost_price),
+                instruction.sim_password || '',
+                packageData.ussd_code || '',
+              );
+              try {
+                const queued = await queueDirectDeliveryIfMissing(supabase, {
+                  order_id: newOrder.id,
+                  provider_name: providerSlug,
+                  ussd_code: ussdCode,
+                  receiver_phone: pendingOnline.receiver_phone,
+                  package_code: packageData.ussd_code,
+                  status: 'pending',
+                });
+                if (queued) console.log('📬 Online payment queued for delivery');
+              } catch (queueError) {
+                console.error('❌ Queue error:', queueError);
+              }
             }
           }
         } else {
-          await supabase.from('orders').update({ delivery_status: 'failed', delivery_notes: 'No delivery instruction configured' }).eq('id', newOrder.id);
+          await supabase.from('orders').update({
+            delivery_status: 'failed',
+            delivery_notes: 'Package configuration not found',
+          }).eq('id', newOrder.id);
         }
 
         return new Response(
@@ -1465,19 +1502,65 @@ serve(async (req) => {
           );
         }
 
-        const { data: orderPackage } = await supabase.from('data_packages_config').select('*, category_id').eq('id', pendingOrder.package_id).single();
-        const instruction = await getDeliveryInstruction(supabase, pendingOrder.provider_id, pendingOrder.package_id, orderPackage?.category_id);
+        const { data: orderPackage } = await supabase
+          .from('data_packages_config')
+          .select('*, category_id')
+          .eq('id', pendingOrder.package_id)
+          .single();
 
-        if (instruction && orderPackage) {
-          const { data: providerData } = await supabase.from('providers_config').select('provider_name').eq('id', pendingOrder.provider_id).single();
+        if (orderPackage) {
+          const { data: providerData } = await supabase
+            .from('providers_config')
+            .select('provider_name')
+            .eq('id', pendingOrder.provider_id)
+            .single();
           const providerSlug = normalizeProviderSlug(providerData?.provider_name || '');
-          const bundled = await queueDeliveryWithBundling(supabase, pendingOrder.id, pendingOrder.package_id, pendingOrder.provider_id, pendingOrder.receiver_phone, providerSlug);
+
+          const bundled = await queueDeliveryWithBundling(
+            supabase,
+            pendingOrder.id,
+            pendingOrder.package_id,
+            pendingOrder.provider_id,
+            pendingOrder.receiver_phone,
+            providerSlug,
+          );
+
           if (!bundled) {
-            const ussdCode = buildUssdCode(instruction.code_template, normalizePhoneForProvider(pendingOrder.receiver_phone), Number(orderPackage.cost_price), instruction.sim_password || '', orderPackage.ussd_code || '');
-            await queueDirectDeliveryIfMissing(supabase, { order_id: pendingOrder.id, provider_name: providerSlug, ussd_code: ussdCode, receiver_phone: pendingOrder.receiver_phone, package_code: orderPackage.ussd_code, status: 'pending' });
+            const instruction = await getDeliveryInstruction(
+              supabase,
+              pendingOrder.provider_id,
+              pendingOrder.package_id,
+              orderPackage?.category_id,
+            );
+
+            if (!instruction?.code_template) {
+              await supabase.from('orders').update({
+                delivery_status: 'failed',
+                delivery_notes: 'No delivery instruction configured',
+              }).eq('id', pendingOrder.id);
+            } else {
+              const ussdCode = buildUssdCode(
+                instruction.code_template,
+                normalizePhoneForProvider(pendingOrder.receiver_phone),
+                Number(orderPackage.cost_price),
+                instruction.sim_password || '',
+                orderPackage.ussd_code || '',
+              );
+              await queueDirectDeliveryIfMissing(supabase, {
+                order_id: pendingOrder.id,
+                provider_name: providerSlug,
+                ussd_code: ussdCode,
+                receiver_phone: pendingOrder.receiver_phone,
+                package_code: orderPackage.ussd_code,
+                status: 'pending',
+              });
+            }
           }
         } else {
-          await supabase.from('orders').update({ delivery_status: 'failed', delivery_notes: 'No delivery instruction configured' }).eq('id', pendingOrder.id);
+          await supabase.from('orders').update({
+            delivery_status: 'failed',
+            delivery_notes: 'Package configuration not found',
+          }).eq('id', pendingOrder.id);
         }
 
         return new Response(
@@ -1663,20 +1746,51 @@ serve(async (req) => {
 
     console.log('📝 Order created:', order.id);
 
-    const instruction = await getDeliveryInstruction(supabase, registration.provider_id, selectedPackage.id, selectedPackage.category_id);
-
-    if (!instruction) {
-      await supabase.from('orders').update({ delivery_status: 'failed', delivery_notes: 'No delivery instruction configured' }).eq('id', order.id);
-      return new Response(JSON.stringify({ success: false, message: 'Delivery instruction not configured', route }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-
     const providerSlug = normalizeProviderSlug(registration.provider_name);
-    const bundled = await queueDeliveryWithBundling(supabase, order.id, selectedPackage.id, registration.provider_id, registration.receiver_phone, providerSlug);
-    
+    const bundled = await queueDeliveryWithBundling(
+      supabase,
+      order.id,
+      selectedPackage.id,
+      registration.provider_id,
+      registration.receiver_phone,
+      providerSlug,
+    );
+
     if (!bundled) {
-      const ussdCode = buildUssdCode(instruction.code_template, normalizePhoneForProvider(registration.receiver_phone), Number(selectedPackage.cost_price), instruction.sim_password || '', selectedPackage.ussd_code || '');
+      const instruction = await getDeliveryInstruction(
+        supabase,
+        registration.provider_id,
+        selectedPackage.id,
+        selectedPackage.category_id,
+      );
+
+      if (!instruction?.code_template) {
+        await supabase.from('orders').update({
+          delivery_status: 'failed',
+          delivery_notes: 'No delivery instruction configured',
+        }).eq('id', order.id);
+        return new Response(
+          JSON.stringify({ success: false, message: 'Delivery instruction not configured', route }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      const ussdCode = buildUssdCode(
+        instruction.code_template,
+        normalizePhoneForProvider(registration.receiver_phone),
+        Number(selectedPackage.cost_price),
+        instruction.sim_password || '',
+        selectedPackage.ussd_code || '',
+      );
       try {
-        await queueDirectDeliveryIfMissing(supabase, { order_id: order.id, provider_name: providerSlug, ussd_code: ussdCode, receiver_phone: registration.receiver_phone, package_code: selectedPackage.ussd_code, status: 'pending' });
+        await queueDirectDeliveryIfMissing(supabase, {
+          order_id: order.id,
+          provider_name: providerSlug,
+          ussd_code: ussdCode,
+          receiver_phone: registration.receiver_phone,
+          package_code: selectedPackage.ussd_code,
+          status: 'pending',
+        });
       } catch (queueError) {
         console.error('❌ Queue error:', queueError);
         throw queueError;
