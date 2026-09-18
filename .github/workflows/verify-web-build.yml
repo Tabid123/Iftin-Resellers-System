@@ -16,5 +16,16 @@ jobs:
           bun-version: latest
       - name: Install dependencies
         run: bun install --frozen-lockfile
+      - name: Diagnose live production audio endpoint
+        run: |
+          set -euo pipefail
+          for kind in phone otp offline; do
+            url="https://iftinagents.com/api/public/audio-prompt?kind=$kind"
+            tmp="$(mktemp)"
+            code="$(curl -L -sS -o "$tmp" -w '%{http_code}' "$url")"
+            size="$(wc -c < "$tmp" | tr -d ' ')"
+            type="$(file -b --mime-type "$tmp" || true)"
+            echo "$kind status=$code size=$size type=$type url=$url"
+          done
       - name: Build
         run: bun run build
