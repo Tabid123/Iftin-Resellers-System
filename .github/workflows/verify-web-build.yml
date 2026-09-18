@@ -27,5 +27,11 @@ jobs:
             type="$(file -b --mime-type "$tmp" || true)"
             echo "$kind status=$code size=$size type=$type url=$url"
           done
+      - name: Diagnose production security headers
+        run: |
+          echo "=== ROOT HEADERS ==="
+          curl -sSIL https://iftinagents.com/ | grep -Ei '^(HTTP/|content-security-policy:|permissions-policy:|cross-origin|x-frame-options:|referrer-policy:)' || true
+          echo "=== AUDIO HEADERS ==="
+          curl -sSI 'https://iftinagents.com/api/public/audio-prompt?kind=phone' | grep -Ei '^(HTTP/|content-type:|cache-control:|access-control|cross-origin)' || true
       - name: Build
         run: bun run build
