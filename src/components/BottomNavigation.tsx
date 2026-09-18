@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from "@/lib/router-compat";
 import { useNotifications } from '@/hooks/useNotifications';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -53,6 +53,7 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
   const tenant = t.status === 'ready' || t.status === 'suspended' ? t.tenant : null;
 
   const [pendingPath, setPendingPath] = useState<string | null>(null);
+  const pointerActivatedPathRef = useRef<string | null>(null);
   useEffect(() => {
     if (pendingPath && normalizeStorefrontPath(location.pathname) === pendingPath) setPendingPath(null);
   }, [location.pathname, pendingPath]);
@@ -63,15 +64,6 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
     currentPath.startsWith('/categories/') ||
     currentPath.startsWith('/packages/');
   const isActive = (path: string) => path === '/providers' ? isCatalogHome : currentPath === path;
-
-  const primeTab = (path: string) => {
-    if (!visible) return;
-    if (path === '/providers' && isCatalogHome) {
-      if (currentPath !== '/providers') setPendingPath('/providers');
-      return;
-    }
-    if (!isActive(path)) setPendingPath(path);
-  };
 
   const go = (path: string) => {
     if (isActive(path)) {
@@ -94,6 +86,20 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
     }
     if (!isActive('/notifications')) go('/notifications');
     queueMicrotask(markAsSeen);
+  };
+
+  const activateOnPointerDown = (path: string, action: () => void, pointerType: string) => {
+    if (pointerType === 'mouse') return;
+    pointerActivatedPathRef.current = path;
+    action();
+  };
+
+  const activateOnClick = (path: string, action: () => void) => {
+    if (pointerActivatedPathRef.current === path) {
+      pointerActivatedPathRef.current = null;
+      return;
+    }
+    action();
   };
 
   const navItems = [
@@ -139,8 +145,8 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
               <button
                 key={path}
                 type="button"
-                onPointerDown={() => primeTab(path)}
-                onClick={onClick}
+                onPointerDown={(event) => activateOnPointerDown(path, onClick, event.pointerType)}
+                onClick={() => activateOnClick(path, onClick)}
                 tabIndex={visible ? 0 : -1}
                 className="relative flex h-[68px] min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1.5 bg-transparent px-1 outline-none"
                 style={{

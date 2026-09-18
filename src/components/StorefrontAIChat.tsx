@@ -125,12 +125,12 @@ export function StorefrontAIChat({ open, onOpenChange }: StorefrontAIChatProps) 
               </div>
               <div className="min-w-0">
                 <SheetTitle className="truncate text-left text-base">
-                  'Iftin Ai'
+                  Iftin Ai
                 </SheetTitle>
                 <p className="truncate text-xs text-muted-foreground">
                   {language === 'so'
-                    ? `${tenantName} xogtiisa ayuu yaqaan`
-                    : `Knows ${tenantName}'s catalog`}
+                    ? `Kusoo dhawow ${tenantName}, maxaa kaa caawinaa`
+                    : `Welcome to ${tenantName}, how can we help?`}
                 </p>
               </div>
             </div>
