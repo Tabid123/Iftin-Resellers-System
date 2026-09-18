@@ -40,9 +40,9 @@ export const Route = createFileRoute('/api/public/audio-prompt')({
             status: 200,
             headers: {
               'Content-Type': upstream.headers.get('content-type') || 'audio/wav',
-              // Asset IDs are immutable. Long-lived caching lets Android WebView
-              // replay the prompt after it has been preloaded once while online.
-              'Cache-Control': 'public, max-age=31536000, immutable',
+              // Revalidate quickly so a server-side prompt change reaches installed APKs
+              // without rebuilding them. Stale copies remain usable when connectivity fails.
+              'Cache-Control': 'public, max-age=300, stale-while-revalidate=86400, stale-if-error=31536000',
               'Access-Control-Allow-Origin': '*',
               'Cross-Origin-Resource-Policy': 'cross-origin',
             },
