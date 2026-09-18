@@ -97,7 +97,98 @@ function publicPaymentMethod(method: any) {
   };
 }
 
+function lastUserQuestion(messages: ChatMessage[]) {
+  return [...messages].reverse().find((message) => message.role === "user")?.content || "";
+}
+
+function buildFallbackAnswer(
+  question: string,
+  storefrontContext: any,
+  language: "so" | "en",
+) {
+  const q = question.toLowerCase();
+  const providers = Array.isArray(storefrontContext?.providers) ? storefrontContext.providers : [];
+  const payments = Array.isArray(storefrontContext?.payment_methods) ? storefrontContext.payment_methods : [];
+  const featured = Array.isArray(storefrontContext?.featured_packages) ? storefrontContext.featured_packages : [];
+  const supportPhone = storefrontContext?.tenant?.support_phone || null;
+
+  const allPackages = [
+    ...featured.map((pkg: any) => ({ ...pkg, provider: pkg?.provider || pkg?.provider_name || "" })),
+    ...providers.flatMap((provider: any) =>
+      (provider?.categories || []).flatMap((category: any) =>
+        (category?.packages || []).map((pkg: any) => ({
+          ...pkg,
+          provider: provider?.name || "",
+        })),
+      ),
+    ),
+  ].filter((pkg: any) => Number(pkg?.selling_price || 0) > 0);
+
+  if (q.includes("ugu jaban") || q.includes("cheapest") || q.includes("lowest")) {
+    const cheapest = [...allPackages].sort(
+      (a: any, b: any) => Number(a.selling_price) - Number(b.selling_price),
+    )[0];
+
+    if (cheapest) {
+      return language === "so"
+        ? `Xirmada ugu jaban waa ${cheapest.name || "xirmo"}${cheapest.provider ? ` (${cheapest.provider})` : ""}, qiimaheeduna waa $${Number(cheapest.selling_price).toFixed(2)}.`
+        : `The cheapest package is ${cheapest.name || "a package"}${cheapest.provider ? ` (${cheapest.provider})` : ""} at $${Number(cheapest.selling_price).toFixed(2)}.`;
+    }
+  }
+
+  if (q.includes("offline")) {
+    return language === "so"
+      ? "Offline Mode wuxuu kaa caawinayaa inaad isticmaasho flow-ga la taageero marka internet-ku daciif yahay ama maqan yahay, iyadoo la adeegsanayo xogtii hore ee app-ka ku kaydsan."
+      : "Offline Mode lets you continue supported flows when internet is weak or unavailable, using data already saved in the app.";
+  }
+
+  if (q.includes("support") || q.includes("xiriir") || q.includes("caawi")) {
+    if (supportPhone) {
+      return language === "so"
+        ? `Support-ka waxaad kala xiriiri kartaa: ${supportPhone}.`
+        : `You can contact support at: ${supportPhone}.`;
+    }
+  }
+
+  const matchedProvider = providers.find((provider: any) =>
+    q.includes(String(provider?.name || "").toLowerCase()),
+  );
+  if (matchedProvider) {
+    const packages = (matchedProvider.categories || [])
+      .flatMap((category: any) => category?.packages || [])
+      .slice(0, 6);
+
+    if (packages.length) {
+      const lines = packages.map(
+        (pkg: any) => `• ${pkg?.name || "Xirmo"} - $${Number(pkg?.selling_price || 0).toFixed(2)}`,
+      );
+      return language === "so"
+        ? `${matchedProvider.name} xirmooyinkiisa qaar:\n${lines.join("\n")}`
+        : `Some ${matchedProvider.name} packages:\n${lines.join("\n")}`;
+    }
+  }
+
+  if (payments.length) {
+    const lines = payments.slice(0, 4).map((method: any) => {
+      const number = method?.payment_number ? ` - ${method.payment_number}` : "";
+      return `• ${method?.name || "Payment"}${number}`;
+    });
+    return language === "so"
+      ? `Waxaan kaa caawin karaa xirmooyinka, qiimaha, shirkadaha iyo lacag bixinta. Hababka lacag bixinta qaarkood:\n${lines.join("\n")}`
+      : `I can help with packages, prices, providers and payments. Some payment methods:\n${lines.join("\n")}`;
+  }
+
+  return language === "so"
+    ? "Waxaan kaa caawin karaa xirmooyinka, shirkadaha, qiimaha, Offline Mode iyo support-ka tenant-kan."
+    : "I can help with this tenant's packages, providers, prices, Offline Mode and support.";
+}
+
 Deno.serve(async (req: Request) => {
+  let fallbackContext: any = null;
+  let fallbackMessages: ChatMessage[] = [];
+  let fallbackLanguage: "so" | "en" = "so";
+  let fallbackTenantSlug = "";
+
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   if (isRateLimited(req)) return json({ error: "Too many requests" }, 429);
@@ -105,8 +196,11 @@ Deno.serve(async (req: Request) => {
   try {
     const body = await req.json().catch(() => ({}));
     const tenantSlug = String(body?.tenantSlug || "").trim().toLowerCase();
-    const language = body?.language === "en" ? "en" : "so";
+    const language: "so" | "en" = body?.language === "en" ? "en" : "so";
     const messages = cleanMessages(body?.messages);
+    fallbackTenantSlug = tenantSlug;
+    fallbackLanguage = language;
+    fallbackMessages = messages;
 
     if (!/^[a-z0-9-]{1,60}$/.test(tenantSlug)) {
       return json({ error: "Invalid tenant" }, 400);
@@ -290,10 +384,16 @@ Deno.serve(async (req: Request) => {
       },
     };
 
+    fallbackContext = storefrontContext;
+
     const aiKey = Deno.env.get("LOVABLE_API_KEY");
     if (!aiKey) {
       console.error("[storefront-ai] LOVABLE_API_KEY is missing");
-      return json({ error: "AI service unavailable" }, 503);
+      return json({
+        answer: buildFallbackAnswer(lastUserQuestion(messages), storefrontContext, language),
+        tenant: tenantSlug,
+        fallback: true,
+      });
     }
 
     const systemPrompt = `You are the customer-facing AI assistant for exactly one tenant storefront.
@@ -333,18 +433,34 @@ Rules:
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text().catch(() => "");
       console.error("[storefront-ai] gateway error", aiResponse.status, errorText.slice(0, 500));
-      if (aiResponse.status === 429) return json({ error: "AI is busy" }, 429);
-      if (aiResponse.status === 402) return json({ error: "AI credits exhausted" }, 402);
-      return json({ error: "AI service error" }, 502);
+      return json({
+        answer: buildFallbackAnswer(lastUserQuestion(messages), storefrontContext, language),
+        tenant: tenantSlug,
+        fallback: true,
+      });
     }
 
     const completion = await aiResponse.json();
     const answer = String(completion?.choices?.[0]?.message?.content || "").trim();
-    if (!answer) return json({ error: "Empty AI response" }, 502);
+    if (!answer) {
+      return json({
+        answer: buildFallbackAnswer(lastUserQuestion(messages), storefrontContext, language),
+        tenant: tenantSlug,
+        fallback: true,
+      });
+    }
 
-    return json({ answer, tenant: tenantSlug });
+    return json({ answer, tenant: tenantSlug, fallback: false });
   } catch (error) {
     console.error("[storefront-ai] error", error);
-    return json({ error: "Unable to answer right now" }, 500);
+    return json({
+      answer: buildFallbackAnswer(
+        lastUserQuestion(fallbackMessages),
+        fallbackContext,
+        fallbackLanguage,
+      ),
+      tenant: fallbackTenantSlug || null,
+      fallback: true,
+    });
   }
 });
