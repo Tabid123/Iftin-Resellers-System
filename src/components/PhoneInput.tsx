@@ -7,7 +7,7 @@ import somaliaFlag from '@/assets/somalia-flag-hq.png';
 import { useNavigate } from "@/lib/router-compat";
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, ShieldCheck } from 'lucide-react';
-import { phoneEntryPrompt } from '@/lib/phoneEntryPrompt';
+import phoneEntryPrompt from '@/assets/phone-number-prompt.wav.asset.json';
 
 const PhoneInput = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -27,7 +27,7 @@ const PhoneInput = () => {
   const playPhonePrompt = () => {
     let audio = phonePromptAudioRef.current;
     if (!audio) {
-      audio = new Audio(phoneEntryPrompt);
+      audio = new Audio(phoneEntryPrompt.url);
       audio.preload = 'auto';
       audio.volume = 1;
       phonePromptAudioRef.current = audio;
