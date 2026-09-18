@@ -33,5 +33,26 @@ jobs:
           curl -sSIL https://iftinagents.com/ | grep -Ei '^(HTTP/|content-security-policy:|permissions-policy:|cross-origin|x-frame-options:|referrer-policy:)' || true
           echo "=== AUDIO HEADERS ==="
           curl -sSI 'https://iftinagents.com/api/public/audio-prompt?kind=phone' | grep -Ei '^(HTTP/|content-type:|cache-control:|access-control|cross-origin)' || true
+      - name: Diagnose deployed JS audio marker
+        run: |
+          set -euo pipefail
+          html="$(mktemp)"
+          curl -L -sS https://iftinagents.com/ -o "$html"
+          found=0
+          for src in $(grep -oE 'src="[^"]+\.js[^"]*"' "$html" | sed -E 's/^src="//; s/"$//'); do
+            case "$src" in
+              http*) url="$src" ;;
+              /*) url="https://iftinagents.com$src" ;;
+              *) url="https://iftinagents.com/$src" ;;
+            esac
+            js="$(mktemp)"
+            curl -L -sS "$url" -o "$js" || continue
+            if grep -q 'fallback playback failed' "$js"; then
+              echo "LIVE_AUDIO_FIX_MARKER_FOUND in $url"
+              found=1
+              break
+            fi
+          done
+          test "$found" = "1"
       - name: Build
         run: bun run build
