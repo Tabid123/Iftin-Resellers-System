@@ -18,3 +18,41 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Build
         run: bun run build
+      - name: Verify local and deployed audio fix bundle
+        run: |
+          set -euo pipefail
+          echo "=== LOCAL BUILD MARKER ==="
+          grep -RIl 'fallback playback failed' .output/public | head -20
+          echo "=== LIVE DEPLOYMENT MARKER ==="
+          python3 - <<'PY'
+          import re, urllib.request
+          from urllib.parse import urljoin
+
+          start = 'https://iftinagents.com/t/demo/'
+          marker = 'fallback playback failed'
+          html = urllib.request.urlopen(start, timeout=20).read().decode('utf-8', 'ignore')
+          refs = re.findall(r'(?:src|href)=[\"\']([^\"\']+\.js(?:\?[^\"\']*)?)[\"\']', html)
+          queue = [urljoin(start, r) for r in refs]
+          seen = set()
+          found = None
+          while queue and len(seen) < 250:
+              url = queue.pop(0)
+              if url in seen:
+                  continue
+              seen.add(url)
+              try:
+                  data = urllib.request.urlopen(url, timeout=20).read().decode('utf-8', 'ignore')
+              except Exception:
+                  continue
+              if marker in data:
+                  found = url
+                  break
+              for ref in re.findall(r'[\"\']([^\"\']+\.js(?:\?[^\"\']*)?)[\"\']', data):
+                  nxt = urljoin(url, ref)
+                  if nxt.startswith('https://iftinagents.com/') and nxt not in seen:
+                      queue.append(nxt)
+          print(f'crawled_js={len(seen)}')
+          print(f'live_marker_url={found or "NOT_FOUND"}')
+          if not found:
+              raise SystemExit(1)
+          PY
