@@ -480,6 +480,38 @@ Deno.serve(async (req: Request) => {
 
     fallbackContext = storefrontContext;
 
+    // Fast-path common storefront questions directly from this tenant's live
+    // public catalog. This avoids waiting on the external AI gateway for simple
+    // package/provider/support questions and keeps mobile responses instant.
+    const userQuestion = lastUserQuestion(messages);
+    const normalizedQuestion = userQuestion.toLowerCase();
+    const knownProvider = providerCatalog.find((provider: any) =>
+      normalizedQuestion.includes(String(provider?.name || "").toLowerCase()),
+    );
+    const deterministicIntent =
+      knownProvider ||
+      normalizedQuestion.includes("ugu jaban") ||
+      normalizedQuestion.includes("ugu raqiisan") ||
+      normalizedQuestion.includes("raqiis") ||
+      normalizedQuestion.includes("cheapest") ||
+      normalizedQuestion.includes("lowest") ||
+      normalizedQuestion.includes("cheap") ||
+      normalizedQuestion.includes("offline") ||
+      normalizedQuestion.includes("support") ||
+      normalizedQuestion.includes("xiriir") ||
+      normalizedQuestion.includes("caawi") ||
+      normalizedQuestion.includes("lacag") ||
+      normalizedQuestion.includes("payment");
+
+    if (deterministicIntent) {
+      return json({
+        answer: buildFallbackAnswer(userQuestion, storefrontContext, language),
+        tenant: tenantSlug,
+        fallback: false,
+        source: "tenant_catalog",
+      });
+    }
+
     if (rateLimited) {
       return json({
         answer: buildFallbackAnswer(lastUserQuestion(messages), storefrontContext, language),
