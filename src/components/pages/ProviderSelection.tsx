@@ -3,7 +3,7 @@ import { useNavigate } from "@/lib/router-compat";
 import RotatingBanner from '@/components/RotatingBanner';
 import ProviderCard from '@/components/ProviderCard';
 import PopularPackages from '@/components/PopularPackages';
-import { Phone, MessageCircle, WifiOff, X, RefreshCw, Headphones, Bot } from 'lucide-react';
+import { Phone, WifiOff, RefreshCw, Bot, Sparkles } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { localizeImage } from '@/lib/localImages';
 import { emitStorefront, purgeStorefrontStorage } from '@/lib/storefrontEvents';
 import { activeWorkspaceId, workspaceQueryKey, workspaceStorage } from '@/lib/workspaceKeys';
+import StorefrontAIChat from '@/components/StorefrontAIChat';
 
 
 interface Provider {
@@ -39,7 +40,7 @@ const ProviderSelection = () => {
   const brandLogo = tenant?.logo_url || najaxLogo;
   const brandName = tenant?.name || (import.meta.env.VITE_TENANT_NAME as string) || 'App';
   const [showOfflineToast, setShowOfflineToast] = useState(false);
-  const [showContactSheet, setShowContactSheet] = useState(false);
+  const [showAI, setShowAI] = useState(false);
   
   // Pull to refresh state
   const [isPulling, setIsPulling] = useState(false);
@@ -257,7 +258,7 @@ const ProviderSelection = () => {
               type="button"
               variant="ghost"
               size="icon"
-              onClick={() => setShowContactSheet(true)}
+              onClick={() => setShowAI(true)}
               aria-label="Assistant"
               className="h-10 w-10 rounded-full bg-primary-foreground/10 p-0 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground active:scale-95 [&_svg]:size-[22px]"
             >
@@ -351,52 +352,21 @@ const ProviderSelection = () => {
         </div>
       </div>
 
-      {/* Support FAB */}
+      {/* Tenant-aware AI FAB */}
       <button
-        onClick={() => setShowContactSheet(!showContactSheet)}
-        className={`fixed bottom-24 right-4 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-all duration-300 ${
-          showContactSheet ? 'bg-destructive' : ''
-        }`}
-        style={!showContactSheet ? { background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary)))' } : {}}
+        type="button"
+        onClick={() => setShowAI(true)}
+        aria-label="Open AI assistant"
+        className="fixed bottom-24 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform duration-200 hover:scale-105 active:scale-95"
+        style={{ background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary)))' }}
       >
-        {showContactSheet ? (
-          <X className="w-7 h-7 text-white" />
-        ) : (
-          <>
-            <Headphones className="w-6 h-6 text-accent" />
-            <span className="absolute -top-1 -right-1 bg-accent text-primary text-[10px] font-extrabold rounded-full w-5 h-5 flex items-center justify-center">
-              24
-            </span>
-          </>
-        )}
+        <Sparkles className="h-6 w-6 text-accent" />
+        <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-extrabold text-primary">
+          AI
+        </span>
       </button>
 
-      {/* Contact Popup */}
-      {showContactSheet && (
-        <div className="fixed bottom-40 right-4 z-40 flex flex-col items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-200">
-          <a 
-            href={support.telHref}
-            onClick={() => setShowContactSheet(false)}
-            className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
-            style={{ background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary)))' }}
-          >
-            <Phone className="w-7 h-7 text-accent" />
-          </a>
-          <button
-            onClick={() => setShowContactSheet(false)}
-            className="w-8 h-8 bg-destructive rounded-full flex items-center justify-center shadow-md"
-          >
-            <X className="w-4 h-4 text-white" />
-          </button>
-          <a 
-            href={support.whatsappHref} target="_blank" rel="noopener noreferrer"
-            onClick={() => setShowContactSheet(false)}
-            className="w-14 h-14 bg-[#25D366] rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
-          >
-            <MessageCircle className="w-7 h-7 text-white" />
-          </a>
-        </div>
-      )}
+      <StorefrontAIChat open={showAI} onOpenChange={setShowAI} />
 
     </div>
   );

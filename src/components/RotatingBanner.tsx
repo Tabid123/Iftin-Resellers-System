@@ -71,6 +71,22 @@ const RotatingBanner = () => {
   const [reloadKey, setReloadKey] = useState(0);
   // An admin change (realtime) refreshes the banners without a manual reload.
   useEffect(() => onStorefront('banners-changed', () => setReloadKey((n) => n + 1)), []);
+
+  // A cold-start request can race tenant-header initialization. Re-check when
+  // connectivity returns or the app comes back to the foreground instead of
+  // leaving the home screen permanently without its banner.
+  useEffect(() => {
+    const reload = () => setReloadKey((n) => n + 1);
+    const handleVisible = () => {
+      if (document.visibilityState === 'visible') reload();
+    };
+    window.addEventListener('online', reload);
+    document.addEventListener('visibilitychange', handleVisible);
+    return () => {
+      window.removeEventListener('online', reload);
+      document.removeEventListener('visibilitychange', handleVisible);
+    };
+  }, []);
   const [isVisible, setIsVisible] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -149,63 +165,76 @@ const RotatingBanner = () => {
   useEffect(() => {
     if (!workspaceId) {
       setBanners([]);
-      setIsLoading(false);
+      setIsLoading(true);
       return;
     }
 
     const cachedBanners = readBannerCache(workspaceId);
     setBanners(cachedBanners);
     preloadBanners(cachedBanners);
-    if (cachedBanners.length > 0) setIsLoading(false);
+    setIsLoading(cachedBanners.length === 0);
 
-    // Do not re-query banners merely because the user navigated away and back.
-    // Refresh only when the snapshot is missing or older than the short TTL.
-    let freshEnough = false;
+    // A non-empty, recent tenant snapshot is safe to show immediately. It is
+    // refreshed after the short TTL, but route remounts never blank it first.
     if (reloadKey === 0 && cachedBanners.length > 0) {
       const at = Number(workspaceStorage.get(BANNER_AT_RESOURCE, workspaceId) || 0);
-      freshEnough = at > 0 && Date.now() - at < BANNER_TTL_MS;
+      if (at > 0 && Date.now() - at < BANNER_TTL_MS) return;
     }
-    if (freshEnough) return;
 
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let attempts = 0;
+    const retryDelays = [250, 600, 1200, 2200, 3500, 5000];
 
     const loadBanners = async () => {
+      if (cancelled || activeWorkspaceId() !== workspaceId) return;
+
       try {
-        const freshBanners = await queryClient.fetchQuery<Banner[]>({
-          queryKey: workspaceQueryKey(workspaceId, 'banners'),
-          queryFn: async () => {
-            const { data, error } = await (supabase as any).rpc('get_tenant_banners');
-            if (error) throw error;
-            return Array.isArray(data) ? (data as Banner[]) : [];
-          },
-          // Only trust the TTL when we already hold a non-empty snapshot for
-          // this workspace. An empty result fetched during the startup window
-          // (before the tenant header is ready) must never be served as fresh.
-          staleTime: reloadKey === 0 && cachedBanners.length > 0 ? BANNER_TTL_MS : 0,
-        });
-        // A response that lands after the workspace changed is discarded.
+        // Fetch directly instead of trusting an empty React Query entry that may
+        // have been created during the tenant-resolution startup window.
+        const { data, error } = await (supabase as any).rpc('get_tenant_banners');
+        if (error) throw error;
         if (cancelled || activeWorkspaceId() !== workspaceId) return;
-        setBanners(freshBanners);
-        preloadBanners(freshBanners);
+
+        const freshBanners = Array.isArray(data) ? (data as Banner[]) : [];
         if (freshBanners.length > 0) {
+          setBanners(freshBanners);
+          preloadBanners(freshBanners);
           workspaceStorage.setJson(BANNER_RESOURCE, freshBanners, workspaceId);
           workspaceStorage.set(BANNER_AT_RESOURCE, String(Date.now()), workspaceId);
+          queryClient.setQueryData(workspaceQueryKey(workspaceId, 'banners'), freshBanners);
+          setIsLoading(false);
           return;
         }
-        workspaceStorage.remove(BANNER_RESOURCE, workspaceId);
-        // Empty during the first seconds after app start usually means the
-        // tenant resolution hadn't finished when the request fired. Retry a
-        // few times so the banner shows without the user tapping anything.
+
+        // Never let a transient startup empty response erase a known-good banner.
+        // An actually empty tenant will settle only after all startup retries.
         attempts += 1;
-        if (attempts < 4) {
-          retryTimer = setTimeout(() => { if (!cancelled) void loadBanners(); }, 1500 * attempts);
+        if (attempts <= retryDelays.length) {
+          retryTimer = setTimeout(() => {
+            if (!cancelled) void loadBanners();
+          }, retryDelays[attempts - 1]);
+          return;
         }
+
+        if (cachedBanners.length === 0) {
+          setBanners([]);
+          queryClient.removeQueries({
+            queryKey: workspaceQueryKey(workspaceId, 'banners'),
+            exact: true,
+          });
+        }
+        setIsLoading(false);
       } catch {
-        // Keep the last known snapshot.
-      } finally {
-        if (!cancelled) setIsLoading(false);
+        attempts += 1;
+        if (attempts <= retryDelays.length) {
+          retryTimer = setTimeout(() => {
+            if (!cancelled) void loadBanners();
+          }, retryDelays[attempts - 1]);
+          return;
+        }
+        // Keep the tenant's last known banner visible on network/server errors.
+        setIsLoading(false);
       }
     };
 

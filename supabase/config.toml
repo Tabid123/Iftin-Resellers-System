@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.send-tenant-notification]
 verify_jwt = true
+
+[functions.storefront-ai-chat]
+verify_jwt = false
