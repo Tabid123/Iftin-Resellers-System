@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Loader2, ShieldCheck } from 'lucide-react';
 import phoneEntryPrompt from '@/assets/phone-number-prompt.wav.asset.json';
 import otpCodePrompt from '@/assets/otp-code-prompt.wav.asset.json';
+import offlineModePrompt from '@/assets/offline-mode-prompt.wav.asset.json';
 
 const PhoneInput = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -22,6 +23,7 @@ const PhoneInput = () => {
   const codeInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const phonePromptAudioRef = useRef<HTMLAudioElement | null>(null);
   const otpPromptAudioRef = useRef<HTMLAudioElement | null>(null);
+  const verifyPromptAudioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { t } = useLanguage();
@@ -59,6 +61,24 @@ const PhoneInput = () => {
     audio.currentTime = 0;
     void audio.play().catch(() => {
       // Some browsers require the user to tap an OTP field before playing.
+    });
+  };
+
+  const playVerifyPrompt = () => {
+    phonePromptAudioRef.current?.pause();
+    otpPromptAudioRef.current?.pause();
+    let audio = verifyPromptAudioRef.current;
+    if (!audio) {
+      audio = new Audio(offlineModePrompt.url);
+      audio.preload = 'auto';
+      audio.volume = 1;
+      verifyPromptAudioRef.current = audio;
+    }
+
+    audio.pause();
+    audio.currentTime = 0;
+    void audio.play().catch(() => {
+      // Some browsers may block audio without a user gesture.
     });
   };
 
@@ -357,7 +377,7 @@ const PhoneInput = () => {
           </div>
           
           <Button 
-            onClick={handleVerifyCode}
+            onClick={() => { playVerifyPrompt(); handleVerifyCode(); }}
             disabled={isVerifying}
             className="w-full bg-primary text-primary-foreground font-semibold h-11 rounded-xl text-base hover:opacity-90 transition-opacity disabled:opacity-50"
           >
