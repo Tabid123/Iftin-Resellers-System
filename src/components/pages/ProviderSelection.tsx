@@ -17,7 +17,7 @@ import { fetchIftinCatalog, hasCatalog, isApiPartnerTenant, mapProviders } from 
 import { Button } from '@/components/ui/button';
 import { localizeImage } from '@/lib/localImages';
 import { emitStorefront, purgeStorefrontStorage } from '@/lib/storefrontEvents';
-import { activeWorkspaceId, optionalWorkspaceQueryKey, workspaceQueryKey, workspaceStorage } from '@/lib/workspaceKeys';
+import { activeWorkspaceId, workspaceQueryKey, workspaceStorage } from '@/lib/workspaceKeys';
 
 
 interface Provider {
@@ -98,12 +98,8 @@ const ProviderSelection = () => {
     }
   }, [workspaceId]);
 
-  // The workspace can still be resolving on first render; use an inert key
-  // until it is known instead of asking for a workspace-owned key too early.
-  const providersQueryKey = optionalWorkspaceQueryKey(workspaceId, 'providers');
-
   const { data: providers = [], isFetching: isFetchingProviders } = useQuery({
-    queryKey: providersQueryKey,
+    queryKey: workspaceQueryKey(workspaceId, 'providers'),
     enabled: Boolean(workspaceId),
     queryFn: async () => {
       if (!workspaceId) return [];

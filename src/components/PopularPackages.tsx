@@ -8,7 +8,7 @@ import { fetchIftinCatalog, mapPopularPackages, type PopularPackageDTO } from '@
 import { cacheImages } from '@/lib/imageCache';
 import CachedImage from '@/components/CachedImage';
 import { useTenant } from '@/contexts/TenantContext';
-import { activeWorkspaceId, optionalWorkspaceQueryKey, workspaceStorage } from '@/lib/workspaceKeys';
+import { activeWorkspaceId, workspaceQueryKey, workspaceStorage } from '@/lib/workspaceKeys';
 
 const POPULAR_RESOURCE = 'offline_popular_packages_v3';
 
@@ -47,7 +47,7 @@ const PopularPackages = () => {
   const offline = React.useMemo(() => readOffline(workspaceId), [workspaceId]);
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: optionalWorkspaceQueryKey(workspaceId, 'popularPackages', 'v3'),
+    queryKey: workspaceQueryKey(workspaceId, 'popularPackages', 'v3'),
     enabled: Boolean(workspaceId),
     queryFn: async (): Promise<PopularPackageDTO[]> => {
       // Use the shared catalog cache. The old implementation forced a fresh
