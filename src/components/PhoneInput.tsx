@@ -377,7 +377,7 @@ const PhoneInput = () => {
           </div>
           
           <Button 
-            onClick={handleVerifyCode}
+            onClick={() => { playVerifyPrompt(); handleVerifyCode(); }}
             disabled={isVerifying}
             className="w-full bg-primary text-primary-foreground font-semibold h-11 rounded-xl text-base hover:opacity-90 transition-opacity disabled:opacity-50"
           >
