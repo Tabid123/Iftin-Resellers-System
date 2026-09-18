@@ -81,6 +81,8 @@ const PhoneInput = () => {
       // Some browsers may block audio without a user gesture.
     });
   };
+
+  useEffect(() => {
     if (!isCodeSent) return;
     playOtpPrompt();
   }, [isCodeSent]);
