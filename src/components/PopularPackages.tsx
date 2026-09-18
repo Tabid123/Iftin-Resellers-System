@@ -47,7 +47,7 @@ const PopularPackages = () => {
   const offline = React.useMemo(() => readOffline(workspaceId), [workspaceId]);
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: workspaceQueryKey(workspaceId, 'popularPackages', 'v3'),
+    queryKey: optionalWorkspaceQueryKey(workspaceId, 'popularPackages', 'v3'),
     enabled: Boolean(workspaceId),
     queryFn: async (): Promise<PopularPackageDTO[]> => {
       // Use the shared catalog cache. The old implementation forced a fresh
