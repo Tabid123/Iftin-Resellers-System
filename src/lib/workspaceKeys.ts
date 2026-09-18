@@ -80,6 +80,21 @@ export function workspaceQueryKey(
   return [WORKSPACE_KEY_PREFIX, id ?? '__no_workspace__', resource, ...parts];
 }
 
+/**
+ * Same as `workspaceQueryKey`, but tolerates a workspace that is still being
+ * resolved: it returns an inert key instead of throwing. Use it for queries
+ * that are rendered before resolution and gated with `enabled`.
+ */
+export function optionalWorkspaceQueryKey(
+  workspaceId: string | null | undefined,
+  resource: string,
+  ...parts: Array<string | number | null | undefined>
+): readonly unknown[] {
+  const id = workspaceId ?? activeWorkspaceId();
+  if (!id) return [WORKSPACE_KEY_PREFIX, '__pending__', resource, ...parts];
+  return workspaceQueryKey(id, resource, ...parts);
+}
+
 /** Saved-data name for workspace-owned data, or null when unresolved. */
 export function workspaceStorageKey(
   workspaceId: string | null | undefined,
