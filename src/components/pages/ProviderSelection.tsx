@@ -98,8 +98,14 @@ const ProviderSelection = () => {
     }
   }, [workspaceId]);
 
+  // The workspace can still be resolving on first render; use an inert key
+  // until it is known instead of asking for a workspace-owned key too early.
+  const providersQueryKey = workspaceId
+    ? workspaceQueryKey(workspaceId, 'providers')
+    : (['ws', '__pending__', 'providers'] as const);
+
   const { data: providers = [], isFetching: isFetchingProviders } = useQuery({
-    queryKey: workspaceQueryKey(workspaceId, 'providers'),
+    queryKey: providersQueryKey,
     enabled: Boolean(workspaceId),
     queryFn: async () => {
       if (!workspaceId) return [];
