@@ -39,8 +39,16 @@ function readPublishableKey() {
 }
 
 function isRateLimited(req: Request) {
-  const raw = req.headers.get("x-forwarded-for") || "unknown";
-  const ip = raw.split(",")[0].trim() || "unknown";
+  const raw =
+    req.headers.get("x-forwarded-for") ||
+    req.headers.get("cf-connecting-ip") ||
+    req.headers.get("x-real-ip") ||
+    "";
+  const ip = raw.split(",")[0].trim();
+  // Edge runtimes do not always expose a client IP. Never put all such users
+  // into one global "unknown" bucket, which would throttle unrelated tenants.
+  if (!ip) return false;
+
   const now = Date.now();
   const current = rateBuckets.get(ip);
 
@@ -124,7 +132,14 @@ function buildFallbackAnswer(
     ),
   ].filter((pkg: any) => Number(pkg?.selling_price || 0) > 0);
 
-  if (q.includes("ugu jaban") || q.includes("cheapest") || q.includes("lowest")) {
+  if (
+    q.includes("ugu jaban") ||
+    q.includes("ugu raqiisan") ||
+    q.includes("raqiis") ||
+    q.includes("cheapest") ||
+    q.includes("lowest") ||
+    q.includes("cheap")
+  ) {
     const cheapest = [...allPackages].sort(
       (a: any, b: any) => Number(a.selling_price) - Number(b.selling_price),
     )[0];
@@ -211,39 +226,31 @@ Deno.serve(async (req: Request) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const publishableKey = readPublishableKey();
-    if (!supabaseUrl || !publishableKey) {
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    if (!supabaseUrl || !publishableKey || !serviceKey) {
       console.error("[storefront-ai] Supabase environment is incomplete");
       return json({ error: "Service unavailable" }, 503);
     }
 
-    // Resolve the tenant from its canonical slug. The browser never supplies
-    // a tenant UUID, so it cannot pivot the assistant into another workspace.
-    const resolver = createClient(supabaseUrl, publishableKey, {
+    // Resolve the canonical tenant server-side. The browser supplies a slug,
+    // never a tenant UUID; all following reads are explicitly tenant-scoped.
+    const admin = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    const { data: tenantRaw, error: tenantError } = await resolver.rpc("get_tenant_by_slug", {
-      p_slug: tenantSlug,
-    });
-    if (tenantError) throw tenantError;
+    const { data: tenant, error: tenantError } = await admin
+      .from("tenants")
+      .select("id, slug, name, support_phone, delivery_mode, status")
+      .eq("slug", tenantSlug)
+      .maybeSingle();
 
-    const tenant = Array.isArray(tenantRaw) ? tenantRaw[0] : tenantRaw;
+    if (tenantError) throw tenantError;
     if (!tenant?.id || String(tenant.slug || "").toLowerCase() !== tenantSlug) {
       return json({ error: "Tenant not found" }, 404);
     }
 
     const tenantId = String(tenant.id);
-    const scoped = createClient(supabaseUrl, publishableKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-      global: { headers: { "x-tenant-id": tenantId } },
-    });
-
-    const { data: modeRow } = await scoped
-      .from("tenants")
-      .select("delivery_mode")
-      .eq("id", tenantId)
-      .maybeSingle();
-    const isApiPartner = modeRow?.delivery_mode === "api_partner";
+    const isApiPartner = tenant.delivery_mode === "api_partner";
 
     let providerCatalog: any[] = [];
     let paymentMethods: any[] = [];
@@ -259,7 +266,10 @@ Deno.serve(async (req: Request) => {
             Authorization: `Bearer ${publishableKey}`,
           },
         }),
-        scoped.rpc("get_reseller_overrides"),
+        admin
+          .from("reseller_overrides")
+          .select("kind, ref_id, sell_price, payment_number")
+          .eq("tenant_id", tenantId),
       ]);
 
       const catalog = await catalogResponse.json().catch(() => null);
@@ -322,52 +332,117 @@ Deno.serve(async (req: Request) => {
         };
       });
     } else {
-      const [providersResult, paymentsResult, featuredResult] = await Promise.all([
-        scoped.rpc("get_active_providers"),
-        scoped.rpc("get_active_payment_providers"),
-        scoped.rpc("get_featured_packages"),
-      ]);
+      const [providersResult, categoriesResult, packagesResult, paymentsResult, featuredResult] =
+        await Promise.all([
+          admin
+            .from("providers_config")
+            .select("id, provider_name, promotional_text, display_order, created_at")
+            .eq("tenant_id", tenantId)
+            .eq("is_active", true),
+          admin
+            .from("package_categories")
+            .select("id, provider_id, category_name, display_order")
+            .eq("tenant_id", tenantId)
+            .eq("is_active", true),
+          admin
+            .from("data_packages_config")
+            .select(
+              "id, provider_id, category_id, package_name, data_amount, validity_days, connection_type_label, selling_price, display_order, is_discovery_root",
+            )
+            .eq("tenant_id", tenantId)
+            .eq("is_active", true),
+          admin
+            .from("payment_providers_config")
+            .select("*")
+            .eq("tenant_id", tenantId)
+            .eq("is_active", true),
+          admin
+            .from("featured_packages")
+            .select("package_id, display_order")
+            .eq("tenant_id", tenantId)
+            .eq("is_active", true),
+        ]);
 
-      if (providersResult.error) throw providersResult.error;
-      if (paymentsResult.error) throw paymentsResult.error;
-      if (featuredResult.error) throw featuredResult.error;
+      for (const [name, result] of [
+        ["providers", providersResult],
+        ["categories", categoriesResult],
+        ["packages", packagesResult],
+        ["payments", paymentsResult],
+        ["featured", featuredResult],
+      ] as const) {
+        if (result.error) console.warn(`[storefront-ai] ${name} read warning`, result.error);
+      }
 
       const providers = Array.isArray(providersResult.data) ? providersResult.data : [];
-      providerCatalog = (
-        await Promise.all(
-          providers.map(async (provider: any) => {
-            const providerId = String(provider?.id || "");
-            if (!providerId) return null;
+      const categories = Array.isArray(categoriesResult.data) ? categoriesResult.data : [];
+      const packages = Array.isArray(packagesResult.data) ? packagesResult.data : [];
 
-            const [categoriesResult, packagesResult] = await Promise.all([
-              scoped.rpc("get_active_categories", { p_provider_id: providerId }),
-              scoped.rpc("get_public_packages", { p_provider_id: providerId }),
-            ]);
-
-            const categories = Array.isArray(categoriesResult.data) ? categoriesResult.data : [];
-            const packages = Array.isArray(packagesResult.data) ? packagesResult.data : [];
-
-            return {
-              ...publicProvider(provider),
-              categories: categories.map((category: any) => ({
-                ...publicCategory(category),
-                packages: packages
-                  .filter((pkg: any) => String(pkg?.category_id || "") === String(category?.id || ""))
-                  .map(publicPackage),
-              })),
-            };
-          }),
+      providerCatalog = providers
+        .sort(
+          (a: any, b: any) =>
+            Number(a?.display_order ?? 9999) - Number(b?.display_order ?? 9999),
         )
-      ).filter(Boolean);
+        .map((provider: any) => {
+          const providerId = String(provider?.id || "");
+          const providerCategories = categories
+            .filter((category: any) => String(category?.provider_id || "") === providerId)
+            .sort(
+              (a: any, b: any) =>
+                Number(a?.display_order ?? 9999) - Number(b?.display_order ?? 9999),
+            )
+            .map((category: any) => ({
+              name: String(category?.category_name || "Guud"),
+              packages: packages
+                .filter(
+                  (pkg: any) =>
+                    String(pkg?.provider_id || "") === providerId &&
+                    String(pkg?.category_id || "") === String(category?.id || ""),
+                )
+                .sort(
+                  (a: any, b: any) =>
+                    Number(a?.display_order ?? 9999) - Number(b?.display_order ?? 9999),
+                )
+                .map(publicPackage),
+            }));
+
+          const uncategorized = packages
+            .filter(
+              (pkg: any) =>
+                String(pkg?.provider_id || "") === providerId && !pkg?.category_id,
+            )
+            .map(publicPackage);
+          if (uncategorized.length) {
+            providerCategories.push({ name: "Guud", packages: uncategorized });
+          }
+
+          return {
+            ...publicProvider(provider),
+            categories: providerCategories,
+          };
+        });
 
       paymentMethods = (paymentsResult.data || []).map(publicPaymentMethod);
-      featuredPackages = (featuredResult.data || []).map((pkg: any) => ({
-        provider: pkg?.provider_name || null,
-        name: pkg?.package_name || "",
-        data_amount: pkg?.data_amount || null,
-        connection_type: pkg?.connection_type_label || null,
-        selling_price: Number(pkg?.selling_price || 0),
-      }));
+
+      const featuredOrder = new Map<string, number>();
+      for (const row of featuredResult.data || []) {
+        featuredOrder.set(String(row?.package_id || ""), Number(row?.display_order ?? 9999));
+      }
+      featuredPackages = packages
+        .filter((pkg: any) => featuredOrder.has(String(pkg?.id || "")))
+        .sort(
+          (a: any, b: any) =>
+            (featuredOrder.get(String(a?.id || "")) ?? 9999) -
+            (featuredOrder.get(String(b?.id || "")) ?? 9999),
+        )
+        .map((pkg: any) => {
+          const provider = providers.find(
+            (row: any) => String(row?.id || "") === String(pkg?.provider_id || ""),
+          );
+          return {
+            provider: provider?.provider_name || null,
+            ...publicPackage(pkg),
+          };
+        });
     }
 
     const storefrontContext = {
@@ -454,11 +529,15 @@ Rules:
   } catch (error) {
     console.error("[storefront-ai] error", error);
     return json({
-      answer: buildFallbackAnswer(
-        lastUserQuestion(fallbackMessages),
-        fallbackContext,
-        fallbackLanguage,
-      ),
+      answer: fallbackContext
+        ? buildFallbackAnswer(
+            lastUserQuestion(fallbackMessages),
+            fallbackContext,
+            fallbackLanguage,
+          )
+        : fallbackLanguage === "so"
+          ? "Xogta tenant-kan hadda lama soo qaadi karo. Fadlan mar kale isku day."
+          : "This tenant's data could not be loaded right now. Please try again.",
       tenant: fallbackTenantSlug || null,
       fallback: true,
     });
