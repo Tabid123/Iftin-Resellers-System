@@ -22,15 +22,16 @@ jobs:
         run: |
           set -euo pipefail
           echo "=== LOCAL BUILD MARKER ==="
-          grep -RIl 'fallback playback failed' .output/public | head -20
+          grep -RIl 'd208b555-c658-4bb2-9ad9-fb3aeac0e72f' .output/public | head -20
           echo "=== LIVE DEPLOYMENT MARKER ==="
           python3 - <<'PY'
           import re, urllib.request
           from urllib.parse import urljoin
 
           start = 'https://iftinagents.com/t/demo/'
-          marker = 'fallback playback failed'
-          html = urllib.request.urlopen(start, timeout=20).read().decode('utf-8', 'ignore')
+          marker = 'd208b555-c658-4bb2-9ad9-fb3aeac0e72f'
+          req = urllib.request.Request(start, headers={'User-Agent': 'Mozilla/5.0'})
+          html = urllib.request.urlopen(req, timeout=20).read().decode('utf-8', 'ignore')
           refs = re.findall(r'(?:src|href)=[\"\']([^\"\']+\.js(?:\?[^\"\']*)?)[\"\']', html)
           queue = [urljoin(start, r) for r in refs]
           seen = set()
@@ -41,7 +42,8 @@ jobs:
                   continue
               seen.add(url)
               try:
-                  data = urllib.request.urlopen(url, timeout=20).read().decode('utf-8', 'ignore')
+                  req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                  data = urllib.request.urlopen(req, timeout=20).read().decode('utf-8', 'ignore')
               except Exception:
                   continue
               if marker in data:
