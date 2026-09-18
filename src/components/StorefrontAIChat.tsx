@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { supabase } from '@/integrations/supabase/client';
+import { invokePublicEdgeFunction } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { useSupportPhone } from '@/hooks/useSupportPhone';
@@ -158,13 +158,14 @@ export function StorefrontAIChat({ open, onOpenChange }: StorefrontAIChatProps) 
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('storefront-ai-chat', {
-        body: {
+      const { data, error } = await invokePublicEdgeFunction<{ answer?: string }>(
+        'storefront-ai-chat',
+        {
           tenantSlug: tenant.slug,
           messages: history,
           language,
         },
-      });
+      );
 
       if (error) throw error;
       const answer = typeof data?.answer === 'string' ? data.answer.trim() : '';

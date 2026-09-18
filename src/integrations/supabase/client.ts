@@ -83,6 +83,45 @@ const rawClient = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY,
 export const supabase = rawClient as unknown as ReturnType<typeof createClient<any, 'public', any>>;
 
 /**
+ * Calls a public Edge Function without the storefront x-tenant-id header.
+ * This is for anonymous storefront actions whose tenant identity is carried in
+ * the JSON body and verified server-side. Using rawClient.functions.invoke()
+ * would inherit tenantAwareFetch and trigger a browser CORS preflight failure
+ * because x-tenant-id is intentionally not accepted by public Edge Functions.
+ */
+export async function invokePublicEdgeFunction<T = unknown>(
+  functionName: string,
+  body: Record<string, unknown>,
+): Promise<{ data: T | null; error: Error | null }> {
+  try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/${functionName}`, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = typeof payload?.error === 'string'
+        ? payload.error
+        : `Edge Function error (${response.status})`;
+      return { data: payload as T, error: new Error(message) };
+    }
+
+    return { data: payload as T, error: null };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error : new Error('Edge Function request failed'),
+    };
+  }
+}
+
+/**
  * Calls an authenticated Edge Function without the storefront `x-tenant-id`
  * request header. The tenant is still supplied explicitly in the JSON body and
  * verified server-side. This avoids browser CORS preflight failures on Edge
