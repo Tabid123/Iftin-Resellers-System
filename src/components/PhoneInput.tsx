@@ -7,20 +7,48 @@ import somaliaFlag from '@/assets/somalia-flag-hq.png';
 import { useNavigate } from "@/lib/router-compat";
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, ShieldCheck } from 'lucide-react';
-import phoneEntryPrompt from '@/assets/phone-number-prompt.wav.asset.json';
-import otpCodePrompt from '@/assets/otp-code-prompt.wav.asset.json';
-import offlineModePrompt from '@/assets/offline-mode-prompt.wav.asset.json';
+import { phoneEntryPrompt } from '@/lib/phoneEntryPrompt';
 
-const LOVABLE_ASSET_ORIGIN = 'https://sweet-assist-network.lovable.app';
+type AudioPromptKind = 'phone' | 'otp' | 'offline';
 
-const portableAudioUrl = (url: string) => {
-  if (/^https?:\/\//i.test(url)) return url;
-  return new URL(url, LOVABLE_ASSET_ORIGIN).toString();
+const PRODUCTION_AUDIO_ORIGIN = 'https://iftinagents.com';
+
+const isNativeLocalOrigin = () => {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname.toLowerCase();
+  const protocol = window.location.protocol;
+  return (
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    protocol === 'capacitor:' ||
+    protocol === 'ionic:' ||
+    protocol === 'file:'
+  );
 };
 
-const PHONE_PROMPT_URL = portableAudioUrl(phoneEntryPrompt.url);
-const OTP_PROMPT_URL = portableAudioUrl(otpCodePrompt.url);
-const OFFLINE_PROMPT_URL = portableAudioUrl(offlineModePrompt.url);
+const promptUrl = (kind: AudioPromptKind) => {
+  const path = `/api/public/audio-prompt?kind=${kind}`;
+  return isNativeLocalOrigin() ? `${PRODUCTION_AUDIO_ORIGIN}${path}` : path;
+};
+
+const createPromptAudio = (kind: AudioPromptKind, fallback?: string) => {
+  const audio = new Audio(promptUrl(kind));
+  audio.preload = 'auto';
+  audio.volume = 1;
+
+  if (fallback) {
+    let fallbackActivated = false;
+    audio.addEventListener('error', () => {
+      if (fallbackActivated) return;
+      fallbackActivated = true;
+      audio.src = fallback;
+      audio.load();
+    });
+  }
+
+  audio.load();
+  return audio;
+};
 
 const PhoneInput = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -39,13 +67,33 @@ const PhoneInput = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
 
+
+  useEffect(() => {
+    // Prime the WebView/browser HTTP cache while connectivity is available.
+    // This is especially important for the Offline prompt: the immutable
+    // response can then be replayed after connectivity drops.
+    if (!phonePromptAudioRef.current) {
+      phonePromptAudioRef.current = createPromptAudio('phone', phoneEntryPrompt);
+    }
+    if (!otpPromptAudioRef.current) {
+      otpPromptAudioRef.current = createPromptAudio('otp');
+    }
+    if (!verifyPromptAudioRef.current) {
+      verifyPromptAudioRef.current = createPromptAudio('offline');
+    }
+
+    return () => {
+      phonePromptAudioRef.current?.pause();
+      otpPromptAudioRef.current?.pause();
+      verifyPromptAudioRef.current?.pause();
+    };
+  }, []);
+
   const playPhonePrompt = () => {
     otpPromptAudioRef.current?.pause();
     let audio = phonePromptAudioRef.current;
     if (!audio) {
-      audio = new Audio(PHONE_PROMPT_URL);
-      audio.preload = 'auto';
-      audio.volume = 1;
+      audio = createPromptAudio('phone', phoneEntryPrompt);
       phonePromptAudioRef.current = audio;
     }
 
@@ -62,9 +110,7 @@ const PhoneInput = () => {
     phonePromptAudioRef.current?.pause();
     let audio = otpPromptAudioRef.current;
     if (!audio) {
-      audio = new Audio(OTP_PROMPT_URL);
-      audio.preload = 'auto';
-      audio.volume = 1;
+      audio = createPromptAudio('otp');
       otpPromptAudioRef.current = audio;
     }
 
@@ -80,9 +126,7 @@ const PhoneInput = () => {
     otpPromptAudioRef.current?.pause();
     let audio = verifyPromptAudioRef.current;
     if (!audio) {
-      audio = new Audio(OFFLINE_PROMPT_URL);
-      audio.preload = 'auto';
-      audio.volume = 1;
+      audio = createPromptAudio('offline');
       verifyPromptAudioRef.current = audio;
     }
 
