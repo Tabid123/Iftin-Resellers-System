@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Loader2, ShieldCheck } from 'lucide-react';
 import phoneEntryPrompt from '@/assets/phone-number-prompt.wav.asset.json';
 import otpCodePrompt from '@/assets/otp-code-prompt.wav.asset.json';
+import offlineModePrompt from '@/assets/offline-mode-prompt.wav.asset.json';
 
 const PhoneInput = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
