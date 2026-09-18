@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -8,6 +8,7 @@ import { useNavigate } from "@/lib/router-compat";
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, ShieldCheck } from 'lucide-react';
 import phoneEntryPrompt from '@/assets/phone-number-prompt.wav.asset.json';
+import otpCodePrompt from '@/assets/otp-code-prompt.wav.asset.json';
 
 const PhoneInput = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -20,11 +21,13 @@ const PhoneInput = () => {
   const [generatedCode, setGeneratedCode] = useState('');
   const codeInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const phonePromptAudioRef = useRef<HTMLAudioElement | null>(null);
+  const otpPromptAudioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { t } = useLanguage();
 
   const playPhonePrompt = () => {
+    otpPromptAudioRef.current?.pause();
     let audio = phonePromptAudioRef.current;
     if (!audio) {
       audio = new Audio(phoneEntryPrompt.url);
@@ -41,6 +44,28 @@ const PhoneInput = () => {
       // normally allow it. If a device still refuses audio, leave typing usable.
     });
   };
+
+  const playOtpPrompt = () => {
+    phonePromptAudioRef.current?.pause();
+    let audio = otpPromptAudioRef.current;
+    if (!audio) {
+      audio = new Audio(otpCodePrompt.url);
+      audio.preload = 'auto';
+      audio.volume = 1;
+      otpPromptAudioRef.current = audio;
+    }
+
+    audio.pause();
+    audio.currentTime = 0;
+    void audio.play().catch(() => {
+      // Some browsers require the user to tap an OTP field before playing.
+    });
+  };
+
+  useEffect(() => {
+    if (!isCodeSent) return;
+    playOtpPrompt();
+  }, [isCodeSent]);
 
   const generateVerificationCode = () => {
     return Math.floor(1000 + Math.random() * 9000).toString();
@@ -274,6 +299,7 @@ const PhoneInput = () => {
                   maxLength={1}
                   autoComplete={index === 0 ? "one-time-code" : "off"}
                   value={verificationCode[index] || ''}
+                   onPointerDown={playOtpPrompt}
                   onChange={(e) => {
                     const value = e.target.value.replace(/\D/g, '');
                     if (value.length > 1) {
