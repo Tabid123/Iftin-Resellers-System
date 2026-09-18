@@ -354,10 +354,8 @@ serve(async (req) => {
         }
       }
 
-      if (!instruction || !instruction.code_template) {
-        console.error('No delivery instruction found for order:', orderId);
-        throw new Error('Delivery instruction not configured for this package/category/provider');
-      }
+      // A linked source package may intentionally have no direct instruction.
+      // package_delivery_rules are resolved below before direct delivery is required.
 
       // 4. Build final USSD code using the same carrier format as manual delivery:
       // $4.25 -> "4*25", $0.10 -> "010", integers stay unchanged.
@@ -405,13 +403,29 @@ serve(async (req) => {
       
       // Build USSD for a specific amount part — uses GLOBAL replace to defend
       // against templates that contain the same placeholder more than once.
-      const buildUssd = (amountPart: number) => {
+      const buildUssdFrom = (
+        template: string,
+        amountPart: number,
+        simPassword = '',
+        packageCode = '',
+      ) => {
         const amountFormatted = formatAmountForUssd(amountPart);
         return sanitizeUssdCode(
-          instruction.code_template
+          template
             .replace(/\{receiver_phone\}/g, receiverForUssd)
             .replace(/\{cost_price\}/g, amountFormatted)
-            .replace(/\{sim_password\}/g, instruction.sim_password || '')
+            .replace(/\{sim_password\}/g, simPassword || '')
+            .replace(/\{package_code\}/g, packageCode || '')
+        );
+      };
+
+      const buildUssd = (amountPart: number) => {
+        if (!instruction?.code_template) return '';
+        return buildUssdFrom(
+          instruction.code_template,
+          amountPart,
+          instruction.sim_password || '',
+          '',
         );
       };
 
@@ -428,6 +442,177 @@ serve(async (req) => {
         }
         return { bad: false };
       };
+
+      // Linked-package delivery: source packages such as "Internet 48 Saac"
+      // are delivered by one or more target packages (e.g. 24 Saac x2).
+      // Resolve these rules BEFORE requiring a direct source instruction.
+      const { data: linkedRules, error: linkedRulesError } = await supabase
+        .from('package_delivery_rules')
+        .select('target_package_id, delivery_count, delay_minutes, execution_order')
+        .eq('tenant_id', tenantId)
+        .eq('source_package_id', order.package_id)
+        .eq('is_active', true)
+        .order('execution_order', { ascending: true });
+
+      if (linkedRulesError) {
+        console.error('Linked delivery rule lookup failed:', linkedRulesError);
+        throw linkedRulesError;
+      }
+
+      if (linkedRules && linkedRules.length > 0) {
+        const normalizeProviderSlug = (name: string) => {
+          const lower = String(name || '').toLowerCase();
+          if (lower.includes('hormuud')) return 'hormuud';
+          if (lower.includes('somnet')) return 'somnet';
+          if (lower.includes('somtel')) return 'somtel';
+          if (lower.includes('amtel')) return 'amtel';
+          if (lower.includes('somlink')) return 'somlink';
+          return lower.split(' ')[0] || 'unknown';
+        };
+        const providerSlug = normalizeProviderSlug(providerName || '');
+        const linkedQueueItems: any[] = [];
+
+        for (const rule of linkedRules) {
+          const { data: targetPkg, error: targetPkgError } = await supabase
+            .from('data_packages_config')
+            .select('id, provider_id, category_id, cost_price, ussd_code')
+            .eq('tenant_id', tenantId)
+            .eq('id', rule.target_package_id)
+            .maybeSingle();
+
+          if (targetPkgError || !targetPkg) {
+            console.error('Linked target package missing:', rule.target_package_id, targetPkgError);
+            continue;
+          }
+
+          let targetInstruction: { code_template: string | null; sim_password: string | null } | null = null;
+
+          const { data: targetPackageInstr } = await supabase
+            .from('delivery_instructions')
+            .select('code_template, sim_password')
+            .eq('tenant_id', tenantId)
+            .eq('provider_id', targetPkg.provider_id)
+            .eq('package_id', targetPkg.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (targetPackageInstr?.code_template) {
+            targetInstruction = targetPackageInstr;
+          } else if (targetPkg.category_id) {
+            const { data: targetCategoryInstr } = await supabase
+              .from('delivery_instructions')
+              .select('code_template, sim_password')
+              .eq('tenant_id', tenantId)
+              .eq('provider_id', targetPkg.provider_id)
+              .eq('category_id', targetPkg.category_id)
+              .is('package_id', null)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (targetCategoryInstr?.code_template) targetInstruction = targetCategoryInstr;
+          }
+
+          if (!targetInstruction) {
+            const { data: targetProviderInstr } = await supabase
+              .from('delivery_instructions')
+              .select('code_template, sim_password')
+              .eq('tenant_id', tenantId)
+              .eq('provider_id', targetPkg.provider_id)
+              .is('category_id', null)
+              .is('package_id', null)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (targetProviderInstr?.code_template) targetInstruction = targetProviderInstr;
+          }
+
+          const targetTemplate = targetInstruction?.code_template || targetPkg.ussd_code || '';
+          if (!targetTemplate) {
+            console.error('Linked target has no delivery configuration:', targetPkg.id);
+            continue;
+          }
+
+          const targetUssd = buildUssdFrom(
+            targetTemplate,
+            Number(targetPkg.cost_price),
+            targetInstruction?.sim_password || '',
+            targetPkg.ussd_code || '',
+          );
+          const targetCheck = isUssdMalformed(targetUssd);
+          if (targetCheck.bad) {
+            console.error('Linked target USSD malformed:', targetCheck.reason);
+            continue;
+          }
+
+          const count = Math.max(1, Number(rule.delivery_count) || 1);
+          const configuredDelay = Math.max(0, Number(rule.delay_minutes) || 0);
+
+          for (let i = 0; i < count; i++) {
+            const delayMs = configuredDelay > 0
+              ? configuredDelay * i * 60000
+              : (count > 1 ? i * 60000 : 0);
+            linkedQueueItems.push({
+              tenant_id: tenantId,
+              order_id: orderId,
+              provider_name: providerSlug,
+              ussd_code: targetUssd,
+              receiver_phone: receiverPhone,
+              package_code: targetPkg.ussd_code,
+              status: delayMs === 0 ? 'pending' : 'scheduled',
+              scheduled_at: new Date(Date.now() + delayMs).toISOString(),
+            });
+          }
+        }
+
+        if (linkedQueueItems.length === 0) {
+          await supabase.from('orders').update({
+            delivery_status: 'failed',
+            delivery_notes: 'Linked delivery rules exist but no valid target delivery configuration was found',
+          }).eq('id', orderId).eq('tenant_id', tenantId);
+          return json({ error: 'Linked delivery target configuration missing' }, 422);
+        }
+
+        const { data: existingLinkedQueues } = await supabase
+          .from('delivery_queue')
+          .select('id, status')
+          .eq('tenant_id', tenantId)
+          .eq('order_id', orderId)
+          .in('status', ['pending', 'scheduled', 'processing', 'completed'])
+          .limit(1);
+
+        let firstQueue = existingLinkedQueues?.[0] || null;
+        if (!firstQueue) {
+          const { data: insertedLinked, error: linkedInsertError } = await supabase
+            .from('delivery_queue')
+            .insert(linkedQueueItems)
+            .select('id, status');
+
+          if (linkedInsertError) {
+            console.error('Linked delivery queue insert failed:', linkedInsertError);
+            throw linkedInsertError;
+          }
+          firstQueue = insertedLinked?.[0] || null;
+        }
+
+        await supabase.from('orders').update({
+          delivery_status: 'queued',
+          delivery_notes: null,
+        }).eq('id', orderId).eq('tenant_id', tenantId);
+
+        return json({
+          success: true,
+          orderId,
+          queueId: firstQueue?.id || null,
+          linkedDeliveries: linkedQueueItems.length,
+          estimatedTime: '10-90 seconds',
+        });
+      }
+
+      if (!instruction?.code_template) {
+        console.error('No direct or linked delivery instruction found for order:', orderId);
+        throw new Error('Delivery instruction not configured for this package/category/provider');
+      }
 
       const builtUssds = costParts.map((p) => buildUssd(p));
       console.log('💰 Cost split:', { originalCost: pkg.cost_price, parts: costParts, ussds: builtUssds });
