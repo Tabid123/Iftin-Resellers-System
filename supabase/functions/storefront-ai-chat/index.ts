@@ -144,52 +144,146 @@ Deno.serve(async (req: Request) => {
       global: { headers: { "x-tenant-id": tenantId } },
     });
 
-    const [providersResult, paymentsResult, featuredResult] = await Promise.all([
-      scoped.rpc("get_active_providers"),
-      scoped.rpc("get_active_payment_providers"),
-      scoped.rpc("get_featured_packages"),
-    ]);
+    const { data: modeRow } = await scoped
+      .from("tenants")
+      .select("delivery_mode")
+      .eq("id", tenantId)
+      .maybeSingle();
+    const isApiPartner = modeRow?.delivery_mode === "api_partner";
 
-    if (providersResult.error) throw providersResult.error;
-    if (paymentsResult.error) throw paymentsResult.error;
-    if (featuredResult.error) throw featuredResult.error;
+    let providerCatalog: any[] = [];
+    let paymentMethods: any[] = [];
+    let featuredPackages: any[] = [];
 
-    const providers = Array.isArray(providersResult.data) ? providersResult.data : [];
-    const providerCatalog = await Promise.all(
-      providers.map(async (provider: any) => {
-        const providerId = String(provider?.id || "");
-        if (!providerId) return null;
+    if (isApiPartner) {
+      // API-partner tenants use the live Iftin catalog plus tenant-local sell
+      // price/payment-number overrides, exactly like the storefront UI.
+      const [catalogResponse, overridesResult] = await Promise.all([
+        fetch(`${supabaseUrl}/functions/v1/iftin-catalog?tenant_id=${encodeURIComponent(tenantId)}`, {
+          headers: {
+            apikey: publishableKey,
+            Authorization: `Bearer ${publishableKey}`,
+          },
+        }),
+        scoped.rpc("get_reseller_overrides"),
+      ]);
 
-        const [categoriesResult, packagesResult] = await Promise.all([
-          scoped.rpc("get_active_categories", { p_provider_id: providerId }),
-          scoped.rpc("get_public_packages", { p_provider_id: providerId }),
-        ]);
+      const catalog = await catalogResponse.json().catch(() => null);
+      if (!catalogResponse.ok || !Array.isArray(catalog?.providers)) {
+        throw new Error("Partner catalog unavailable");
+      }
 
-        const categories = Array.isArray(categoriesResult.data) ? categoriesResult.data : [];
-        const packages = Array.isArray(packagesResult.data) ? packagesResult.data : [];
+      const overrides = Array.isArray(overridesResult.data) ? overridesResult.data : [];
+      const sellPrice = new Map<string, number>();
+      const paymentNumber = new Map<string, string>();
+      for (const row of overrides) {
+        if (row?.kind === "package" && row?.sell_price != null) {
+          sellPrice.set(String(row.ref_id), Number(row.sell_price));
+        }
+        if (row?.kind === "payment_provider" && row?.payment_number) {
+          paymentNumber.set(String(row.ref_id), String(row.payment_number));
+        }
+      }
 
+      providerCatalog = catalog.providers.map((provider: any) => ({
+        name: String(provider?.provider_name || ""),
+        promotional_text: provider?.promotional_text || null,
+        categories: (provider?.categories || []).map((category: any) => ({
+          name: String(category?.category_name || "Guud"),
+          packages: (category?.packages || []).map((pkg: any) => {
+            const packageId = String(pkg?.package_id || "");
+            const basePrice = Number(pkg?.base_price ?? pkg?.price ?? 0);
+            const override = sellPrice.get(packageId);
+            return {
+              name: String(pkg?.name || ""),
+              data_amount: pkg?.data || null,
+              validity: pkg?.validity || null,
+              connection_type: pkg?.type || null,
+              selling_price:
+                typeof override === "number" && override >= basePrice ? override : basePrice,
+            };
+          }),
+        })),
+      }));
+
+      paymentMethods = (catalog.payment_providers || []).map((method: any) => ({
+        name: String(method?.name || ""),
+        payment_number:
+          paymentNumber.get(String(method?.id || "")) ?? method?.payment_number ?? null,
+        prefix_code: method?.prefix_code ?? method?.ussd_prefix ?? null,
+      }));
+
+      const popular = Array.isArray(catalog.popular_packages) ? catalog.popular_packages : [];
+      featuredPackages = popular.map((pkg: any) => {
+        const packageId = String(pkg?.package_id || pkg?.id || "");
+        const basePrice = Number(pkg?.selling_price ?? pkg?.price ?? pkg?.base_price ?? 0);
+        const override = sellPrice.get(packageId);
         return {
-          ...publicProvider(provider),
-          categories: categories.map(publicCategory),
-          packages: packages.map(publicPackage),
+          provider: pkg?.provider_name || null,
+          name: pkg?.package_name ?? pkg?.name ?? "",
+          data_amount: pkg?.data_amount ?? pkg?.data ?? null,
+          connection_type: pkg?.connection_type_label ?? pkg?.type ?? null,
+          selling_price:
+            typeof override === "number" && override >= basePrice ? override : basePrice,
         };
-      }),
-    );
+      });
+    } else {
+      const [providersResult, paymentsResult, featuredResult] = await Promise.all([
+        scoped.rpc("get_active_providers"),
+        scoped.rpc("get_active_payment_providers"),
+        scoped.rpc("get_featured_packages"),
+      ]);
+
+      if (providersResult.error) throw providersResult.error;
+      if (paymentsResult.error) throw paymentsResult.error;
+      if (featuredResult.error) throw featuredResult.error;
+
+      const providers = Array.isArray(providersResult.data) ? providersResult.data : [];
+      providerCatalog = (
+        await Promise.all(
+          providers.map(async (provider: any) => {
+            const providerId = String(provider?.id || "");
+            if (!providerId) return null;
+
+            const [categoriesResult, packagesResult] = await Promise.all([
+              scoped.rpc("get_active_categories", { p_provider_id: providerId }),
+              scoped.rpc("get_public_packages", { p_provider_id: providerId }),
+            ]);
+
+            const categories = Array.isArray(categoriesResult.data) ? categoriesResult.data : [];
+            const packages = Array.isArray(packagesResult.data) ? packagesResult.data : [];
+
+            return {
+              ...publicProvider(provider),
+              categories: categories.map((category: any) => ({
+                ...publicCategory(category),
+                packages: packages
+                  .filter((pkg: any) => String(pkg?.category_id || "") === String(category?.id || ""))
+                  .map(publicPackage),
+              })),
+            };
+          }),
+        )
+      ).filter(Boolean);
+
+      paymentMethods = (paymentsResult.data || []).map(publicPaymentMethod);
+      featuredPackages = (featuredResult.data || []).map((pkg: any) => ({
+        provider: pkg?.provider_name || null,
+        name: pkg?.package_name || "",
+        data_amount: pkg?.data_amount || null,
+        connection_type: pkg?.connection_type_label || null,
+        selling_price: Number(pkg?.selling_price || 0),
+      }));
+    }
 
     const storefrontContext = {
       tenant: {
         name: String(tenant.name || tenantSlug),
         support_phone: tenant.support_phone || null,
       },
-      providers: providerCatalog.filter(Boolean),
-      payment_methods: (paymentsResult.data || []).map(publicPaymentMethod),
-      featured_packages: (featuredResult.data || []).map((pkg: any) => ({
-        provider: pkg?.provider_name || null,
-        name: pkg?.package_name || "",
-        data_amount: pkg?.data_amount || null,
-        connection_type: pkg?.connection_type_label || null,
-        selling_price: Number(pkg?.selling_price || 0),
-      })),
+      providers: providerCatalog,
+      payment_methods: paymentMethods,
+      featured_packages: featuredPackages,
       app_help: {
         offline_mode:
           "Offline Mode lets a customer continue the supported purchase flow when normal internet connectivity is unavailable, using the numbers previously registered in the app when available.",
