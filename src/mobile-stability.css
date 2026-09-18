@@ -89,6 +89,15 @@ body {
   animation: none !important;
 }
 
+/* This component stays mounted between pages. When hidden, collapse its reserved
+ * row too; otherwise its forced 76px height appears as an empty bottom banner. */
+.iftin-bottom-nav[aria-hidden="true"] {
+  flex-basis: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+}
+
 /* Hidden routes must not reserve an invisible 76px row. This was the full-width
  * white strip seen at the bottom of dashboard/browser screens. aria-hidden is
  * rendered synchronously with the route, so no effect/class race is involved. */

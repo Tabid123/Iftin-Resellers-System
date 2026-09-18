@@ -21,3 +21,4 @@
 - [ ] Diagnose and fix tenant PIN propagation through every USSD flow.
 - [ ] Add focused automated tests and produce evidence without claiming phone-level success prematurely.
 - [ ] Fix tenant Android/PWA bottom movement, covered phone/code fields, and the white bottom banner.
+- [ ] Play the supplied full voice prompt whenever the login phone-number field is tapped.
