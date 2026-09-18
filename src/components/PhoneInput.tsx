@@ -23,6 +23,7 @@ const PhoneInput = () => {
   const codeInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const phonePromptAudioRef = useRef<HTMLAudioElement | null>(null);
   const otpPromptAudioRef = useRef<HTMLAudioElement | null>(null);
+  const verifyPromptAudioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { t } = useLanguage();
