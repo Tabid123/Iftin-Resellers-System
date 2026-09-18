@@ -206,7 +206,7 @@ Deno.serve(async (req: Request) => {
 
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-  if (isRateLimited(req)) return json({ error: "Too many requests" }, 429);
+  const rateLimited = isRateLimited(req);
 
   try {
     const body = await req.json().catch(() => ({}));
@@ -218,10 +218,18 @@ Deno.serve(async (req: Request) => {
     fallbackMessages = messages;
 
     if (!/^[a-z0-9-]{1,60}$/.test(tenantSlug)) {
-      return json({ error: "Invalid tenant" }, 400);
+      return json({
+        answer: language === "so" ? "Tenant-ka lama aqoonsan." : "Tenant could not be identified.",
+        tenant: tenantSlug || null,
+        fallback: true,
+      });
     }
     if (!messages.length) {
-      return json({ error: "Message required" }, 400);
+      return json({
+        answer: language === "so" ? "Fadlan su’aal qor." : "Please enter a question.",
+        tenant: tenantSlug,
+        fallback: true,
+      });
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
@@ -229,7 +237,14 @@ Deno.serve(async (req: Request) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     if (!supabaseUrl || !publishableKey || !serviceKey) {
       console.error("[storefront-ai] Supabase environment is incomplete");
-      return json({ error: "Service unavailable" }, 503);
+      return json({
+        answer:
+          language === "so"
+            ? "Adeegga AI-ga hadda diyaar ma aha. Fadlan mar kale isku day."
+            : "The AI service is temporarily unavailable. Please try again.",
+        tenant: tenantSlug,
+        fallback: true,
+      });
     }
 
     // Resolve the canonical tenant server-side. The browser supplies a slug,
@@ -246,7 +261,11 @@ Deno.serve(async (req: Request) => {
 
     if (tenantError) throw tenantError;
     if (!tenant?.id || String(tenant.slug || "").toLowerCase() !== tenantSlug) {
-      return json({ error: "Tenant not found" }, 404);
+      return json({
+        answer: language === "so" ? "Tenant-kan xogtiisa lama helin." : "This tenant's data was not found.",
+        tenant: tenantSlug,
+        fallback: true,
+      });
     }
 
     const tenantId = String(tenant.id);
@@ -460,6 +479,15 @@ Deno.serve(async (req: Request) => {
     };
 
     fallbackContext = storefrontContext;
+
+    if (rateLimited) {
+      return json({
+        answer: buildFallbackAnswer(lastUserQuestion(messages), storefrontContext, language),
+        tenant: tenantSlug,
+        fallback: true,
+        reason: "rate_limited",
+      });
+    }
 
     const aiKey = Deno.env.get("LOVABLE_API_KEY");
     if (!aiKey) {

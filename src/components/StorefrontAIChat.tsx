@@ -90,10 +90,43 @@ export function StorefrontAIChat({ open, onOpenChange }: StorefrontAIChatProps) 
     viewport?.addEventListener('resize', updateKeyboardLayout);
     viewport?.addEventListener('scroll', updateKeyboardLayout);
 
+    let nativeShowRemove: (() => void) | undefined;
+    let nativeHideRemove: (() => void) | undefined;
+    let disposed = false;
+
+    void import('@capacitor/keyboard')
+      .then(async ({ Keyboard }) => {
+        if (disposed) return;
+        const showHandle = await Keyboard.addListener('keyboardWillShow', (info) => {
+          const keyboardHeight = Math.max(0, Number(info.keyboardHeight || 0));
+          if (!keyboardHeight) return;
+          const visibleHeight = Math.max(280, window.innerHeight - keyboardHeight - 8);
+          setKeyboardLayout({ height: Math.min(720, visibleHeight), bottom: keyboardHeight });
+          window.setTimeout(() => {
+            inputRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          }, 30);
+        });
+        const hideHandle = await Keyboard.addListener('keyboardWillHide', () => {
+          setKeyboardLayout(null);
+        });
+        nativeShowRemove = () => void showHandle.remove();
+        nativeHideRemove = () => void hideHandle.remove();
+      })
+      .catch(() => {
+        // Browser/PWA mode: visualViewport + window resize handlers below remain active.
+      });
+
+    const onWindowResize = () => updateKeyboardLayout();
+    window.addEventListener('resize', onWindowResize);
+
     return () => {
+      disposed = true;
       window.clearTimeout(timer);
       viewport?.removeEventListener('resize', updateKeyboardLayout);
       viewport?.removeEventListener('scroll', updateKeyboardLayout);
+      window.removeEventListener('resize', onWindowResize);
+      nativeShowRemove?.();
+      nativeHideRemove?.();
     };
   }, [open]);
 
