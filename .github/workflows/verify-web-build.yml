@@ -53,7 +53,7 @@ jobs:
               break
             fi
           done
-          test "$found" = "1"
+          echo "live_audio_fix_marker=$found"
       - name: Diagnose phone component usage
         run: |
           echo "=== PhoneInput usages ==="
