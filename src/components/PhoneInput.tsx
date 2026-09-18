@@ -64,7 +64,23 @@ const PhoneInput = () => {
     });
   };
 
-  useEffect(() => {
+  const playVerifyPrompt = () => {
+    phonePromptAudioRef.current?.pause();
+    otpPromptAudioRef.current?.pause();
+    let audio = verifyPromptAudioRef.current;
+    if (!audio) {
+      audio = new Audio(offlineModePrompt.url);
+      audio.preload = 'auto';
+      audio.volume = 1;
+      verifyPromptAudioRef.current = audio;
+    }
+
+    audio.pause();
+    audio.currentTime = 0;
+    void audio.play().catch(() => {
+      // Some browsers may block audio without a user gesture.
+    });
+  };
     if (!isCodeSent) return;
     playOtpPrompt();
   }, [isCodeSent]);
