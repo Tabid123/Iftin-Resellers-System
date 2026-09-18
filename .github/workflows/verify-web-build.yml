@@ -54,6 +54,14 @@ jobs:
             fi
           done
           test "$found" = "1"
+      - name: Diagnose phone component usage
+        run: |
+          echo "=== PhoneInput usages ==="
+          grep -RIn --exclude='PhoneInput.tsx' --exclude='phoneEntryPrompt.ts' 'PhoneInput' src || true
+          echo "=== PhoneVerification usages ==="
+          grep -RIn --exclude='PhoneVerification.tsx' 'PhoneVerification' src || true
+          echo "=== offline-mode navigation sources ==="
+          grep -RIn "navigate('/offline-mode')\|navigate(\"/offline-mode\")" src || true
       - name: Build
         run: bun run build
 
