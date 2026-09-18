@@ -8,7 +8,7 @@ import { fetchIftinCatalog, mapPopularPackages, type PopularPackageDTO } from '@
 import { cacheImages } from '@/lib/imageCache';
 import CachedImage from '@/components/CachedImage';
 import { useTenant } from '@/contexts/TenantContext';
-import { activeWorkspaceId, workspaceQueryKey, workspaceStorage } from '@/lib/workspaceKeys';
+import { activeWorkspaceId, optionalWorkspaceQueryKey, workspaceStorage } from '@/lib/workspaceKeys';
 
 const POPULAR_RESOURCE = 'offline_popular_packages_v3';
 

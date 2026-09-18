@@ -17,7 +17,7 @@ import { fetchIftinCatalog, hasCatalog, isApiPartnerTenant, mapProviders } from 
 import { Button } from '@/components/ui/button';
 import { localizeImage } from '@/lib/localImages';
 import { emitStorefront, purgeStorefrontStorage } from '@/lib/storefrontEvents';
-import { activeWorkspaceId, workspaceQueryKey, workspaceStorage } from '@/lib/workspaceKeys';
+import { activeWorkspaceId, optionalWorkspaceQueryKey, workspaceQueryKey, workspaceStorage } from '@/lib/workspaceKeys';
 
 
 interface Provider {
