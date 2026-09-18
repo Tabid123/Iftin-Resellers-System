@@ -7,48 +7,7 @@ import somaliaFlag from '@/assets/somalia-flag-hq.png';
 import { useNavigate } from "@/lib/router-compat";
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, ShieldCheck } from 'lucide-react';
-import { phoneEntryPrompt } from '@/lib/phoneEntryPrompt';
-
-type AudioPromptKind = 'phone' | 'otp' | 'offline';
-
-const PRODUCTION_AUDIO_ORIGIN = 'https://iftinagents.com';
-
-const isNativeLocalOrigin = () => {
-  if (typeof window === 'undefined') return false;
-  const host = window.location.hostname.toLowerCase();
-  const protocol = window.location.protocol;
-  return (
-    host === 'localhost' ||
-    host === '127.0.0.1' ||
-    protocol === 'capacitor:' ||
-    protocol === 'ionic:' ||
-    protocol === 'file:'
-  );
-};
-
-const promptUrl = (kind: AudioPromptKind) => {
-  const path = `/api/public/audio-prompt?kind=${kind}`;
-  return isNativeLocalOrigin() ? `${PRODUCTION_AUDIO_ORIGIN}${path}` : path;
-};
-
-const createPromptAudio = (kind: AudioPromptKind, fallback?: string) => {
-  const audio = new Audio(promptUrl(kind));
-  audio.preload = 'auto';
-  audio.volume = 1;
-
-  if (fallback) {
-    let fallbackActivated = false;
-    audio.addEventListener('error', () => {
-      if (fallbackActivated) return;
-      fallbackActivated = true;
-      audio.src = fallback;
-      audio.load();
-    });
-  }
-
-  audio.load();
-  return audio;
-};
+import { playAudioPrompt, primeAudioPrompts } from '@/lib/audioPrompts';
 
 const PhoneInput = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -60,87 +19,26 @@ const PhoneInput = () => {
   const [isReturningUser, setIsReturningUser] = useState(false);
   const [generatedCode, setGeneratedCode] = useState('');
   const codeInputRefs = useRef<Array<HTMLInputElement | null>>([]);
-  const phonePromptAudioRef = useRef<HTMLAudioElement | null>(null);
-  const otpPromptAudioRef = useRef<HTMLAudioElement | null>(null);
-  const verifyPromptAudioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { t } = useLanguage();
 
 
   useEffect(() => {
-    // Prime the WebView/browser HTTP cache while connectivity is available.
-    // This is especially important for the Offline prompt: the immutable
-    // response can then be replayed after connectivity drops.
-    if (!phonePromptAudioRef.current) {
-      phonePromptAudioRef.current = createPromptAudio('phone', phoneEntryPrompt);
-    }
-    if (!otpPromptAudioRef.current) {
-      otpPromptAudioRef.current = createPromptAudio('otp');
-    }
-    if (!verifyPromptAudioRef.current) {
-      verifyPromptAudioRef.current = createPromptAudio('offline');
-    }
-
-    return () => {
-      phonePromptAudioRef.current?.pause();
-      otpPromptAudioRef.current?.pause();
-      verifyPromptAudioRef.current?.pause();
-    };
+    primeAudioPrompts();
   }, []);
 
   const playPhonePrompt = () => {
-    otpPromptAudioRef.current?.pause();
-    let audio = phonePromptAudioRef.current;
-    if (!audio) {
-      audio = createPromptAudio('phone', phoneEntryPrompt);
-      phonePromptAudioRef.current = audio;
-    }
-
-    // Every tap restarts the complete recording from the beginning.
-    audio.pause();
-    audio.currentTime = 0;
-    void audio.play().catch(() => {
-      // The call happens directly inside a user gesture, so modern WebViews
-      // normally allow it. If a device still refuses audio, leave typing usable.
-    });
+    void playAudioPrompt('phone');
   };
 
   const playOtpPrompt = () => {
-    phonePromptAudioRef.current?.pause();
-    let audio = otpPromptAudioRef.current;
-    if (!audio) {
-      audio = createPromptAudio('otp');
-      otpPromptAudioRef.current = audio;
-    }
-
-    audio.pause();
-    audio.currentTime = 0;
-    void audio.play().catch(() => {
-      // Some browsers require the user to tap an OTP field before playing.
-    });
+    void playAudioPrompt('otp');
   };
 
   const playVerifyPrompt = () => {
-    phonePromptAudioRef.current?.pause();
-    otpPromptAudioRef.current?.pause();
-    let audio = verifyPromptAudioRef.current;
-    if (!audio) {
-      audio = createPromptAudio('offline');
-      verifyPromptAudioRef.current = audio;
-    }
-
-    audio.pause();
-    audio.currentTime = 0;
-    void audio.play().catch(() => {
-      // Some browsers may block audio without a user gesture.
-    });
+    void playAudioPrompt('offline');
   };
-
-  useEffect(() => {
-    if (!isCodeSent) return;
-    playOtpPrompt();
-  }, [isCodeSent]);
 
   const generateVerificationCode = () => {
     return Math.floor(1000 + Math.random() * 9000).toString();
@@ -177,6 +75,10 @@ const PhoneInput = () => {
       return;
     }
 
+    // Start the OTP voice inside the real Login click gesture. Production
+    // browsers/WebViews block the old post-await/useEffect autoplay path.
+    playOtpPrompt();
+
     setIsSending(true);
     const code = generateVerificationCode();
     const fullPhoneNumber = `+252${phoneNumber}`;
@@ -209,6 +111,7 @@ const PhoneInput = () => {
   };
 
   const handleResendCode = () => {
+    playOtpPrompt();
     const code = generateVerificationCode();
     setGeneratedCode(code);
     localStorage.setItem('verificationCode', code);
@@ -304,7 +207,7 @@ const PhoneInput = () => {
                 autoComplete="tel-national"
                 placeholder="61 xxx xxxx"
                 value={phoneNumber}
-                onPointerDown={playPhonePrompt}
+                onClick={playPhonePrompt}
                 onChange={handlePhoneNumberChange}
                 maxLength={9}
                 className="flex-1 h-12 text-base rounded-xl focus:border-primary focus:ring-primary/30 focus:outline-none focus:ring-2"
@@ -374,7 +277,7 @@ const PhoneInput = () => {
                   maxLength={1}
                   autoComplete={index === 0 ? "one-time-code" : "off"}
                   value={verificationCode[index] || ''}
-                   onPointerDown={playOtpPrompt}
+                   onClick={playOtpPrompt}
                   onChange={(e) => {
                     const value = e.target.value.replace(/\D/g, '');
                     if (value.length > 1) {
