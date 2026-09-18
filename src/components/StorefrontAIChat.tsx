@@ -8,7 +8,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { useSupportPhone } from '@/hooks/useSupportPhone';
-import { toast } from '@/hooks/use-toast';
 
 type ChatMessage = {
   role: 'user' | 'assistant';
@@ -95,14 +94,16 @@ export function StorefrontAIChat({ open, onOpenChange }: StorefrontAIChatProps) 
       setMessages((prev) => [...prev, { role: 'assistant', content: answer }].slice(-12));
     } catch (error: any) {
       console.error('[storefront-ai] request failed', error);
-      toast({
-        title: language === 'so' ? 'AI-ga lama xiriiri karo' : 'AI is unavailable',
-        description:
-          language === 'so'
-            ? 'Fadlan wax yar kadib isku day mar kale.'
-            : 'Please try again in a moment.',
-        variant: 'destructive',
-      });
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content:
+            language === 'so'
+              ? 'Waan ku caawin karaa xirmooyinka, shirkadaha, qiimaha iyo support-ka. Fadlan mar kale su’aashaada ii qor.'
+              : 'I can help with packages, providers, prices and support. Please try your question again.',
+        },
+      ].slice(-12));
     } finally {
       setIsLoading(false);
     }
@@ -124,7 +125,7 @@ export function StorefrontAIChat({ open, onOpenChange }: StorefrontAIChatProps) 
               </div>
               <div className="min-w-0">
                 <SheetTitle className="truncate text-left text-base">
-                  {language === 'so' ? 'AI Kaalmiye' : 'AI Assistant'}
+                  'Iftin Ai'
                 </SheetTitle>
                 <p className="truncate text-xs text-muted-foreground">
                   {language === 'so'
