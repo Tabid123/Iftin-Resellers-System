@@ -512,10 +512,24 @@ const DataPackages = () => {
     p?.is_discovery_root === true ||
     String(p?.ussd_code ?? p?.package_code ?? '').startsWith('*212');
   const maamuusRoots = filteredPackages.filter(isMaamuusRoot);
-  if (maamuusRoots.length > 0 && maamuusRoots.length === filteredPackages.length) {
+  const selectedCategoryName =
+    getSelectedCategoryName() ||
+    location.state?.categoryName ||
+    categoryIntent?.name ||
+    '';
+  const isMaamuusCategory = selectedCategoryName.trim().toLowerCase() === 'maamuus';
+  const maamuusListRoots = isMaamuusCategory ? filteredPackages : maamuusRoots;
+
+  // Maamuus category must always use the compact root list UI immediately.
+  // Do not wait for discoveryRootIds to finish loading, otherwise the page can
+  // briefly/finally fall back to the normal $0 package cards.
+  if (
+    maamuusListRoots.length > 0 &&
+    (isMaamuusCategory || maamuusRoots.length === filteredPackages.length)
+  ) {
     return (
       <MaamuusFlow
-        roots={maamuusRoots}
+        roots={maamuusListRoots}
         providerName={providerName}
         brandName={brandName}
         onBack={() => navigate(-1)}
