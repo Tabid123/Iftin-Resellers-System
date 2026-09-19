@@ -23,8 +23,15 @@ class SplashActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val startedAt = System.currentTimeMillis()
-        // Session lookup is local (encrypted prefs) and cheap; run it at once.
-        val next = if (AuthRepository(applicationContext).isLoggedIn()) {
+        // Never let an OEM Keystore/backup problem kill the launcher activity.
+        // If secure session state is unreadable, recover by showing Login.
+        val loggedIn = try {
+            AuthRepository(applicationContext).isLoggedIn()
+        } catch (e: Throwable) {
+            android.util.Log.e("SplashActivity", "Session bootstrap failed; opening Login safely", e)
+            false
+        }
+        val next = if (loggedIn) {
             Intent(this, MainActivity::class.java)
         } else {
             Intent(this, LoginActivity::class.java)
