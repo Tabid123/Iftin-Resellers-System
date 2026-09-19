@@ -247,27 +247,58 @@ export const OfflineRegistrationsCustomView = ({ isSo }: { isSo: boolean }) => {
       toast.error(isSo ? 'Fadlan dooro shirkadda' : 'Please choose a provider');
       return;
     }
-    if (!newReg.category_id) {
-      toast.error(isSo ? 'Fadlan dooro category-ga' : 'Please choose a category');
-      return;
-    }
-    if (!newReg.package_id) {
-      toast.error(isSo ? 'Fadlan dooro xirmada' : 'Please choose a package');
-      return;
-    }
-
     const provider = providerList.find((p) => p.id === newReg.provider_id);
-    const pkg = packageList.find((p) => p.id === newReg.package_id);
+    const pkg = newReg.package_id
+      ? packageList.find((p) => p.id === newReg.package_id)
+      : null;
 
     try {
-      await saveTenantOfflineRegistration({
-        sender_phone: newReg.sender_phone,
-        receiver_phone: newReg.receiver_phone,
-        provider_id: newReg.provider_id,
-        provider_name: provider?.provider_name ?? null,
-        package_id: newReg.package_id,
-        package_name: pkg?.package_name ?? null,
-      });
+      if (newReg.package_id) {
+        await saveTenantOfflineRegistration({
+          sender_phone: newReg.sender_phone,
+          receiver_phone: newReg.receiver_phone,
+          provider_id: newReg.provider_id,
+          provider_name: provider?.provider_name ?? null,
+          package_id: newReg.package_id,
+          package_name: pkg?.package_name ?? null,
+        });
+      } else {
+        const { data: existing, error: existingError } = await supabase
+          .from('offline_registrations')
+          .select('id')
+          .eq('sender_phone', newReg.sender_phone)
+          .maybeSingle();
+        if (existingError) throw existingError;
+
+        if (existing?.id) {
+          const { error } = await supabase
+            .from('offline_registrations')
+            .update({
+              receiver_phone: newReg.receiver_phone,
+              provider_id: newReg.provider_id,
+              provider_name: provider?.provider_name ?? null,
+              package_id: null,
+              package_name: null,
+              is_active: true,
+            })
+            .eq('id', existing.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from('offline_registrations')
+            .insert({
+              sender_phone: newReg.sender_phone,
+              receiver_phone: newReg.receiver_phone,
+              provider_id: newReg.provider_id,
+              provider_name: provider?.provider_name ?? null,
+              package_id: null,
+              package_name: null,
+              is_active: true,
+            });
+          if (error) throw error;
+        }
+      }
+
       setNewReg({ sender_phone: '', receiver_phone: '', provider_id: '', category_id: '', package_id: '' });
       setShowAdd(false);
       await loadRegs();
@@ -321,39 +352,37 @@ export const OfflineRegistrationsCustomView = ({ isSo }: { isSo: boolean }) => {
             ))}
           </select>
 
-          <select
-            value={newReg.category_id}
-            onChange={e => setNewReg(p => ({ ...p, category_id: e.target.value, package_id: '' }))}
-            disabled={!newReg.provider_id}
-            className="w-full px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700 border text-sm outline-none disabled:opacity-50"
-          >
-            <option value="">
-              {newReg.provider_id
-                ? (isSo ? 'Dooro category-ga *' : 'Choose category *')
-                : (isSo ? 'Marka hore shirkad dooro' : 'Choose provider first')}
-            </option>
-            {filteredCategories.map(category => (
-              <option key={category.id} value={category.id}>{category.category_name}</option>
-            ))}
-          </select>
+          {newReg.provider_id && (
+            <>
+              <select
+                value={newReg.category_id}
+                onChange={e => setNewReg(p => ({ ...p, category_id: e.target.value, package_id: '' }))}
+                className="w-full px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700 border text-sm outline-none"
+              >
+                <option value="">{isSo ? 'Category (optional)' : 'Category (optional)'}</option>
+                {filteredCategories.map(category => (
+                  <option key={category.id} value={category.id}>{category.category_name}</option>
+                ))}
+              </select>
 
-          <select
-            value={newReg.package_id}
-            onChange={e => setNewReg(p => ({ ...p, package_id: e.target.value }))}
-            disabled={!newReg.category_id}
-            className="w-full px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700 border text-sm outline-none disabled:opacity-50"
-          >
-            <option value="">
-              {newReg.category_id
-                ? (isSo ? 'Dooro xirmada *' : 'Choose package *')
-                : (isSo ? 'Marka hore category dooro' : 'Choose category first')}
-            </option>
-            {filteredPackages.map(pkg => (
-              <option key={pkg.id} value={pkg.id}>
-                {pkg.package_name}
-              </option>
-            ))}
-          </select>
+              <select
+                value={newReg.package_id}
+                onChange={e => setNewReg(p => ({ ...p, package_id: e.target.value }))}
+                disabled={!newReg.category_id}
+                className="w-full px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700 border text-sm outline-none disabled:opacity-50"
+              >
+                <option value="">
+                  {newReg.category_id
+                    ? (isSo ? 'Package (optional)' : 'Package (optional)')
+                    : (isSo ? 'Dooro category haddii aad rabto package gaar ah' : 'Choose a category for a specific package')}
+                </option>
+                {filteredPackages.map(pkg => (
+                  <option key={pkg.id} value={pkg.id}>{pkg.package_name}</option>
+                ))}
+              </select>
+            </>
+          )}
+
           <button onClick={addReg} className="w-full py-2 bg-green-500 text-white rounded-lg text-sm font-medium active:bg-green-600">
             <Plus className="w-3.5 h-3.5 inline mr-1" /> {isSo ? 'Ku Dar' : 'Add'}
           </button>
