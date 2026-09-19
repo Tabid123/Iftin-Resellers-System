@@ -30,6 +30,7 @@ import { Route as PaymentProviderRouteImport } from './routes/payment.$provider'
 import { Route as AdminResellersIndexRouteImport } from './routes/admin.resellers.index'
 import { Route as AdminResellersIdRouteImport } from './routes/admin.resellers.$id'
 import { Route as AdminResellersNewRouteImport } from './routes/admin.resellers.new'
+import { Route as ApiPublicAudioPromptRouteImport } from './routes/api/public/audio-prompt'
 import { Route as ApiPublicManifestRouteImport } from './routes/api/public/manifest'
 import { Route as ApiPublicOfflineRegisterRouteImport } from './routes/api/public/offline-register'
 import { Route as ApiPublicTenantIconRouteImport } from './routes/api/public/tenant-icon'
@@ -153,6 +154,11 @@ const AdminResellersNewRoute = AdminResellersNewRouteImport.update({
   path: '/resellers/new',
   getParentRoute: () => AdminRoute,
 } as any)
+const ApiPublicAudioPromptRoute = ApiPublicAudioPromptRouteImport.update({
+  id: '/api/public/audio-prompt',
+  path: '/api/public/audio-prompt',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicManifestRoute = ApiPublicManifestRouteImport.update({
   id: '/api/public/manifest',
   path: '/api/public/manifest',
@@ -261,6 +267,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/': typeof DashboardIndexRoute
   '/admin/resellers/$id': typeof AdminResellersIdRoute
   '/admin/resellers/new': typeof AdminResellersNewRoute
+  '/api/public/audio-prompt': typeof ApiPublicAudioPromptRoute
   '/api/public/manifest': typeof ApiPublicManifestRoute
   '/api/public/offline-register': typeof ApiPublicOfflineRegisterRoute
   '/api/public/tenant-icon': typeof ApiPublicTenantIconRoute
@@ -300,6 +307,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardIndexRoute
   '/admin/resellers/$id': typeof AdminResellersIdRoute
   '/admin/resellers/new': typeof AdminResellersNewRoute
+  '/api/public/audio-prompt': typeof ApiPublicAudioPromptRoute
   '/api/public/manifest': typeof ApiPublicManifestRoute
   '/api/public/offline-register': typeof ApiPublicOfflineRegisterRoute
   '/api/public/tenant-icon': typeof ApiPublicTenantIconRoute
@@ -341,6 +349,7 @@ export interface FileRoutesById {
   '/dashboard/': typeof DashboardIndexRoute
   '/admin/resellers/$id': typeof AdminResellersIdRoute
   '/admin/resellers/new': typeof AdminResellersNewRoute
+  '/api/public/audio-prompt': typeof ApiPublicAudioPromptRoute
   '/api/public/manifest': typeof ApiPublicManifestRoute
   '/api/public/offline-register': typeof ApiPublicOfflineRegisterRoute
   '/api/public/tenant-icon': typeof ApiPublicTenantIconRoute
@@ -383,6 +392,7 @@ export interface FileRouteTypes {
     | '/dashboard/'
     | '/admin/resellers/$id'
     | '/admin/resellers/new'
+    | '/api/public/audio-prompt'
     | '/api/public/manifest'
     | '/api/public/offline-register'
     | '/api/public/tenant-icon'
@@ -422,6 +432,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/admin/resellers/$id'
     | '/admin/resellers/new'
+    | '/api/public/audio-prompt'
     | '/api/public/manifest'
     | '/api/public/offline-register'
     | '/api/public/tenant-icon'
@@ -462,6 +473,7 @@ export interface FileRouteTypes {
     | '/dashboard/'
     | '/admin/resellers/$id'
     | '/admin/resellers/new'
+    | '/api/public/audio-prompt'
     | '/api/public/manifest'
     | '/api/public/offline-register'
     | '/api/public/tenant-icon'
@@ -498,6 +510,7 @@ export interface RootRouteChildren {
   PackagesProviderRoute: typeof PackagesProviderRoute
   PaymentProviderRoute: typeof PaymentProviderRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
+  ApiPublicAudioPromptRoute: typeof ApiPublicAudioPromptRoute
   ApiPublicManifestRoute: typeof ApiPublicManifestRoute
   ApiPublicOfflineRegisterRoute: typeof ApiPublicOfflineRegisterRoute
   ApiPublicTenantIconRoute: typeof ApiPublicTenantIconRoute
@@ -666,6 +679,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminResellersNewRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/api/public/audio-prompt': {
+      id: '/api/public/audio-prompt'
+      path: '/api/public/audio-prompt'
+      fullPath: '/api/public/audio-prompt'
+      preLoaderRoute: typeof ApiPublicAudioPromptRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/manifest': {
       id: '/api/public/manifest'
       path: '/api/public/manifest'
@@ -824,6 +844,7 @@ const rootRouteChildren: RootRouteChildren = {
   PackagesProviderRoute: PackagesProviderRoute,
   PaymentProviderRoute: PaymentProviderRoute,
   DashboardIndexRoute: DashboardIndexRoute,
+  ApiPublicAudioPromptRoute: ApiPublicAudioPromptRoute,
   ApiPublicManifestRoute: ApiPublicManifestRoute,
   ApiPublicOfflineRegisterRoute: ApiPublicOfflineRegisterRoute,
   ApiPublicTenantIconRoute: ApiPublicTenantIconRoute,
