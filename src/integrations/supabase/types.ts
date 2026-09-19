@@ -1540,6 +1540,8 @@ export type Database = {
           created_at: string
           id: string
           is_active: boolean | null
+          package_id: string | null
+          package_name: string | null
           provider_id: string | null
           provider_name: string | null
           receiver_phone: string
@@ -1551,6 +1553,8 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean | null
+          package_id?: string | null
+          package_name?: string | null
           provider_id?: string | null
           provider_name?: string | null
           receiver_phone: string
@@ -1562,6 +1566,8 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean | null
+          package_id?: string | null
+          package_name?: string | null
           provider_id?: string | null
           provider_name?: string | null
           receiver_phone?: string
@@ -3390,15 +3396,27 @@ export type Database = {
         Args: { p_code?: string; p_phone: string }
         Returns: undefined
       }
-      storefront_save_offline_registration: {
-        Args: {
-          p_provider_id?: string
-          p_provider_name?: string
-          p_receiver: string
-          p_sender: string
-        }
-        Returns: undefined
-      }
+      storefront_save_offline_registration:
+        | {
+            Args: {
+              p_provider_id?: string
+              p_provider_name?: string
+              p_receiver: string
+              p_sender: string
+            }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_package_id?: string
+              p_package_name?: string
+              p_provider_id?: string
+              p_provider_name?: string
+              p_receiver: string
+              p_sender: string
+            }
+            Returns: undefined
+          }
       tenant_sim_routes: {
         Args: { p_tenant_id: string }
         Returns: {
