@@ -633,41 +633,7 @@ const IftinOfflineCustomers: React.FC = () => {
                 <SelectContent>
                   {packages.map((pkg) => (
                     <SelectItem key={pkg.id} value={pkg.id}>
-                      {pkg.package_name} — {'
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setFormOpen(false)} disabled={saving}>Cancel</Button>
-            <Button onClick={() => void handleSave()} disabled={!canSave}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <UserPlus className="h-4 w-4 mr-1" />}
-              Diiwaangeli
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(o) => !o && setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Ma tirtiraysaa?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {pretty(deleteTarget?.sender_phone)} mar dambe si otomaatig ah looma gaarsiinayo.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Maya</AlertDialogCancel>
-            <AlertDialogAction onClick={(e) => { e.preventDefault(); void handleDelete(); }} disabled={deleting}>
-              {deleting && <Loader2 className="h-4 w-4 animate-spin mr-1" />} Haa, tirtir
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  );
-};
-
-export default IftinOfflineCustomers;
-}{Number(pkg.selling_price || 0).toFixed(2)}
+                      {pkg.package_name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -679,7 +645,6 @@ export default IftinOfflineCustomers;
               )}
             </div>
           </div>
-
           <DialogFooter>
             <Button variant="outline" onClick={() => setFormOpen(false)} disabled={saving}>Cancel</Button>
             <Button onClick={() => void handleSave()} disabled={!canSave}>
