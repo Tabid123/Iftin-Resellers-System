@@ -595,6 +595,81 @@ const IftinOfflineCustomers: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-1.5">
+              <Label>Category</Label>
+              <Select
+                value={form.categoryId}
+                onValueChange={(v) => setForm((f) => ({ ...f, categoryId: v, packageId: '' }))}
+                disabled={!form.providerId}
+              >
+                <SelectTrigger><SelectValue placeholder={form.providerId ? "Dooro category..." : "Marka hore provider dooro"} /></SelectTrigger>
+                <SelectContent>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={String(category.id)}>
+                      {category.category_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Package</Label>
+              <Select
+                value={form.packageId}
+                onValueChange={(v) => setForm((f) => ({ ...f, packageId: v }))}
+                disabled={!form.categoryId}
+              >
+                <SelectTrigger><SelectValue placeholder={form.categoryId ? "Dooro xirmo..." : "Marka hore category dooro"} /></SelectTrigger>
+                <SelectContent>
+                  {packages.map((pkg) => (
+                    <SelectItem key={pkg.id} value={pkg.id}>
+                      {pkg.package_name} — {'
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFormOpen(false)} disabled={saving}>Cancel</Button>
+            <Button onClick={() => void handleSave()} disabled={!canSave}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <UserPlus className="h-4 w-4 mr-1" />}
+              Diiwaangeli
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ma tirtiraysaa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pretty(deleteTarget?.sender_phone)} mar dambe si otomaatig ah looma gaarsiinayo.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Maya</AlertDialogCancel>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); void handleDelete(); }} disabled={deleting}>
+              {deleting && <Loader2 className="h-4 w-4 animate-spin mr-1" />} Haa, tirtir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+};
+
+export default IftinOfflineCustomers;
+}{Number(pkg.selling_price || 0).toFixed(2)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedPackage && (
+                <p className="text-xs text-muted-foreground">
+                  Lambarkan waxaa lagu xirayaa: <span className="font-medium text-foreground">{selectedPackage.package_name}</span>
+                </p>
+              )}
+            </div>
           </div>
 
           <DialogFooter>
