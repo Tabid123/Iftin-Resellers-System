@@ -172,14 +172,14 @@ export function StorefrontAIChat({ open, onOpenChange }: StorefrontAIChatProps) 
       if (!answer) throw new Error('AI did not return an answer');
 
       if (requestSeq !== requestSeqRef.current) return;
-      setMessages((prev) => [...prev, { role: 'assistant', content: answer }].slice(-12));
+      setMessages((prev) => [...prev, { role: 'assistant' as const, content: answer }].slice(-12));
     } catch (error: any) {
       console.error('[storefront-ai] request failed', error);
       if (requestSeq !== requestSeqRef.current) return;
       setMessages((prev) => [
         ...prev,
         {
-          role: 'assistant',
+          role: 'assistant' as const,
           content:
             language === 'so'
               ? 'AI-ga hadda xogta tenant-kan ma soo qaadi karo. Fadlan mar kale isku day.'
