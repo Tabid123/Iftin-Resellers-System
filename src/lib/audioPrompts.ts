@@ -92,7 +92,6 @@ export function playAudioPrompt(kind: AudioPromptKind) {
       // If the proxy/source itself failed, retry the immutable production asset.
       // Do not retry NotAllowedError: that means the caller lost user activation.
       if (
-        kind !== 'phone' &&
         error instanceof DOMException &&
         error.name !== 'NotAllowedError'
       ) {
