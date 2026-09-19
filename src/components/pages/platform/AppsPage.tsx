@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '@/integrations/supabase/client'
+import { supabase, supabaseAllTenants } from '@/integrations/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,6 +24,7 @@ type AppRow = {
 type TenantRow = { id: string; name: string }
 
 const db = supabase as any
+const platformStorage = supabaseAllTenants.storage
 
 export default function AppsPage() {
   const [apps, setApps] = useState<AppRow[]>([])
@@ -223,11 +224,22 @@ export default function AppsPage() {
     try {
       const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
       const path = `platform/${Date.now()}-${safe}`
-      const { error: uploadError } = await supabase.storage.from('apks').upload(path, file, {
+      const uploadPromise = platformStorage.from('apks').upload(path, file, {
         upsert: false,
         contentType: file.type || 'application/vnd.android.package-archive',
       })
-      if (uploadError) throw uploadError
+
+      const uploadResult = await Promise.race([
+        uploadPromise,
+        new Promise<never>((_, reject) => {
+          window.setTimeout(
+            () => reject(new Error('APK upload-ku wuu dheeraaday. Fadlan internet-ka hubi oo mar kale isku day.')),
+            90_000,
+          )
+        }),
+      ])
+
+      if (uploadResult.error) throw uploadResult.error
 
       const rowIds = group.rows.map((row) => row.id)
       const { error: updateError } = await db
@@ -236,7 +248,7 @@ export default function AppsPage() {
         .in('id', rowIds)
 
       if (updateError) {
-        await supabase.storage.from('apks').remove([path]).catch(() => undefined)
+        await platformStorage.from('apks').remove([path]).catch(() => undefined)
         throw updateError
       }
 
