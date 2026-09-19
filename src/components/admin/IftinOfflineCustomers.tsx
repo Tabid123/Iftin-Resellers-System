@@ -17,13 +17,8 @@ import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
-import { fetchIftinCatalog, mapCategories, mapPackages, mapProviders, resolveTenantId, type IftinCatalog } from '@/lib/iftinCatalog';
+import { deleteTenantOfflineRegistration, fetchTenantOfflineCatalog, listTenantOfflineRegistrations, resolveTenantNativeId, saveTenantOfflineRegistration, tenantOfflineCategories, tenantOfflinePackages, tenantOfflineProviders, type TenantOfflineCatalog, type TenantOfflineRegistration } from '@/lib/tenantOfflineRegistration';
 import { formatPrefixes, getAllowedPrefixes, matchesAllowedPrefix } from '@/lib/phonePrefixes';
-import {
-  deleteOfflineRegistration, listOfflineRegistrations, saveOfflineRegistration,
-  type OfflineRegistration,
-} from '@/lib/iftinOffline.functions';
-import { registerOfflineCustomer } from '@/lib/iftinOfflineApi';
 
 
 const digits = (p?: string | null) => String(p ?? '').replace(/\D/g, '').slice(-9);
@@ -54,7 +49,7 @@ const INFO_KEY = 'iftin_offline_info_dismissed';
 type FormState = { sender: string; receiver: string; providerId: string; categoryId: string; packageId: string; notes: string };
 const emptyForm: FormState = { sender: '', receiver: '', providerId: '', categoryId: '', packageId: '', notes: '' };
 
-type Row = OfflineRegistration & { __local?: boolean };
+type Row = TenantOfflineRegistration & { __local?: boolean };
 type Tab = 'all' | 'active' | 'inactive' | 'today';
 
 const IftinOfflineCustomers: React.FC = () => {
@@ -66,7 +61,7 @@ const IftinOfflineCustomers: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<Tab>('all');
-  const [catalog, setCatalog] = useState<IftinCatalog | null>(null);
+  const [catalog, setCatalog] = useState<TenantOfflineCatalog | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editing, setEditing] = useState<Row | null>(null);
@@ -89,16 +84,11 @@ const IftinOfflineCustomers: React.FC = () => {
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const tenantId = await resolveTenantId();
-      if (!tenantId) throw new Error('Reseller-ka lama garanayo');
+      const tenantId = await resolveTenantNativeId();
+      if (!tenantId) throw new Error('Tenant-ka lama aqoonsan');
 
-      // Iftin is the single source of truth — no local registrations are used.
-      const iftinRes = await listOfflineRegistrations({ data: { tenantId } }).catch((e: any) => ({
-        ok: false as const, status: 0, message: e?.message ?? 'Liiska lama soo dejin',
-      }));
-
-      if (!iftinRes.ok) throw new Error((iftinRes as any).message ?? 'Liiska lama soo dejin');
-      setRows((iftinRes.data as OfflineRegistration[]) ?? []);
+      const registrations = await listTenantOfflineRegistrations();
+      setRows(registrations.map((row) => ({ ...row, __local: true })));
     } catch (e: any) {
       setError(e?.message ?? 'Liiska lama soo dejin');
     } finally {
@@ -107,25 +97,21 @@ const IftinOfflineCustomers: React.FC = () => {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
-  useEffect(() => { void fetchIftinCatalog().then(setCatalog); }, []);
+  useEffect(() => { void fetchTenantOfflineCatalog().then(setCatalog); }, []);
   useRealtimeRefresh(['offline_registrations'], () => { void load(true); }, 800);
 
 
-  const providers = useMemo(() => (catalog ? mapProviders(catalog) : []), [catalog]);
+  const providers = useMemo(() => tenantOfflineProviders(catalog), [catalog]);
   const providerName = useMemo(
     () => providers.find((p) => p.id === form.providerId)?.provider_name ?? null,
     [providers, form.providerId],
   );
   const categories = useMemo(
-    () => (catalog && form.providerId ? mapCategories(catalog, form.providerId) : []),
+    () => tenantOfflineCategories(catalog, form.providerId),
     [catalog, form.providerId],
   );
   const packages = useMemo(
-    () => (catalog && form.providerId
-      ? mapPackages(catalog, form.providerId).filter(
-          (pkg) => !form.categoryId || String(pkg.category_id) === String(form.categoryId),
-        )
-      : []),
+    () => tenantOfflinePackages(catalog, form.providerId, form.categoryId),
     [catalog, form.providerId, form.categoryId],
   );
   const selectedPackage = useMemo(
@@ -151,7 +137,7 @@ const IftinOfflineCustomers: React.FC = () => {
       providers.find((p) => p.id === r.provider_id)?.id ??
       providers.find((p) => p.provider_name?.toLowerCase() === String(r.provider_name ?? '').toLowerCase())?.id ??
       '';
-    const providerPackages = catalog && providerId ? mapPackages(catalog, providerId) : [];
+    const providerPackages = tenantOfflinePackages(catalog, providerId);
     const matchedPackage = providerPackages.find((pkg) => pkg.id === r.package_id) ?? null;
     setForm({
       sender: digits(r.sender_phone),
@@ -189,24 +175,14 @@ const IftinOfflineCustomers: React.FC = () => {
         return;
       }
 
-      const tenantId = await resolveTenantId();
-      if (!tenantId) throw new Error('Reseller-ka lama garanayo');
-      const res = await saveOfflineRegistration({
-        data: {
-          tenantId,
-          sender_phone: form.sender,
-          receiver_phone: form.receiver,
-          provider_id: form.providerId,
-          package_id: form.packageId,
-          package_name: selectedPackage?.package_name ?? undefined,
-          ...(providerName ? { provider_name: providerName } : {}),
-          ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
-        },
+      await saveTenantOfflineRegistration({
+        sender_phone: form.sender,
+        receiver_phone: form.receiver,
+        provider_id: form.providerId,
+        provider_name: providerName,
+        package_id: form.packageId,
+        package_name: selectedPackage?.package_name ?? null,
       });
-      if (!res.ok) {
-        toast({ title: 'Lama diiwaan gelin', description: res.message, variant: 'destructive' });
-        return;
-      }
       toast({ title: 'Waa la diiwaan geliyay', description: `${pretty(form.sender)} → ${pretty(form.receiver)}` });
       setFormOpen(false);
       await load(true);
@@ -218,10 +194,6 @@ const IftinOfflineCustomers: React.FC = () => {
   };
 
   const handleToggle = async (r: Row) => {
-    if (!r.__local) {
-      toast({ title: 'Ma suurtogalo', description: 'Diiwaanka Iftin lama beddeli karo halkan.', variant: 'destructive' });
-      return;
-    }
     const { error: upErr } = await supabase
       .from('offline_registrations')
       .update({ is_active: !(r.is_active !== false) })
@@ -251,20 +223,7 @@ const IftinOfflineCustomers: React.FC = () => {
         await load(true);
         return;
       }
-      const tenantId = await resolveTenantId();
-      if (!tenantId) throw new Error('Reseller-ka lama garanayo');
-      const res = await deleteOfflineRegistration({
-        data: {
-          tenantId,
-          ...(deleteTarget.id ? { id: deleteTarget.id } : {}),
-          sender_phone: String(deleteTarget.sender_phone ?? ''),
-        },
-      });
-
-      if (!res.ok) {
-        toast({ title: 'Lama tirtirin', description: res.message, variant: 'destructive' });
-        return;
-      }
+      await deleteTenantOfflineRegistration(String(deleteTarget.id));
       toast({ title: 'Waa la tirtiray' });
       setDeleteTarget(null);
       await load(true);
