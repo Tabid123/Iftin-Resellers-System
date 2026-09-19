@@ -118,16 +118,18 @@ class AuthRepository(context: Context) {
     )
 
     /** Returns true if a valid (non-expired) session with a tenant is stored. */
-    fun isLoggedIn(): Boolean = try {
-        val securePrefs = prefs ?: return false
-        val token = securePrefs.getString(KEY_ACCESS_TOKEN, null) ?: return false
-        val tenantId = securePrefs.getString(KEY_TENANT_ID, null)
-        val expiresAt = securePrefs.getLong(KEY_EXPIRES_AT, 0L)
-        token.isNotBlank() && !tenantId.isNullOrBlank() &&
-            expiresAt > (System.currentTimeMillis() / 1000) + 30
-    } catch (e: Throwable) {
-        Log.e("AuthRepository", "Session read failed; treating device as logged out", e)
-        false
+    fun isLoggedIn(): Boolean {
+        return try {
+            val securePrefs = prefs ?: return false
+            val token = securePrefs.getString(KEY_ACCESS_TOKEN, null) ?: return false
+            val tenantId = securePrefs.getString(KEY_TENANT_ID, null)
+            val expiresAt = securePrefs.getLong(KEY_EXPIRES_AT, 0L)
+            token.isNotBlank() && !tenantId.isNullOrBlank() &&
+                expiresAt > (System.currentTimeMillis() / 1000) + 30
+        } catch (e: Throwable) {
+            Log.e("AuthRepository", "Session read failed; treating device as logged out", e)
+            false
+        }
     }
 
     fun getAccessToken(): String? = try { prefs?.getString(KEY_ACCESS_TOKEN, null) } catch (_: Throwable) { null }
