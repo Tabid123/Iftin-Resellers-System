@@ -119,7 +119,6 @@ export const saveOfflineRegistration = createServerFn({ method: 'POST' })
       receiver_phone: receiver,
       ...(providerId ? { provider_id: providerId } : { provider_name: data.provider_name }),
       package_id: packageId,
-      ...(data.package_name ? { package_name: data.package_name } : {}),
       ...(data.notes ? { notes: data.notes } : {}),
     });
     if (status < 200 || status >= 300) {
