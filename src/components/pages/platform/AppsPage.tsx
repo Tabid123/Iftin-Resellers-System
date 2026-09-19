@@ -225,6 +225,14 @@ export default function AppsPage() {
       return
     }
 
+    const nextVersion = window.prompt('Version-ka cusub geli', group.version ?? '')
+    if (nextVersion === null) return
+    const normalizedVersion = nextVersion.trim()
+    if (!normalizedVersion) {
+      toast.error('Version-ka cusub geli')
+      return
+    }
+
     setReplacingKey(group.key)
     try {
       const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
@@ -250,7 +258,7 @@ export default function AppsPage() {
       const replacedAt = new Date().toISOString()
       const { error: updateError } = await db
         .from('platform_apps')
-        .update({ file_url: path, apk_updated_at: replacedAt })
+        .update({ file_url: path, version: normalizedVersion, apk_updated_at: replacedAt })
         .in('id', rowIds)
 
       if (updateError) {
@@ -259,7 +267,7 @@ export default function AppsPage() {
       }
 
       setRecentlyReplacedKey(group.key)
-      toast.success('APK-ga cusub waa la beddelay. Resellers-kii hore sidii ayay u joogaan.')
+      toast.success(`APK-ga cusub waa la beddelay — version ${normalizedVersion}. Resellers-kii hore sidii ayay u joogaan.`)
       await load()
       window.setTimeout(() => setRecentlyReplacedKey((key) => key === group.key ? null : key), 3500)
     } catch (err: any) {
