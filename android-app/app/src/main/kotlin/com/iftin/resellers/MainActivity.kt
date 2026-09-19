@@ -71,8 +71,13 @@ class MainActivity : ComponentActivity() {
         // Request permissions first, then start native features after user responds
         requestPermissions()
         
-        // CRITICAL: Force battery optimization exemption check
-        ensureBatteryOptimizationExempted()
+        // Some OEM Settings implementations can reject/throw on this intent.
+        // Setup guidance must never be able to crash the delivery dashboard.
+        try {
+            ensureBatteryOptimizationExempted()
+        } catch (e: Throwable) {
+            android.util.Log.e("MainActivity", "Battery optimization setup unavailable", e)
+        }
         
         setContent {
             IftinAgentsTheme {
@@ -218,8 +223,12 @@ class MainActivity : ComponentActivity() {
     }
     
     private fun openAccessibilitySettings() {
-        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-        startActivity(intent)
+        try {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        } catch (e: Throwable) {
+            android.util.Log.e("MainActivity", "Accessibility settings could not be opened", e)
+            Toast.makeText(this, "Accessibility settings lama furi karo qalabkan.", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun startDeliveryService() {
