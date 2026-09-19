@@ -439,6 +439,10 @@ const IftinOfflineCustomers: React.FC = () => {
                             </Badge>
                           </div>
                           <div>
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Xirmo</p>
+                            <p className="text-sm font-medium mt-0.5">{r.package_name || '—'}</p>
+                          </div>
+                          <div>
                             <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Status</p>
                             <Badge
                               className={`rounded-full font-normal mt-0.5 ${
@@ -482,6 +486,7 @@ const IftinOfflineCustomers: React.FC = () => {
                     <th className="text-left font-medium px-4 py-3">Sender</th>
                     <th className="text-left font-medium px-4 py-3">Receiver</th>
                     <th className="text-left font-medium px-4 py-3">Shirkad</th>
+                    <th className="text-left font-medium px-4 py-3">Xirmo</th>
                     <th className="text-left font-medium px-4 py-3">Status</th>
                     <th className="text-left font-medium px-4 py-3">Taarikh</th>
                     <th className="text-right font-medium px-4 py-3">Actions</th>
@@ -499,6 +504,9 @@ const IftinOfflineCustomers: React.FC = () => {
                           <Badge variant="outline" className="rounded-full font-normal">
                             {r.provider_name || '—'}
                           </Badge>
+                        </td>
+                        <td className="px-4 py-3 max-w-[220px]">
+                          <span className="block truncate font-medium">{r.package_name || '—'}</span>
                         </td>
                         <td className="px-4 py-3">
                           <Badge
