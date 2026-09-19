@@ -14,6 +14,7 @@ type AppRow = {
   icon_url: string | null;
   tenant_id: string | null;
   created_at: string;
+  apk_updated_at?: string | null;
 };
 
 const db = supabase as any;
@@ -97,7 +98,9 @@ export function AppsView({ isSo = true }: { isSo?: boolean }) {
             <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
               {app.platform?.toUpperCase()}
               {app.version ? ` · v${app.version}` : ''}
-              {app.created_at ? ` · ${new Date(app.created_at).toLocaleDateString()}` : ''}
+              {(app.apk_updated_at || app.created_at)
+                ? ` · ${new Date(app.apk_updated_at || app.created_at).toLocaleDateString()}`
+                : ''}
             </div>
             {app.description && (
               <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">{app.description}</div>
