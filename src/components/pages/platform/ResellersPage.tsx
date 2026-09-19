@@ -12,6 +12,12 @@ interface Row {
   subscription_plans?: { name: string; price_monthly: number } | null;
 }
 
+const effectiveStatus = (r: Row) => {
+  if (r.status !== 'active') return r.status
+  if (r.current_period_end && new Date(r.current_period_end).getTime() <= Date.now()) return 'expired'
+  return 'active'
+}
+
 const statusVariant = (s: string): any =>
   s === 'active' ? 'default' : s === 'trial' ? 'secondary' : 'destructive'
 
@@ -101,7 +107,7 @@ export default function ResellersPage() {
                     : ''}
                 </div>
               </div>
-              <Badge variant={statusVariant(r.status)} className="shrink-0">{r.status}</Badge>
+              <Badge variant={statusVariant(effectiveStatus(r))} className="shrink-0">{effectiveStatus(r)}</Badge>
             </div>
             <LinksBlock r={r} />
             <Button asChild variant="outline" size="sm" className="w-full">
@@ -139,7 +145,7 @@ export default function ResellersPage() {
                   <td className="p-3 font-medium">{r.name}</td>
                   <td className="p-3"><LinksBlock r={r} /></td>
                   <td className="p-3">{r.subscription_plans?.name ?? '—'}</td>
-                  <td className="p-3"><Badge variant={statusVariant(r.status)}>{r.status}</Badge></td>
+                  <td className="p-3"><Badge variant={statusVariant(effectiveStatus(r))}>{effectiveStatus(r)}</Badge></td>
                   <td className="p-3 text-xs">
                     {r.current_period_end ? new Date(r.current_period_end).toLocaleDateString() : '—'}
                   </td>

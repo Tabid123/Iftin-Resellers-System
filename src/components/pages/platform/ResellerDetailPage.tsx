@@ -270,6 +270,13 @@ export default function ResellerDetailPage() {
     return <div className="p-8 flex items-center gap-2"><Loader2 className="h-5 w-5 animate-spin" /> Loading…</div>
   }
 
+  const effectiveTenantStatus =
+    tenant.status === 'active' &&
+    tenant.current_period_end &&
+    new Date(tenant.current_period_end).getTime() <= Date.now()
+      ? 'expired'
+      : tenant.status
+
   const brandingDirty =
     name !== (tenant.name ?? '') ||
     primary !== (tenant.primary_color ?? '') ||
@@ -332,7 +339,7 @@ export default function ResellerDetailPage() {
           </a>
         </div>
 
-        <Badge>{tenant.status}</Badge>
+        <Badge variant={effectiveTenantStatus === 'active' ? 'default' : 'destructive'}>{effectiveTenantStatus}</Badge>
       </div>
 
       <Card>
