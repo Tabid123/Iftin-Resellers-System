@@ -25,8 +25,6 @@ function isNativeLocalOrigin() {
 }
 
 function primarySource(kind: AudioPromptKind) {
-  if (kind === 'phone') return phoneEntryPrompt;
-
   const path = `/api/public/audio-prompt?kind=${kind}`;
   return isNativeLocalOrigin() ? `${PRODUCTION_AUDIO_ORIGIN}${path}` : path;
 }
