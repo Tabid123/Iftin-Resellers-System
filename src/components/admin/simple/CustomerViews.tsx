@@ -10,8 +10,7 @@ import {
 } from './shared';
 import { formatTimeAgo } from './shared';
 import { Edit } from 'lucide-react';
-import { listOfflineCustomers, updateOfflineCustomer, deleteOfflineCustomer } from '@/lib/iftinOfflineApi';
-import { saveOfflineRegistration } from '@/lib/offlineRegistration';
+import { deleteTenantOfflineRegistration, saveTenantOfflineRegistration } from '@/lib/tenantOfflineRegistration';
 import { EditDeviceDialog } from '../EditDeviceDialog';
 import { DeleteDeviceDialog } from '../DeleteDeviceDialog';
 
@@ -170,41 +169,32 @@ export const OfflineRegistrationsCustomView = ({ isSo }: { isSo: boolean }) => {
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
-  const [newReg, setNewReg] = useState({ sender_phone: '', receiver_phone: '', provider_name: '' });
+  const [newReg, setNewReg] = useState({ sender_phone: '', receiver_phone: '', provider_id: '', category_id: '', package_id: '' });
   const [providerList, setProviderList] = useState<any[]>([]);
+  const [categoryList, setCategoryList] = useState<any[]>([]);
+  const [packageList, setPackageList] = useState<any[]>([]);
 
   useEffect(() => {
-    supabase.from('providers_config').select('id, provider_name').eq('is_active', true)
-      .order('display_order')
-      .then(({ data }) => setProviderList(data || []));
+    void Promise.all([
+      supabase.from('providers_config').select('id, provider_name, display_order').eq('is_active', true).order('display_order'),
+      supabase.from('package_categories').select('id, provider_id, category_name, display_order').eq('is_active', true).order('display_order'),
+      supabase.from('data_packages_config').select('id, provider_id, category_id, package_name, selling_price, display_order').eq('is_active', true).order('display_order'),
+    ]).then(([providersRes, categoriesRes, packagesRes]) => {
+      setProviderList(providersRes.data || []);
+      setCategoryList(categoriesRes.data || []);
+      setPackageList(packagesRes.data || []);
+    });
   }, []);
 
-  // Diiwaanka offline-ka waxaa lagu keydiyaa database-ka maxalliga ah (dadka
-  // iskood isu diiwaan geliyay). Tenant-yada Iftin partner-ka ah oo keliya ayaa
-  // sidoo kale liiska Iftin lagu daraa — key la'aan ma aha khalad.
+  // Tenant-native only: registrations are stored and managed in this tenant's database.
   const loadRegs = useCallback(async () => {
     setLoading(true);
-    const { data: local, error } = await supabase
+    const { data, error } = await supabase
       .from('offline_registrations')
       .select('*')
       .order('created_at', { ascending: false });
     if (error) toast.error(isSo ? 'Liiska lama soo dejin' : 'Failed to load');
-
-    const rows: any[] = (local ?? []).map(r => ({ ...r, __local: true }));
-
-    const remote = await listOfflineCustomers();
-    if (remote.ok) {
-      const list = (remote.data?.registrations ?? remote.data) as any[];
-      const seen = new Set(rows.map(r => `${normalizePhone(r.sender_phone)}|${normalizePhone(r.receiver_phone)}`));
-      (Array.isArray(list) ? list : []).forEach((r: any) => {
-        const key = `${normalizePhone(r.sender_phone)}|${normalizePhone(r.receiver_phone)}`;
-        if (!seen.has(key)) { seen.add(key); rows.push({ ...r, __local: false }); }
-      });
-    } else if (remote.error && remote.error !== 'missing_api_key' && remote.error !== 'missing_tenant') {
-      toast.error(remote.message ?? (isSo ? 'Iftin liiska lama soo dejin' : 'Iftin list failed'));
-    }
-
-    setRegs(rows);
+    setRegs((data ?? []).map((r: any) => ({ ...r, __local: true })));
     setLoading(false);
   }, [isSo]);
 
@@ -228,62 +218,73 @@ export const OfflineRegistrationsCustomView = ({ isSo }: { isSo: boolean }) => {
   const toggleStatus = async (id: string, _currentStatus: boolean) => {
     const row = regs.find((r) => r.id === id);
     if (!row) return;
-    if (row.__local) {
-      const { error } = await supabase
-        .from('offline_registrations')
-        .update({ is_active: !(row.is_active !== false) })
-        .eq('id', id);
-      if (error) { toast.error(error.message); return; }
-      await loadRegs();
-      toast.success(isSo ? 'Waa la cusboonaysiiyay' : 'Status updated');
-      return;
-    }
-    const res = await updateOfflineCustomer({
-      id,
-      senderPhone: row.sender_phone,
-      receiverPhone: row.receiver_phone,
-      providerName: row.provider_name ?? null,
-    });
-    if (!res.ok) { toast.error(res.message ?? 'Khalad'); return; }
+    const { error } = await supabase
+      .from('offline_registrations')
+      .update({ is_active: !(row.is_active !== false) })
+      .eq('id', id);
+    if (error) { toast.error(error.message); return; }
     await loadRegs();
     toast.success(isSo ? 'Waa la cusboonaysiiyay' : 'Status updated');
   };
 
   const deleteReg = async (id: string) => {
     if (!confirm(isSo ? 'Ma hubtaa inaad tirtirto?' : 'Delete this registration?')) return;
-    const row = regs.find((r) => r.id === id);
-    if (row?.__local) {
-      const { error } = await supabase.from('offline_registrations').delete().eq('id', id);
-      if (error) { toast.error(error.message); return; }
+    try {
+      await deleteTenantOfflineRegistration(id);
       setRegs(prev => prev.filter(r => r.id !== id));
       toast.success(isSo ? 'Waa la tirtiray' : 'Deleted');
-      return;
+    } catch (error: any) {
+      toast.error(error?.message ?? 'Khalad');
     }
-    const res = await deleteOfflineCustomer({ id });
-    if (!res.ok) { toast.error(res.message ?? 'Khalad'); return; }
-    setRegs(prev => prev.filter(r => r.id !== id));
-    toast.success(isSo ? 'Waa la tirtiray' : 'Deleted');
   };
 
   const addReg = async () => {
-    if (!newReg.sender_phone || !newReg.receiver_phone) { toast.error(isSo ? 'Buuxi meelaha' : 'Fill required fields'); return; }
-    if (!newReg.provider_name) { toast.error(isSo ? 'Fadlan dooro shirkadda' : 'Please choose a provider'); return; }
-    const chosen = providerList.find(p => p.provider_name === newReg.provider_name);
-    const res = await saveOfflineRegistration({
-      senderPhone: newReg.sender_phone,
-      receiverPhone: newReg.receiver_phone,
-      providerName: newReg.provider_name,
-      providerId: chosen?.id ?? null,
-    });
-    if (!res.ok) {
-      toast.error(`${res.message ?? 'Khalad'}${res.error ? ` (${res.error})` : ''}`);
+    if (!newReg.sender_phone || !newReg.receiver_phone) {
+      toast.error(isSo ? 'Buuxi meelaha' : 'Fill required fields');
       return;
     }
-    setNewReg({ sender_phone: '', receiver_phone: '', provider_name: '' });
-    setShowAdd(false);
-    await loadRegs();
-    toast.success(isSo ? 'Waa lagu daray' : 'Added');
+    if (!newReg.provider_id) {
+      toast.error(isSo ? 'Fadlan dooro shirkadda' : 'Please choose a provider');
+      return;
+    }
+    if (!newReg.category_id) {
+      toast.error(isSo ? 'Fadlan dooro category-ga' : 'Please choose a category');
+      return;
+    }
+    if (!newReg.package_id) {
+      toast.error(isSo ? 'Fadlan dooro xirmada' : 'Please choose a package');
+      return;
+    }
+
+    const provider = providerList.find((p) => p.id === newReg.provider_id);
+    const pkg = packageList.find((p) => p.id === newReg.package_id);
+
+    try {
+      await saveTenantOfflineRegistration({
+        sender_phone: newReg.sender_phone,
+        receiver_phone: newReg.receiver_phone,
+        provider_id: newReg.provider_id,
+        provider_name: provider?.provider_name ?? null,
+        package_id: newReg.package_id,
+        package_name: pkg?.package_name ?? null,
+      });
+      setNewReg({ sender_phone: '', receiver_phone: '', provider_id: '', category_id: '', package_id: '' });
+      setShowAdd(false);
+      await loadRegs();
+      toast.success(isSo ? 'Waa lagu daray' : 'Added');
+    } catch (error: any) {
+      toast.error(error?.message ?? 'Khalad');
+    }
   };
+
+  const filteredCategories = categoryList.filter(
+    (category) => !newReg.provider_id || String(category.provider_id) === String(newReg.provider_id),
+  );
+  const filteredPackages = packageList.filter(
+    (pkg) =>
+      (!newReg.provider_id || String(pkg.provider_id) === String(newReg.provider_id)) &&
+      (!newReg.category_id || String(pkg.category_id) === String(newReg.category_id)),
+  );
 
   const filteredRegs = getFiltered();
 
@@ -310,13 +311,47 @@ export const OfflineRegistrationsCustomView = ({ isSo }: { isSo: boolean }) => {
           <input type="tel" inputMode="numeric" pattern="[0-9]*" value={newReg.sender_phone} onChange={e => setNewReg(p => ({...p, sender_phone: e.target.value.replace(/\D/g, '')}))} placeholder={isSo ? 'Lambarka Diraha' : 'Sender Phone'} className="w-full px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700 border text-sm outline-none" />
           <input type="tel" inputMode="numeric" pattern="[0-9]*" value={newReg.receiver_phone} onChange={e => setNewReg(p => ({...p, receiver_phone: e.target.value.replace(/\D/g, '')}))} placeholder={isSo ? 'Lambarka Qaataha' : 'Receiver Phone'} className="w-full px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700 border text-sm outline-none" />
           <select
-            value={newReg.provider_name}
-            onChange={e => setNewReg(p => ({ ...p, provider_name: e.target.value }))}
+            value={newReg.provider_id}
+            onChange={e => setNewReg(p => ({ ...p, provider_id: e.target.value, category_id: '', package_id: '' }))}
             className="w-full px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700 border text-sm outline-none"
           >
             <option value="">{isSo ? 'Dooro shirkadda *' : 'Choose provider *'}</option>
             {providerList.map(p => (
-              <option key={p.id} value={p.provider_name}>{p.provider_name}</option>
+              <option key={p.id} value={p.id}>{p.provider_name}</option>
+            ))}
+          </select>
+
+          <select
+            value={newReg.category_id}
+            onChange={e => setNewReg(p => ({ ...p, category_id: e.target.value, package_id: '' }))}
+            disabled={!newReg.provider_id}
+            className="w-full px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700 border text-sm outline-none disabled:opacity-50"
+          >
+            <option value="">
+              {newReg.provider_id
+                ? (isSo ? 'Dooro category-ga *' : 'Choose category *')
+                : (isSo ? 'Marka hore shirkad dooro' : 'Choose provider first')}
+            </option>
+            {filteredCategories.map(category => (
+              <option key={category.id} value={category.id}>{category.category_name}</option>
+            ))}
+          </select>
+
+          <select
+            value={newReg.package_id}
+            onChange={e => setNewReg(p => ({ ...p, package_id: e.target.value }))}
+            disabled={!newReg.category_id}
+            className="w-full px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700 border text-sm outline-none disabled:opacity-50"
+          >
+            <option value="">
+              {newReg.category_id
+                ? (isSo ? 'Dooro xirmada *' : 'Choose package *')
+                : (isSo ? 'Marka hore category dooro' : 'Choose category first')}
+            </option>
+            {filteredPackages.map(pkg => (
+              <option key={pkg.id} value={pkg.id}>
+                {pkg.package_name}
+              </option>
             ))}
           </select>
           <button onClick={addReg} className="w-full py-2 bg-green-500 text-white rounded-lg text-sm font-medium active:bg-green-600">
@@ -348,6 +383,7 @@ export const OfflineRegistrationsCustomView = ({ isSo }: { isSo: boolean }) => {
                     { icon: Phone, label: 'Sender', value: `+252${item.sender_phone}`, color: 'text-purple-500' },
                     { icon: Phone, label: 'Receiver', value: `+252${item.receiver_phone}`, color: 'text-green-500' },
                     { icon: Globe, label: 'Provider', value: item.provider_name || '—', color: 'text-blue-500' },
+                    { icon: Package, label: isSo ? 'Xirmo' : 'Package', value: item.package_name || '—', color: 'text-orange-500' },
                     { icon: Calendar, label: isSo ? 'Taariikhda' : 'Date', value: `${formatDate(item.created_at)} ${formatTime(item.created_at)}`, color: 'text-teal-500' },
                     { icon: Power, label: 'Status', value: item.is_active ? 'Active' : 'Inactive', color: item.is_active ? 'text-green-500' : 'text-red-500' },
                   ]} actions={
