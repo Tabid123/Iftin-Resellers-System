@@ -17,7 +17,7 @@ import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
-import { fetchIftinCatalog, mapProviders, resolveTenantId, type IftinCatalog } from '@/lib/iftinCatalog';
+import { fetchIftinCatalog, mapCategories, mapPackages, mapProviders, resolveTenantId, type IftinCatalog } from '@/lib/iftinCatalog';
 import { formatPrefixes, getAllowedPrefixes, matchesAllowedPrefix } from '@/lib/phonePrefixes';
 import {
   deleteOfflineRegistration, listOfflineRegistrations, saveOfflineRegistration,
@@ -51,8 +51,8 @@ const isToday = (iso?: string | null) => {
 
 const INFO_KEY = 'iftin_offline_info_dismissed';
 
-type FormState = { sender: string; receiver: string; providerId: string; notes: string };
-const emptyForm: FormState = { sender: '', receiver: '', providerId: '', notes: '' };
+type FormState = { sender: string; receiver: string; providerId: string; categoryId: string; packageId: string; notes: string };
+const emptyForm: FormState = { sender: '', receiver: '', providerId: '', categoryId: '', packageId: '', notes: '' };
 
 type Row = OfflineRegistration & { __local?: boolean };
 type Tab = 'all' | 'active' | 'inactive' | 'today';
@@ -116,6 +116,22 @@ const IftinOfflineCustomers: React.FC = () => {
     () => providers.find((p) => p.id === form.providerId)?.provider_name ?? null,
     [providers, form.providerId],
   );
+  const categories = useMemo(
+    () => (catalog && form.providerId ? mapCategories(catalog, form.providerId) : []),
+    [catalog, form.providerId],
+  );
+  const packages = useMemo(
+    () => (catalog && form.providerId
+      ? mapPackages(catalog, form.providerId).filter(
+          (pkg) => !form.categoryId || String(pkg.category_id) === String(form.categoryId),
+        )
+      : []),
+    [catalog, form.providerId, form.categoryId],
+  );
+  const selectedPackage = useMemo(
+    () => packages.find((pkg) => pkg.id === form.packageId) ?? null,
+    [packages, form.packageId],
+  );
 
   const receiverPrefixes = getAllowedPrefixes(providerName);
   const senderPrefixes = ['61', '77', '62', '68', '64', '71'];
@@ -125,19 +141,24 @@ const IftinOfflineCustomers: React.FC = () => {
   const canSave =
     form.sender.length === 9 && senderPrefixOk &&
     form.receiver.length === 9 && receiverPrefixOk &&
-    Boolean(form.providerId) && !saving;
+    Boolean(form.providerId) && Boolean(form.categoryId) && Boolean(form.packageId) && !saving;
 
   const openAdd = () => { setEditing(null); setForm(emptyForm); setFormOpen(true); };
 
   const openEdit = (r: Row) => {
     setEditing(r);
+    const providerId =
+      providers.find((p) => p.id === r.provider_id)?.id ??
+      providers.find((p) => p.provider_name?.toLowerCase() === String(r.provider_name ?? '').toLowerCase())?.id ??
+      '';
+    const providerPackages = catalog && providerId ? mapPackages(catalog, providerId) : [];
+    const matchedPackage = providerPackages.find((pkg) => pkg.id === r.package_id) ?? null;
     setForm({
       sender: digits(r.sender_phone),
       receiver: digits(r.receiver_phone),
-      providerId:
-        providers.find((p) => p.id === r.provider_id)?.id ??
-        providers.find((p) => p.provider_name?.toLowerCase() === String(r.provider_name ?? '').toLowerCase())?.id ??
-        '',
+      providerId,
+      categoryId: matchedPackage?.category_id ? String(matchedPackage.category_id) : '',
+      packageId: r.package_id ?? '',
       notes: r.notes ?? '',
     });
     setFormOpen(true);
@@ -153,6 +174,9 @@ const IftinOfflineCustomers: React.FC = () => {
             sender_phone: form.sender,
             receiver_phone: form.receiver,
             provider_name: providerName,
+            provider_id: form.providerId,
+            package_id: form.packageId,
+            package_name: selectedPackage?.package_name ?? null,
           })
           .eq('id', String(editing.id));
         if (upErr) {
@@ -173,6 +197,8 @@ const IftinOfflineCustomers: React.FC = () => {
           sender_phone: form.sender,
           receiver_phone: form.receiver,
           provider_id: form.providerId,
+          package_id: form.packageId,
+          package_name: selectedPackage?.package_name ?? undefined,
           ...(providerName ? { provider_name: providerName } : {}),
           ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
         },
@@ -284,8 +310,8 @@ const IftinOfflineCustomers: React.FC = () => {
           <CardContent className="p-3 flex gap-2">
             <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
             <p className="text-xs leading-relaxed flex-1">
-              Macmiilka lacagta uu ku diro lambarkan, haddii ay dhufaan lacagta, nidaamku si toos ah ayuu u
-              xilminayaa xirmada lagu helo qiimaha lacagta. Adiga waxaad kaliya galisaa lambarka iyo shirkadda.
+              Diiwaangelinta offline-ka hadda waxaad lambarka ku xiri kartaa shirkad, category iyo xirmo gaar ah.
+              Marka lacagtu timaaddo, nidaamku wuxuu isticmaalaa xirmada aad horay ugu xirtay lambarkaas.
             </p>
             <button onClick={dismissInfo} aria-label="Xir" className="text-muted-foreground shrink-0">
               <X className="h-4 w-4" />
@@ -413,6 +439,10 @@ const IftinOfflineCustomers: React.FC = () => {
                             </Badge>
                           </div>
                           <div>
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Xirmo</p>
+                            <p className="text-sm font-medium mt-0.5">{r.package_name || '—'}</p>
+                          </div>
+                          <div>
                             <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Status</p>
                             <Badge
                               className={`rounded-full font-normal mt-0.5 ${
@@ -456,6 +486,7 @@ const IftinOfflineCustomers: React.FC = () => {
                     <th className="text-left font-medium px-4 py-3">Sender</th>
                     <th className="text-left font-medium px-4 py-3">Receiver</th>
                     <th className="text-left font-medium px-4 py-3">Shirkad</th>
+                    <th className="text-left font-medium px-4 py-3">Xirmo</th>
                     <th className="text-left font-medium px-4 py-3">Status</th>
                     <th className="text-left font-medium px-4 py-3">Taarikh</th>
                     <th className="text-right font-medium px-4 py-3">Actions</th>
@@ -473,6 +504,9 @@ const IftinOfflineCustomers: React.FC = () => {
                           <Badge variant="outline" className="rounded-full font-normal">
                             {r.provider_name || '—'}
                           </Badge>
+                        </td>
+                        <td className="px-4 py-3 max-w-[220px]">
+                          <span className="block truncate font-medium">{r.package_name || '—'}</span>
                         </td>
                         <td className="px-4 py-3">
                           <Badge
@@ -514,7 +548,7 @@ const IftinOfflineCustomers: React.FC = () => {
           <DialogHeader>
             <DialogTitle>{editing ? 'Wax ka beddel' : 'Diiwaangeli Cusub'}</DialogTitle>
             <DialogDescription>
-              Xirmada si otomaatig ah baa loo xilmiyaa qiimaha lacagta macmiilku soo diro.
+              Dooro shirkadda, category-ga iyo xirmada gaarka ah ee lambarkan lagu xirayo.
             </DialogDescription>
           </DialogHeader>
 
@@ -559,7 +593,7 @@ const IftinOfflineCustomers: React.FC = () => {
               <Label>Provider</Label>
               <Select
                 value={form.providerId}
-                onValueChange={(v) => setForm((f) => ({ ...f, providerId: v }))}
+                onValueChange={(v) => setForm((f) => ({ ...f, providerId: v, categoryId: '', packageId: '' }))}
               >
                 <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
                 <SelectContent>
@@ -569,8 +603,48 @@ const IftinOfflineCustomers: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
-          </div>
 
+            <div className="space-y-1.5">
+              <Label>Category</Label>
+              <Select
+                value={form.categoryId}
+                onValueChange={(v) => setForm((f) => ({ ...f, categoryId: v, packageId: '' }))}
+                disabled={!form.providerId}
+              >
+                <SelectTrigger><SelectValue placeholder={form.providerId ? "Dooro category..." : "Marka hore provider dooro"} /></SelectTrigger>
+                <SelectContent>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={String(category.id)}>
+                      {category.category_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Package</Label>
+              <Select
+                value={form.packageId}
+                onValueChange={(v) => setForm((f) => ({ ...f, packageId: v }))}
+                disabled={!form.categoryId}
+              >
+                <SelectTrigger><SelectValue placeholder={form.categoryId ? "Dooro xirmo..." : "Marka hore category dooro"} /></SelectTrigger>
+                <SelectContent>
+                  {packages.map((pkg) => (
+                    <SelectItem key={pkg.id} value={pkg.id}>
+                      {pkg.package_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedPackage && (
+                <p className="text-xs text-muted-foreground">
+                  Lambarkan waxaa lagu xirayaa: <span className="font-medium text-foreground">{selectedPackage.package_name}</span>
+                </p>
+              )}
+            </div>
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setFormOpen(false)} disabled={saving}>Cancel</Button>
             <Button onClick={() => void handleSave()} disabled={!canSave}>

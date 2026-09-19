@@ -92,6 +92,8 @@ export const saveOfflineRegistration = createServerFn({ method: 'POST' })
       receiver_phone: string;
       provider_id?: string;
       provider_name?: string;
+      package_id?: string;
+      package_name?: string;
       notes?: string;
     }) => input,
   )
@@ -106,11 +108,17 @@ export const saveOfflineRegistration = createServerFn({ method: 'POST' })
       return { ok: false, status: 400, message: 'Shirkadda lama doortin' };
     }
 
+    const packageId = data.package_id && UUID_RE.test(data.package_id) ? data.package_id : undefined;
+    if (!packageId) {
+      return { ok: false, status: 400, message: 'Xirmada lama dooran' };
+    }
+
     const { status, body } = await callOffline(apiKey, {
       action: 'register',
       sender_phone: sender,
       receiver_phone: receiver,
       ...(providerId ? { provider_id: providerId } : { provider_name: data.provider_name }),
+      package_id: packageId,
       ...(data.notes ? { notes: data.notes } : {}),
     });
     if (status < 200 || status >= 300) {
