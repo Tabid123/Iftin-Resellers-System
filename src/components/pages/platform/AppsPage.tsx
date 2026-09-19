@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Loader2, Trash2, Upload, Smartphone, Eye, EyeOff, Plus } from 'lucide-react'
+import { Loader2, Trash2, Upload, Smartphone, Eye, EyeOff, Plus, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 
 type AppRow = {
@@ -176,6 +176,7 @@ export default function AppsPage() {
   const [shareKey, setShareKey] = useState<string | null>(null)
   const [shareIds, setShareIds] = useState<string[]>([])
   const [sharing, setSharing] = useState(false)
+  const [replacingKey, setReplacingKey] = useState<string | null>(null)
 
   const openShare = (group: AppGroup) => {
     setShareKey(shareKey === group.key ? null : group.key)
@@ -208,6 +209,43 @@ export default function AppsPage() {
       toast.error(err?.message || 'Khalad ayaa dhacay')
     } finally {
       setSharing(false)
+    }
+  }
+
+  const replaceApkOnly = async (group: AppGroup, file: File | null) => {
+    if (!file) return
+    if (group.platform !== 'android') {
+      toast.error('APK beddel waxaa loogu talagalay Android app-ka oo keliya')
+      return
+    }
+
+    setReplacingKey(group.key)
+    try {
+      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const path = `platform/${Date.now()}-${safe}`
+      const { error: uploadError } = await supabase.storage.from('apks').upload(path, file, {
+        upsert: false,
+        contentType: file.type || 'application/vnd.android.package-archive',
+      })
+      if (uploadError) throw uploadError
+
+      const rowIds = group.rows.map((row) => row.id)
+      const { error: updateError } = await db
+        .from('platform_apps')
+        .update({ file_url: path })
+        .in('id', rowIds)
+
+      if (updateError) {
+        await supabase.storage.from('apks').remove([path]).catch(() => undefined)
+        throw updateError
+      }
+
+      toast.success('APK-ga cusub waa la beddelay. Resellers-kii hore sidii ayay u joogaan.')
+      await load()
+    } catch (err: any) {
+      toast.error(err?.message || 'APK-ga lama beddeli karin')
+    } finally {
+      setReplacingKey(null)
     }
   }
 
@@ -348,6 +386,34 @@ export default function AppsPage() {
                     <Plus className="h-4 w-4 mr-1" /> Resellers ku dar
                   </Button>
                 )}
+
+                {group.platform === 'android' && (
+                  <label className="inline-flex">
+                    <input
+                      type="file"
+                      accept=".apk,application/vnd.android.package-archive"
+                      className="hidden"
+                      disabled={replacingKey === group.key}
+                      onChange={(e) => {
+                        const nextFile = e.target.files?.[0] ?? null
+                        void replaceApkOnly(group, nextFile)
+                        e.currentTarget.value = ''
+                      }}
+                    />
+                    <span
+                      className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                      aria-disabled={replacingKey === group.key}
+                    >
+                      {replacingKey === group.key ? (
+                        <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="mr-1 h-4 w-4" />
+                      )}
+                      APK beddel
+                    </span>
+                  </label>
+                )}
+
                 <Button variant="outline" size="sm" onClick={() => toggle(group)}>
                   {group.anyActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
