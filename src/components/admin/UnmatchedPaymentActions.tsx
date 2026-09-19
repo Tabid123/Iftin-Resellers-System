@@ -18,6 +18,7 @@ export const UnmatchedPaymentActions: React.FC<{
 }> = ({ payment, onChanged }) => {
   const [busy, setBusy] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
+  const [registered, setRegistered] = useState(false);
   const [showResend, setShowResend] = useState(false);
   const [receiver, setReceiver] = useState(digits9(payment.sender_phone));
   const [providerName, setProviderName] = useState('');
@@ -31,6 +32,30 @@ export const UnmatchedPaymentActions: React.FC<{
   const [packageId, setPackageId] = useState('');
   const [target, setTarget] = useState(digits9(payment.sender_phone));
   const [confirming, setConfirming] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const sender = digits9(payment.sender_phone);
+    if (!sender) return;
+
+    void supabase
+      .from('offline_registrations')
+      .select('id')
+      .eq('sender_phone', sender)
+      .eq('is_active', true)
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled && data?.id) {
+          setRegistered(true);
+          setShowRegister(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [payment.sender_phone]);
 
   useEffect(() => {
     if (!showRegister && !showResend) return;
@@ -105,8 +130,8 @@ export const UnmatchedPaymentActions: React.FC<{
       });
       if (!res.ok) throw new Error(res.message ?? 'Khalad');
       toast.success('Waa la diiwaan geliyay');
+      setRegistered(true);
       setShowRegister(false);
-      onChanged?.();
     } catch (e: any) {
       toast.error(e?.message ?? 'Diiwaangelintu way fashilantay');
     } finally {
@@ -122,10 +147,12 @@ export const UnmatchedPaymentActions: React.FC<{
           {showResend ? <X className="h-3 w-3" /> : <RotateCcw className="h-3 w-3" />}
           Dib u dir
         </Button>
-        <Button size="sm" variant="secondary" className="h-7 text-[11px] gap-1" disabled={busy} onClick={() => setShowRegister(v => !v)}>
-          {showRegister ? <X className="h-3 w-3" /> : <UserPlus className="h-3 w-3" />}
-          Diiwaan gali
-        </Button>
+        {!registered && (
+          <Button size="sm" variant="secondary" className="h-7 text-[11px] gap-1" disabled={busy} onClick={() => setShowRegister(v => !v)}>
+            {showRegister ? <X className="h-3 w-3" /> : <UserPlus className="h-3 w-3" />}
+            Diiwaan gali
+          </Button>
+        )}
       </div>
 
       {showResend && (
@@ -181,7 +208,7 @@ export const UnmatchedPaymentActions: React.FC<{
         </div>
       )}
 
-      {showRegister && (
+      {showRegister && !registered && (
         <div className="rounded-md border p-2 space-y-2 bg-muted/40">
           <div className="text-[11px] text-muted-foreground">Diraha: {digits9(payment.sender_phone)}</div>
           <Input
