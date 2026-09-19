@@ -1618,42 +1618,110 @@ serve(async (req) => {
       }
     }
 
-    // Find matching package
+    // Tenant-native package binding takes priority. New Offline Reg rows carry
+    // package_id/package_name, so the sender is tied to one exact package.
+    // Legacy rows without package_id keep the old amount-based fallback.
     const price = Number(amount);
     const min = Number((price - 0.005).toFixed(3));
     const max = Number((price + 0.005).toFixed(3));
+    let packages: any[] = [];
 
-    let { data: packages } = await supabase
-      .from('data_packages_config')
-      .select('*')
-      .eq('provider_id', registration.provider_id)
-      .eq('selling_price', price)
-      .eq('is_active', true)
-      .limit(1);
-
-    if (!packages || packages.length === 0) {
-      const { data: secretPackageMatch } = await supabase
+    if (registration.package_id) {
+      const { data: boundPackage, error: boundPackageError } = await supabase
         .from('data_packages_config')
         .select('*')
+        .eq('id', registration.package_id)
         .eq('provider_id', registration.provider_id)
-        .contains('secret_prices', [price])
         .eq('is_active', true)
-        .limit(1)
         .maybeSingle();
-      packages = secretPackageMatch ? [secretPackageMatch] : [];
-      if (secretPackageMatch) console.log('🔒 Offline registration matched package secret price:', price, secretPackageMatch.package_name);
-    }
 
-    if (!packages || packages.length === 0) {
-      const rangeRes = await supabase
+      if (boundPackageError) {
+        console.error('❌ Bound package lookup failed:', boundPackageError);
+      }
+
+      if (!boundPackage) {
+        await supabase.from('payment_receipts').update({
+          status: 'unmatched',
+          admin_notes: `Route: ${route} | Bound package missing/inactive: ${registration.package_id} | SIM: ${resolvedSimNumber}`,
+        }).eq('id', receipt.id);
+
+        return new Response(
+          JSON.stringify({ success: false, message: 'Registered package is no longer available', route }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      const sellingMatches = Math.abs(Number(boundPackage.selling_price || 0) - price) < 0.005;
+      const secretPrices = Array.isArray(boundPackage.secret_prices)
+        ? boundPackage.secret_prices.map((value: any) => Number(value))
+        : [];
+      const secretMatches = secretPrices.some(
+        (value: number) => Number.isFinite(value) && Math.abs(value - price) < 0.005,
+      );
+
+      if (!sellingMatches && !secretMatches) {
+        await supabase.from('payment_receipts').update({
+          status: 'unmatched',
+          admin_notes: `Route: ${route} | Sender is bound to ${boundPackage.package_name} but received $${amount}; expected $${boundPackage.selling_price} | SIM: ${resolvedSimNumber}`,
+        }).eq('id', receipt.id);
+
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message: `Payment amount does not match registered package ${boundPackage.package_name}`,
+            route,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      packages = [boundPackage];
+      console.log(
+        '🔗 Offline registration bound package selected:',
+        registration.sender_phone,
+        '→',
+        boundPackage.package_name,
+      );
+    } else {
+      const directMatch = await supabase
         .from('data_packages_config')
         .select('*')
         .eq('provider_id', registration.provider_id)
+        .eq('selling_price', price)
         .eq('is_active', true)
-        .gte('selling_price', min)
-        .lte('selling_price', max)
-        .order('selling_price', { ascending: true });
-      packages = rangeRes.data ?? [];
+        .limit(1);
+      packages = directMatch.data ?? [];
+
+      if (!packages.length) {
+        const { data: secretPackageMatch } = await supabase
+          .from('data_packages_config')
+          .select('*')
+          .eq('provider_id', registration.provider_id)
+          .contains('secret_prices', [price])
+          .eq('is_active', true)
+          .limit(1)
+          .maybeSingle();
+        packages = secretPackageMatch ? [secretPackageMatch] : [];
+        if (secretPackageMatch) {
+          console.log(
+            '🔒 Legacy offline registration matched package secret price:',
+            price,
+            secretPackageMatch.package_name,
+          );
+        }
+      }
+
+      if (!packages.length) {
+        const rangeRes = await supabase
+          .from('data_packages_config')
+          .select('*')
+          .eq('provider_id', registration.provider_id)
+          .eq('is_active', true)
+          .gte('selling_price', min)
+          .lte('selling_price', max)
+          .order('selling_price', { ascending: true });
+        packages = rangeRes.data ?? [];
+      }
     }
 
     if (!packages || packages.length === 0) {
@@ -1665,21 +1733,21 @@ serve(async (req) => {
         .eq('is_active', true)
         .neq('provider_id', registration.provider_id)
         .limit(3);
-      
+
       if (otherPkgs && otherPkgs.length > 0) {
         const otherProviders = [...new Set(otherPkgs.map((p: any) => p.providers_config?.provider_name))].join(', ');
         const pkgNames = otherPkgs.map((p: any) => p.package_name).join(', ');
         crossProviderHint = ` | ⚠️ waa xirmo ${otherProviders} ah (${pkgNames})`;
       }
-      
-      await supabase.from('payment_receipts').update({ 
+
+      await supabase.from('payment_receipts').update({
         status: 'unmatched',
-        admin_notes: `Route: ${route} | No package for $${amount} on ${registration.provider_name}${crossProviderHint} | SIM: ${resolvedSimNumber}`
+        admin_notes: `Route: ${route} | No package for $${amount} on ${registration.provider_name}${crossProviderHint} | SIM: ${resolvedSimNumber}`,
       }).eq('id', receipt.id);
 
       return new Response(
         JSON.stringify({ success: false, message: `No package available for $${amount}`, route }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
@@ -1798,7 +1866,7 @@ serve(async (req) => {
     }
 
     await supabase.from('payment_receipts').update({
-      status: 'matched', matched_order_id: order.id, matching_strategy: 'offline_auto',
+      status: 'matched', matched_order_id: order.id, matching_strategy: registration.package_id ? 'offline_bound_package' : 'offline_auto',
       processed_at: new Date().toISOString(),
       admin_notes: `Route: ${route} | ${selectedPackage.package_name} for ${registration.receiver_phone} | SIM: ${resolvedSimNumber}`
     }).eq('id', receipt.id);
