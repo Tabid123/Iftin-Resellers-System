@@ -332,7 +332,11 @@ new_offline = """    let { data: packages } = await supabase
     if (!packages || packages.length === 0) {
       const rangeRes = await supabase
 """
-edge = replace_once(edge, old_offline, new_offline, 'process-payment offline secret')
+if 'Tenant-native package binding takes priority' in edge:
+    if ".contains('secret_prices', [price])" not in edge:
+        raise SystemExit('process-payment offline tenant-native path is missing secret-price support')
+else:
+    edge = replace_once(edge, old_offline, new_offline, 'process-payment offline secret')
 
 edge_path.write_text(edge)
 
