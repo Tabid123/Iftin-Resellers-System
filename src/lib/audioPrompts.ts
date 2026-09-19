@@ -33,7 +33,7 @@ function configureAudio(audio: HTMLAudioElement, src: string) {
   audio.preload = 'auto';
   audio.volume = 1;
   audio.muted = false;
-  audio.playsInline = true;
+  audio.setAttribute('playsinline', 'true');
   audio.src = src;
   audio.load();
 }
