@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Loader2, Trash2, Upload, Smartphone, Eye, EyeOff, Plus, RefreshCw } from 'lucide-react'
+import { Loader2, Trash2, Upload, Smartphone, Eye, EyeOff, Plus, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 type AppRow = {
@@ -19,6 +19,7 @@ type AppRow = {
   display_order: number
   tenant_id: string | null
   created_at: string
+  apk_updated_at?: string | null
 }
 
 type TenantRow = { id: string; name: string }
@@ -115,6 +116,7 @@ export default function AppsPage() {
     file_url: string
     isAllTenants: boolean
     anyActive: boolean
+    apk_updated_at: string | null
   }
 
   const groups: AppGroup[] = (() => {
@@ -126,6 +128,7 @@ export default function AppsPage() {
         g.rows.push(app)
         g.isAllTenants = g.isAllTenants || app.tenant_id === null
         g.anyActive = g.anyActive || app.is_active
+        if (app.apk_updated_at && (!g.apk_updated_at || app.apk_updated_at > g.apk_updated_at)) g.apk_updated_at = app.apk_updated_at
       } else {
         map.set(key, {
           key,
@@ -137,6 +140,7 @@ export default function AppsPage() {
           file_url: app.file_url,
           isAllTenants: app.tenant_id === null,
           anyActive: app.is_active,
+          apk_updated_at: app.apk_updated_at ?? null,
         })
       }
     }
@@ -178,6 +182,7 @@ export default function AppsPage() {
   const [shareIds, setShareIds] = useState<string[]>([])
   const [sharing, setSharing] = useState(false)
   const [replacingKey, setReplacingKey] = useState<string | null>(null)
+  const [recentlyReplacedKey, setRecentlyReplacedKey] = useState<string | null>(null)
 
   const openShare = (group: AppGroup) => {
     setShareKey(shareKey === group.key ? null : group.key)
@@ -242,9 +247,10 @@ export default function AppsPage() {
       if (uploadResult.error) throw uploadResult.error
 
       const rowIds = group.rows.map((row) => row.id)
+      const replacedAt = new Date().toISOString()
       const { error: updateError } = await db
         .from('platform_apps')
-        .update({ file_url: path })
+        .update({ file_url: path, apk_updated_at: replacedAt })
         .in('id', rowIds)
 
       if (updateError) {
@@ -252,8 +258,10 @@ export default function AppsPage() {
         throw updateError
       }
 
+      setRecentlyReplacedKey(group.key)
       toast.success('APK-ga cusub waa la beddelay. Resellers-kii hore sidii ayay u joogaan.')
       await load()
+      window.setTimeout(() => setRecentlyReplacedKey((key) => key === group.key ? null : key), 3500)
     } catch (err: any) {
       toast.error(err?.message || 'APK-ga lama beddeli karin')
     } finally {
@@ -364,6 +372,11 @@ export default function AppsPage() {
                     {group.platform}
                     {group.anyActive ? '' : ' · qarsoon'}
                   </div>
+                  {group.apk_updated_at && (
+                    <div className="mt-1 text-[11px] font-medium text-emerald-700">
+                      APK la beddelay: {new Date(group.rows[0].apk_updated_at).toLocaleString()}
+                    </div>
+                  )}
                   {!group.isAllTenants && (
                     <div className="flex flex-wrap gap-1 mt-1">
                       {group.rows
@@ -417,11 +430,21 @@ export default function AppsPage() {
                       aria-disabled={replacingKey === group.key}
                     >
                       {replacingKey === group.key ? (
-                        <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                        <>
+                          <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                          Waa la rarayaa...
+                        </>
+                      ) : recentlyReplacedKey === group.key ? (
+                        <>
+                          <CheckCircle2 className="mr-1 h-4 w-4 text-emerald-600" />
+                          APK waa la beddelay
+                        </>
                       ) : (
-                        <RefreshCw className="mr-1 h-4 w-4" />
+                        <>
+                          <Upload className="mr-1 h-4 w-4" />
+                          APK beddel
+                        </>
                       )}
-                      APK beddel
                     </span>
                   </label>
                 )}
