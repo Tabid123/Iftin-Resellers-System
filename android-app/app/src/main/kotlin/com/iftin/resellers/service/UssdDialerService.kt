@@ -1264,8 +1264,6 @@ class UssdDialerService : Service() {
         } ?: return false
 
         isProcessingOrder = true
-        processingStartedAt = System.currentTimeMillis()
-
         try {
             android.util.Log.d("UssdDialer", "🔎 [Discovery] Job ${job.id} phone=${job.phoneNumber} menu1=${job.menu1Label}")
 
@@ -1372,7 +1370,6 @@ class UssdDialerService : Service() {
             return true
         } finally {
             isProcessingOrder = false
-            processingStartedAt = 0L
             lastOrderCompletedAt = System.currentTimeMillis()
         }
     }
