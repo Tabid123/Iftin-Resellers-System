@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
 import com.iftin.resellers.api.DeliveryApiClient
+import com.iftin.resellers.service.UssdDialerService
 import kotlinx.coroutines.*
 
 /**
@@ -83,6 +84,19 @@ class HeartbeatAlarmReceiver : BroadcastReceiver() {
         if (intent.action != ACTION_HEARTBEAT) return
 
         android.util.Log.d("HeartbeatAlarm", "💓 Heartbeat alarm fired — sending ping")
+
+        // Self-heal the foreground delivery worker before pinging. If Samsung/OEM
+        // killed the service, this restarts the 600ms discovery polling loop.
+        try {
+            val serviceIntent = Intent(context, UssdDialerService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(serviceIntent)
+            } else {
+                context.startService(serviceIntent)
+            }
+        } catch (e: Throwable) {
+            android.util.Log.e("HeartbeatAlarm", "❌ Could not revive delivery service: ${e.message}")
+        }
 
         // Acquire a short wake lock to ensure the ping completes
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
