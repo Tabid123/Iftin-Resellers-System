@@ -13,14 +13,14 @@ import com.iftin.resellers.service.UssdDialerService
 import kotlinx.coroutines.*
 
 /**
- * HeartbeatAlarmReceiver — Sends a ping to the server every 5 minutes using AlarmManager
+ * HeartbeatAlarmReceiver — Sends a ping/self-heal check to the server every 1 minute using AlarmManager
  * exact alarms. This survives Doze mode (setExactAndAllowWhileIdle) ensuring the device
  * never appears offline when the screen is locked.
  */
 class HeartbeatAlarmReceiver : BroadcastReceiver() {
 
     companion object {
-        private const val HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000L // 5 minutes
+        private const val HEARTBEAT_INTERVAL_MS = 60 * 1000L // 1 minute self-heal heartbeat
         private const val ACTION_HEARTBEAT = "com.iftin.resellers.HEARTBEAT_PING"
 
         /**
@@ -54,7 +54,7 @@ class HeartbeatAlarmReceiver : BroadcastReceiver() {
                     AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent
                 )
             }
-            android.util.Log.d("HeartbeatAlarm", "⏰ Next heartbeat scheduled in 5 minutes (exact=$canExact)")
+            android.util.Log.d("HeartbeatAlarm", "⏰ Next heartbeat scheduled in 1 minute (exact=$canExact)")
           } catch (e: Throwable) {
             android.util.Log.e("HeartbeatAlarm", "❌ Failed to schedule heartbeat: ${e.message}")
           }
