@@ -489,6 +489,7 @@ class DeliveryApiClient {
 
     /** Dhameystir baarista: keydi menu-ga la helay + walxaha (complete_discovery RPC). */
     suspend fun completeDiscovery(
+        deviceId: String,
         id: String,
         rawMenu: String?,
         items: List<Pair<Int, String>>,
@@ -504,6 +505,7 @@ class DeliveryApiClient {
                 })
             }
             val body = JSONObject().apply {
+                put("p_device_id", deviceId)
                 put("p_id", id)
                 put("p_raw_menu", rawMenu ?: "")
                 put("p_items", itemsArray)
@@ -580,10 +582,11 @@ class DeliveryApiClient {
     }
 
     /** Sheeg natiijada dirista ee session-ka furan (complete_discovery_selection RPC). */
-    suspend fun completeDiscoverySelection(id: String, success: Boolean, response: String?): Boolean =
+    suspend fun completeDiscoverySelection(deviceId: String, id: String, success: Boolean, response: String?): Boolean =
         withContext(Dispatchers.IO) {
             try {
                 val body = JSONObject().apply {
+                    put("p_device_id", deviceId)
                     put("p_id", id)
                     put("p_success", success)
                     if (response != null) put("p_response", response) else put("p_response", JSONObject.NULL)
@@ -602,9 +605,12 @@ class DeliveryApiClient {
         }
 
     /** Session-ka waa dhacay — server-ku dib-u-garaacis ayuu abuurayaa (discovery_session_lost). */
-    suspend fun discoverySessionLost(id: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun discoverySessionLost(deviceId: String, id: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            val body = JSONObject().apply { put("p_id", id) }
+            val body = JSONObject().apply {
+                put("p_device_id", deviceId)
+                put("p_id", id)
+            }
             val request = Request.Builder()
                 .url("$supabaseRestUrl/rpc/discovery_session_lost")
                 .addHeader("apikey", anonKey)
