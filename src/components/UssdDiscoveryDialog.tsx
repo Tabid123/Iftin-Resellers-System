@@ -79,7 +79,7 @@ export default function UssdDiscoveryDialog({ open, rootPackage, providerName, o
       } else {
         setMessage('Sug… xirmooyinka ayaa laga soo akhrinayaa shabakadda.');
       }
-      pollRef.current = window.setTimeout(() => void poll(id), 1200);
+      pollRef.current = window.setTimeout(() => void poll(id), 350);
     } catch (error: any) {
       setStatus('failed');
       setMessage(error?.message || 'Raadinta xirmooyinka way fashilantay.');
@@ -117,8 +117,10 @@ export default function UssdDiscoveryDialog({ open, rootPackage, providerName, o
 
   const close = async () => {
     stopPolling();
-    if (discoveryId && status === 'done') {
-      // Release a held carrier dialog when the customer explicitly abandons it.
+    setPackages([]);
+    if (discoveryId) {
+      // Cancel/release the current discovery regardless of whether it is queued,
+      // processing or already holding a carrier session.
       void (supabase as any).rpc('release_discovery_session', { p_id: discoveryId });
     }
     onClose();
