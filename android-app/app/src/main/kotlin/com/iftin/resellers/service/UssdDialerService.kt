@@ -61,6 +61,7 @@ class UssdDialerService : Service() {
     private val httpClient = DeliveryApiClient.sharedHttpClient
     
     private var serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private var discoveryPollingJob: Job? = null
     private lateinit var wakeLock: PowerManager.WakeLock
     private lateinit var wifiLock: WifiManager.WifiLock
     private lateinit var apiClient: DeliveryApiClient
@@ -275,7 +276,10 @@ class UssdDialerService : Service() {
         if (!isRunning) {
             isRunning = true
             startPolling()
-        } else if (intent?.getBooleanExtra("TRIGGER_IMMEDIATE_POLL", false) == true) {
+        } else {
+            ensureDiscoveryPollingLoop()
+        }
+        if (intent?.getBooleanExtra("TRIGGER_IMMEDIATE_POLL", false) == true) {
             // Force immediate poll even if already running (triggered by SMS payment)
             serviceScope.launch {
                 pollPendingOrders()
@@ -300,11 +304,29 @@ class UssdDialerService : Service() {
         return interval + (Random().nextDouble() * JITTER_MAX_MS).toLong()
     }
 
+    private fun ensureDiscoveryPollingLoop() {
+        if (discoveryPollingJob?.isActive == true) return
+        discoveryPollingJob = serviceScope.launch {
+            android.util.Log.d("UssdDialer", "🔎 Discovery loop started/recovered")
+            while (isRunning && isActive) {
+                var claimed = false
+                try {
+                    claimed = pollDiscoveryJobs()
+                } catch (e: Exception) {
+                    android.util.Log.e("UssdDialer", "❌ Discovery loop: ${e.message}")
+                }
+                delay(if (claimed) 300L else 600L)
+            }
+        }
+    }
+
     private fun startPolling() {
         // Main order polling loop with dynamic interval + jitter
         serviceScope.launch {
             while (isRunning) {
                 try {
+                    ensureDiscoveryPollingLoop()
+
                     // Wake lock renewal: every 12 hours, release and re-acquire to prevent expiry
                     if (System.currentTimeMillis() - lastWakeLockRenewal > 12 * 60 * 60 * 1000L) {
                         try {
@@ -356,18 +378,8 @@ class UssdDialerService : Service() {
             }
         }
         
-        // DISCOVERY POLLING (*212*) — loop degdeg ah (600ms) si user-ku uusan u sugin
-        serviceScope.launch {
-            while (isRunning) {
-                var claimed = false
-                try {
-                    claimed = pollDiscoveryJobs()
-                } catch (e: Exception) {
-                    android.util.Log.e("UssdDialer", "❌ Discovery loop: ${e.message}")
-                }
-                delay(if (claimed) 300L else 600L)
-            }
-        }
+        // DISCOVERY POLLING (*212*) — self-healing 600ms loop.
+        ensureDiscoveryPollingLoop()
 
 
         // SMS INBOX POLLING - runs every 5 seconds, 24/7
@@ -2613,8 +2625,12 @@ class UssdDialerService : Service() {
             if (::wifiLock.isInitialized && wifiLock.isHeld) wifiLock.release()
         } catch (e: Exception) { }
         
-        // DON'T release wake lock here! Keep CPU active during restart
-        // DON'T cancel serviceScope or set isRunning = false!
+        // Reset worker state before restart so the new Service instance always
+        // starts fresh polling loops instead of inheriting a "running" flag with dead jobs.
+        isRunning = false
+        discoveryPollingJob?.cancel()
+        discoveryPollingJob = null
+        serviceScope.cancel()
         
         // Immediately restart service to keep it running
         val restartIntent = Intent(applicationContext, UssdDialerService::class.java)
