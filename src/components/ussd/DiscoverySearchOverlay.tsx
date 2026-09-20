@@ -50,6 +50,12 @@ export default function DiscoverySearchOverlay({ open, rootPackageId, receiverPh
     return () => window.clearInterval(id);
   }, [state, secondsLeft]);
 
+  useEffect(() => {
+    if (state === 'results' && secondsLeft <= 0) {
+      setItems([]);
+    }
+  }, [state, secondsLeft]);
+
   const poll = async (id: string) => {
     try {
       const { data, error: rpcError } = await (supabase as any).rpc('get_package_discovery', { p_id: id });
@@ -73,7 +79,7 @@ export default function DiscoverySearchOverlay({ open, rootPackageId, receiverPh
       } else {
         setState('searching');
       }
-      pollRef.current = window.setTimeout(() => void poll(id), 1500);
+      pollRef.current = window.setTimeout(() => void poll(id), 350);
     } catch (e: any) {
       setState('failed');
       setError(e?.message || 'Raadinta xirmooyinka way fashilantay.');
@@ -115,7 +121,8 @@ export default function DiscoverySearchOverlay({ open, rootPackageId, receiverPh
   const expired = state === 'results' && secondsLeft <= 0;
   const cancel = () => {
     stopPolling();
-    if (discoveryId && state === 'results') {
+    setItems([]);
+    if (discoveryId) {
       void (supabase as any).rpc('release_discovery_session', { p_id: discoveryId });
     }
     onCancel();
