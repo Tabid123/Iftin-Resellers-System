@@ -1324,12 +1324,12 @@ class UssdDialerService : Service() {
                 Ussd870Flow.clearDiscovery(this)
                 val reason = if (!dialed) "USSD lama wacin" else "Menu lama helin"
                 android.util.Log.w("UssdDialer", "⚠️ [Discovery] Failed: $reason")
-                apiClient.completeDiscovery(job.id, null, emptyList(), reason)
+                apiClient.completeDiscovery(deviceId, job.id, null, emptyList(), reason)
             } else {
                 val items = Ussd870Flow.parseMenuItems(menuText)
                 android.util.Log.d("UssdDialer", "✅ [Discovery] ${items.size} xirmo la helay — server loo dirayaa isla markiiba")
                 if (items.isEmpty()) {
-                    apiClient.completeDiscovery(job.id, menuText, emptyList(), "Xirmooyin lama akhrin")
+                    apiClient.completeDiscovery(deviceId, job.id, menuText, emptyList(), "Xirmooyin lama akhrin")
                     Ussd870Flow.deactivate(this)
                     UssdAccessibilityService.closeUssdSession()
                     delay(1500)
@@ -1340,7 +1340,7 @@ class UssdDialerService : Service() {
                     var uploaded = false
                     repeat(3) { attempt ->
                         if (!uploaded) {
-                            uploaded = apiClient.completeDiscovery(job.id, menuText, items, null, holdSession = true)
+                            uploaded = apiClient.completeDiscovery(deviceId, job.id, menuText, items, null, holdSession = true)
                             if (!uploaded) {
                                 android.util.Log.w("UssdDialer", "⚠️ [Discovery] Menu upload failed; retry ${attempt + 1}/3")
                                 delay(300)
@@ -1350,7 +1350,7 @@ class UssdDialerService : Service() {
                     if (!uploaded) {
                         android.util.Log.e("UssdDialer", "❌ [Discovery] Menu server-ka ma gaarin; session waa la xirayaa")
                         closeHeldSession()
-                        try { apiClient.completeDiscovery(job.id, null, emptyList(), "Menu server-ka ma gaarin") } catch (_: Exception) {}
+                        try { apiClient.completeDiscovery(deviceId, job.id, null, emptyList(), "Menu server-ka ma gaarin") } catch (_: Exception) {}
                     } else {
                         android.util.Log.d("UssdDialer", "✅ [Discovery] Menu server-ku xaqiijiyay — xulasho la sugayo")
                         holdSessionUntilSelection(job.id, prefix, job.phoneNumber, menuText, job.menu1Label)
@@ -1365,7 +1365,7 @@ class UssdDialerService : Service() {
             Ussd870Flow.deactivate(this)
             Ussd870Flow.clearDiscovery(this)
             try {
-                apiClient.completeDiscovery(job.id, null, emptyList(), e.message ?: "Cilad")
+                apiClient.completeDiscovery(deviceId, job.id, null, emptyList(), e.message ?: "Cilad")
             } catch (_: Exception) {}
             return true
         } finally {
@@ -1437,7 +1437,7 @@ class UssdDialerService : Service() {
             if (selection == null) {
                 android.util.Log.w("UssdDialer", "⚠️ [Hold] Xulasho lama helin — session waa la xirayaa")
                 closeHeldSession()
-                try { apiClient.discoverySessionLost(discoveryId) } catch (_: Exception) {}
+                try { apiClient.discoverySessionLost(deviceId, discoveryId) } catch (_: Exception) {}
                 return
             }
 
@@ -1453,7 +1453,7 @@ class UssdDialerService : Service() {
                     "❌ [Hold] Xirmada '${selection.label}' menu-ga tooska ah kuma jirto — dirista waa la joojiyay"
                 )
                 closeHeldSession()
-                try { apiClient.completeDiscoverySelection(selection.id, false, "Xirmadu menu-ga kuma jirto (menu changed)") } catch (_: Exception) {}
+                try { apiClient.completeDiscoverySelection(deviceId, selection.id, false, "Xirmadu menu-ga kuma jirto (menu changed)") } catch (_: Exception) {}
                 return
             }
 
@@ -1488,7 +1488,7 @@ class UssdDialerService : Service() {
                 !lower.contains("invalid") && !lower.contains("khalad")
 
             try {
-                apiClient.completeDiscoverySelection(selection.id, success, result)
+                apiClient.completeDiscoverySelection(deviceId, selection.id, success, result)
             } catch (_: Exception) {}
 
             if (!success) {
