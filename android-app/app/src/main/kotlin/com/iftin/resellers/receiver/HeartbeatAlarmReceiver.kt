@@ -8,7 +8,8 @@ import android.content.Intent
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
-import com.iftin.resellers.api.DeliveryApiClient\nimport com.iftin.resellers.service.UssdDialerService
+import com.iftin.resellers.api.DeliveryApiClient
+import com.iftin.resellers.service.UssdDialerService
 import kotlinx.coroutines.*
 
 /**
