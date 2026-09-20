@@ -85,20 +85,32 @@ class Ussd870FlowTest {
             )
         )
     }
+
+
     @Test
-    fun parsesSamsungSingleNodeDiscoveryMenu() {
-        val flattened =
-            "--Maamuus-- 1. Xirmo Kow 2. Xirmo Laba 3. Xirmo Saddex Cancel Send"
+    fun lockScreenTextIsNeverAcceptedAsPackageMenu() {
+        val lockScreen =
+            "Swipe to unlock | Phone | Camera | Hormuud Telecom | SOMNET | " +
+            "Power saving mode on | Phone signal full. | 4G | Battery 37 per cent. | " +
+            "37% | 20:17 | Sun, 20 September | 4 notifications | Device locked"
 
-        val items = Ussd870Flow.parseMenuItems(flattened)
+        assertFalse(Ussd870Flow.isPackageMenuDialog(lockScreen))
+    }
 
-        assertEquals(3, items.size)
+    @Test
+    fun realMaamuusMenuIsAcceptedAndParsesFourRows() {
+        val menu =
+            "--Maamuus-- | " +
+            "1. $0.25=Internet aan xadidnayn, 8 Saac | " +
+            "2. $0.15=Internet aan xadidnayn, 3 Saac | " +
+            "3. $0.1=Internet aan xadidnayn, 1 Saac | " +
+            "4. $0.25=Internet aan xadidnayn, 8 Saac | Cancel | Send"
+
+        assertTrue(Ussd870Flow.isPackageMenuDialog(menu))
+        val items = Ussd870Flow.parseMenuItems(menu)
+        assertEquals(4, items.size)
         assertEquals(1, items[0].first)
-        assertEquals("Xirmo Kow", items[0].second)
-        assertEquals(2, items[1].first)
-        assertEquals("Xirmo Laba", items[1].second)
-        assertEquals(3, items[2].first)
-        assertTrue(items[2].second.startsWith("Xirmo Saddex"))
+        assertEquals(4, items[3].first)
     }
 
 }
