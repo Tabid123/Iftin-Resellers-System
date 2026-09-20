@@ -156,9 +156,15 @@ object Ussd870Flow {
      */
     fun parseMenuItems(dialogText: String?): List<Pair<Int, String>> {
         if (dialogText.isNullOrBlank()) return emptyList()
-        val normalized = dialogText.replace(Regex("""\s+\|\s+"""), "\n")
-        val lineRegex = Regex("""^\s*(\d+)\s*(?:[\.\)\-:]\s*|\s+)(.+)$""")
+
+        val normalized = dialogText
+            .replace(Regex("""\s+\|\s+"""), "\n")
+            .replace("\r", "\n")
+
         val out = LinkedHashMap<Int, String>()
+
+        // Normal case: one numbered package per line.
+        val lineRegex = Regex("""^\s*(\d+)\s*(?:[\.\)\-:]\s*|\s+)(.+)$""")
         for (raw in normalized.split('\n')) {
             val m = lineRegex.matchEntire(raw.trim()) ?: continue
             val num = m.groupValues[1].toIntOrNull() ?: continue
@@ -166,6 +172,23 @@ object Ussd870Flow {
             if (label.length < 2) continue
             out.putIfAbsent(num, label)
         }
+
+        // Samsung/OEM fallback: the complete USSD menu may be exposed as one
+        // accessibility text node: "1. Xirmo A 2. Xirmo B 3. Xirmo C".
+        if (out.size < 2) {
+            val flatRegex = Regex(
+                """(?:^|\s)(\d+)\s*[\.\)\-:]\s*(.+?)(?=(?:\s+\d+\s*[\.\)\-:]\s*)|$)"""
+            )
+            for (m in flatRegex.findAll(normalized.replace('\n', ' '))) {
+                val num = m.groupValues[1].toIntOrNull() ?: continue
+                val label = m.groupValues[2]
+                    .replace(Regex("""\s+"""), " ")
+                    .trim()
+                if (label.length < 2) continue
+                out.putIfAbsent(num, label)
+            }
+        }
+
         return out.entries.map { it.key to it.value }
     }
 
@@ -487,6 +510,25 @@ object Ussd870Flow {
         val rowCount = countNumberedRows(dialogText)
         if (rowCount >= 2) return true
         return Regex("""(?:^|\s)\d+\s*[\.)\-:]\s*\$?\s*\d""")
+            .findAll(dialogText)
+            .count() >= 2
+    }
+
+    /**
+     * Discovery-ga *212*: marka Menu 1 hore loo gudbay, menu kasta oo leh 2+ safaf
+     * numbered ah waa package menu ansax ah. Tani waxay qabataa Samsung/OEM-yada
+     * carrier-ku qoraalka package-ka u soo bandhigo erayo aan lahayn $, saac,
+     * unlimited, MB/GB ama "bundle".
+     */
+    fun isDiscoveryPackageMenuDialog(context: Context, dialogText: String?): Boolean {
+        if (dialogText.isNullOrBlank() || !isDiscoveryMode(context)) return false
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val menu1Order = STEPS.firstOrNull { it.name == "menu_data" }?.order ?: 2
+        if (menu1Order !in completedSteps(prefs)) return false
+
+        if (countNumberedRows(dialogText) >= 2) return true
+
+        return Regex("""(?:^|\s)(\d+)\s*[\.\)\-:]\s*(.+?)(?=(?:\s+\d+\s*[\.\)\-:]\s*)|$)""")
             .findAll(dialogText)
             .count() >= 2
     }

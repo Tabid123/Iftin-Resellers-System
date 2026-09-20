@@ -319,7 +319,10 @@ class UssdAccessibilityService : AccessibilityService() {
             
             if (Ussd870Flow.isDiscoveryMode(this) &&
                 !dialogText.isNullOrBlank() &&
-                Ussd870Flow.isPackageMenuDialog(dialogText)
+                (
+                    Ussd870Flow.isPackageMenuDialog(dialogText) ||
+                    Ussd870Flow.isDiscoveryPackageMenuDialog(this, dialogText)
+                )
             ) {
                 Log.d(TAG, "🔎 [Discovery] Package menu captured: ${dialogText.take(200)}")
                 Ussd870Flow.saveDiscoveryMenu(this, dialogText)
@@ -728,7 +731,13 @@ class UssdAccessibilityService : AccessibilityService() {
 
             for (root in roots) {
                 val text = extractDialogText(root).orEmpty()
-                if (!isKeyboardRoot(root, text) && Ussd870Flow.isPackageMenuDialog(text)) {
+                if (
+                    !isKeyboardRoot(root, text) &&
+                    (
+                        Ussd870Flow.isPackageMenuDialog(text) ||
+                        Ussd870Flow.isDiscoveryPackageMenuDialog(this, text)
+                    )
+                ) {
                     saveUssdResponse(text)
                     return text
                 }
@@ -749,7 +758,10 @@ class UssdAccessibilityService : AccessibilityService() {
 
         if (Ussd870Flow.isUssdDialogText(text)) score += 500
         if (isTerminalResultRoot(root, text)) score += 800
-        if (Ussd870Flow.isPackageMenuDialog(text)) score += 300
+        if (
+            Ussd870Flow.isPackageMenuDialog(text) ||
+            Ussd870Flow.isDiscoveryPackageMenuDialog(this, text)
+        ) score += 300
 
         if (lower.contains("mudnaan")) score += 140
         if (lower.contains("pin") || lower.contains("password") || lower.contains("furaha")) score += 130
@@ -855,7 +867,10 @@ class UssdAccessibilityService : AccessibilityService() {
         val lower = text.lowercase()
         if (lower.contains("notification:") || lower.contains("notification,") ||
             lower.contains(", folder") || lower.contains("play store")) return false
-        if (Ussd870Flow.isPackageMenuDialog(text)) return false
+        if (
+            Ussd870Flow.isPackageMenuDialog(text) ||
+            Ussd870Flow.isDiscoveryPackageMenuDialog(this, text)
+        ) return false
         if (!hasTerminalResultButton(root)) return false
 
         if (Ussd870Flow.isActive(this)) {
