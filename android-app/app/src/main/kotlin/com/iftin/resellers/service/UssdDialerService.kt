@@ -272,13 +272,30 @@ class UssdDialerService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val triggerImmediatePoll = intent?.getBooleanExtra("TRIGGER_IMMEDIATE_POLL", false) == true
+        val triggerDiscoveryPoll = intent?.getBooleanExtra("TRIGGER_DISCOVERY_POLL", false) == true
+
         if (!isRunning) {
             isRunning = true
             startPolling()
-        } else if (intent?.getBooleanExtra("TRIGGER_IMMEDIATE_POLL", false) == true) {
-            // Force immediate poll even if already running (triggered by SMS payment)
+        }
+
+        if (triggerImmediatePoll || triggerDiscoveryPoll) {
             serviceScope.launch {
-                pollPendingOrders()
+                if (triggerDiscoveryPoll) {
+                    try {
+                        pollDiscoveryJobs()
+                    } catch (error: Exception) {
+                        android.util.Log.e("UssdDialer", "Immediate discovery poll failed: " + error.message)
+                    }
+                }
+                if (triggerImmediatePoll) {
+                    try {
+                        pollPendingOrders()
+                    } catch (error: Exception) {
+                        android.util.Log.e("UssdDialer", "Immediate order poll failed: " + error.message)
+                    }
+                }
             }
         }
         return START_STICKY
