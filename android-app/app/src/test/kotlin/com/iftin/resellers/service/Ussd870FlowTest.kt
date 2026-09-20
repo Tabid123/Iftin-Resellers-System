@@ -85,4 +85,20 @@ class Ussd870FlowTest {
             )
         )
     }
+    @Test
+    fun parsesSamsungSingleNodeDiscoveryMenu() {
+        val flattened =
+            "--Maamuus-- 1. Xirmo Kow 2. Xirmo Laba 3. Xirmo Saddex Cancel Send"
+
+        val items = Ussd870Flow.parseMenuItems(flattened)
+
+        assertEquals(3, items.size)
+        assertEquals(1, items[0].first)
+        assertEquals("Xirmo Kow", items[0].second)
+        assertEquals(2, items[1].first)
+        assertEquals("Xirmo Laba", items[1].second)
+        assertEquals(3, items[2].first)
+        assertTrue(items[2].second.startsWith("Xirmo Saddex"))
+    }
+
 }
