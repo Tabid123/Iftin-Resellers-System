@@ -118,9 +118,9 @@ export default function UssdDiscoveryDialog({ open, rootPackage, providerName, o
   const close = async () => {
     stopPolling();
     setPackages([]);
-    if (discoveryId) {
-      // Cancel/release the current discovery regardless of whether it is queued,
-      // processing or already holding a carrier session.
+    // Riyokaab behavior: searching request-ka ha sii socdo.
+    // Kaliya result/session la helay marka laga baxo ayaan release-gareynaa.
+    if (discoveryId && status === 'done') {
       void (supabase as any).rpc('release_discovery_session', { p_id: discoveryId });
     }
     onClose();
