@@ -122,7 +122,10 @@ export default function DiscoverySearchOverlay({ open, rootPackageId, receiverPh
   const cancel = () => {
     stopPolling();
     setItems([]);
-    if (discoveryId) {
+    // Riyokaab behavior:
+    // - searching/queue: UI-ga ka bax oo keliya; request-ka socda ha sii socdo
+    // - results: session/result-ka xoree si open-ka xiga baaritaan cusub u sameeyo
+    if (discoveryId && state === 'results') {
       void (supabase as any).rpc('release_discovery_session', { p_id: discoveryId });
     }
     onCancel();
