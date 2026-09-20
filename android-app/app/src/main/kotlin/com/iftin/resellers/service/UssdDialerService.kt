@@ -1300,7 +1300,13 @@ class UssdDialerService : Service() {
                 menuText = Ussd870Flow.consumeDiscoveryMenu(this)
                 if (menuText.isNullOrBlank()) {
                     val last = ussdPrefs.getString(UssdAccessibilityService.KEY_LAST_USSD_RESPONSE, null)
-                    if (!last.isNullOrBlank() && Ussd870Flow.isPackageMenuDialog(last)) {
+                    if (
+                        !last.isNullOrBlank() &&
+                        (
+                            Ussd870Flow.isPackageMenuDialog(last) ||
+                            Ussd870Flow.isDiscoveryPackageMenuDialog(this, last)
+                        )
+                    ) {
                         android.util.Log.d("UssdDialer", "🔎 [Discovery] Menu laga helay last-response fallback")
                         menuText = last
                     }
