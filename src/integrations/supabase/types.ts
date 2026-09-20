@@ -2099,6 +2099,7 @@ export type Database = {
       }
       platform_apps: {
         Row: {
+          apk_updated_at: string | null
           created_at: string
           description: string | null
           display_order: number
@@ -2113,6 +2114,7 @@ export type Database = {
           version: string | null
         }
         Insert: {
+          apk_updated_at?: string | null
           created_at?: string
           description?: string | null
           display_order?: number
@@ -2127,6 +2129,7 @@ export type Database = {
           version?: string | null
         }
         Update: {
+          apk_updated_at?: string | null
           created_at?: string
           description?: string | null
           display_order?: number
@@ -3325,7 +3328,9 @@ export type Database = {
         Args: { p_device_id: string; p_queue_id: string }
         Returns: boolean
       }
-      release_discovery_session: { Args: { p_id: string }; Returns: Json }
+      release_discovery_session:
+        | { Args: { p_id: string }; Returns: Json }
+        | { Args: { p_id: string; p_tenant_id: string }; Returns: Json }
       request_header_tenant_id: { Args: never; Returns: string }
       request_package_discovery:
         | {
