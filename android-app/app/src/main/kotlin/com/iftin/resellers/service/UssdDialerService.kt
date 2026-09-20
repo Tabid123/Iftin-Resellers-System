@@ -67,6 +67,7 @@ class UssdDialerService : Service() {
     private lateinit var database: DeliveryDatabase
     private var isRunning = false
     private var lastWakeLockRenewal = 0L
+    private var lastSessionCheck = 0L
     
     // Device SIM configuration from server (dynamic per-device routing)
     @Volatile
@@ -316,6 +317,18 @@ class UssdDialerService : Service() {
                         }
                     }
                     
+                    // Keep the Supabase session alive like Riyokaab.
+                    // Without this, a long-running foreground service can stay "active"
+                    // while authenticated polling silently stops after the access token expires.
+                    if (System.currentTimeMillis() - lastSessionCheck > 10 * 60 * 1000L) {
+                        lastSessionCheck = System.currentTimeMillis()
+                        try {
+                            com.iftin.resellers.auth.AuthRepository(applicationContext).ensureValidSession()
+                        } catch (e: Exception) {
+                            android.util.Log.w("UssdDialer", "⚠️ Session refresh check failed: ${e.message}")
+                        }
+                    }
+
                     // Sync any pending offline updates first
                     syncOfflineQueue()
                     
