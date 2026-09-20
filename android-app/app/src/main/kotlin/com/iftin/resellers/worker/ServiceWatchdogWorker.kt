@@ -71,21 +71,19 @@ class ServiceWatchdogWorker(
     
     private fun restartService() {
         try {
-            val stopIntent = Intent(context, UssdDialerService::class.java)
-            context.stopService(stopIntent)
-            
-            Thread.sleep(500)
-            
+            // Riyokaab behavior: never stop a service that may still be processing
+            // discovery/USSD. ActivityManager can transiently report false negatives;
+            // stopService() here used to cut the 600ms discovery loop and live USSD session.
             val startIntent = Intent(context, UssdDialerService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(startIntent)
             } else {
                 context.startService(startIntent)
             }
-            
-            android.util.Log.d("ServiceWatchdog", "✅ Service restarted by watchdog")
+
+            android.util.Log.d("ServiceWatchdog", "✅ Service start requested by watchdog")
         } catch (e: Throwable) {
-            android.util.Log.e("ServiceWatchdog", "❌ Failed to restart service: ${e.message}")
+            android.util.Log.e("ServiceWatchdog", "❌ Failed to start service: ${e.message}")
         }
     }
 }
