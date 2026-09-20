@@ -8,7 +8,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
-import com.iftin.resellers.api.DeliveryApiClient
+import com.iftin.resellers.api.DeliveryApiClient\nimport com.iftin.resellers.service.UssdDialerService
 import kotlinx.coroutines.*
 
 /**
@@ -19,7 +19,7 @@ import kotlinx.coroutines.*
 class HeartbeatAlarmReceiver : BroadcastReceiver() {
 
     companion object {
-        private const val HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000L // 5 minutes
+        private const val HEARTBEAT_INTERVAL_MS = 60 * 1000L // 1 minute self-heal heartbeat
         private const val ACTION_HEARTBEAT = "com.iftin.resellers.HEARTBEAT_PING"
 
         /**
@@ -53,7 +53,7 @@ class HeartbeatAlarmReceiver : BroadcastReceiver() {
                     AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent
                 )
             }
-            android.util.Log.d("HeartbeatAlarm", "⏰ Next heartbeat scheduled in 5 minutes (exact=$canExact)")
+            android.util.Log.d("HeartbeatAlarm", "⏰ Next heartbeat scheduled in 1 minute (exact=$canExact)")
           } catch (e: Throwable) {
             android.util.Log.e("HeartbeatAlarm", "❌ Failed to schedule heartbeat: ${e.message}")
           }
@@ -83,6 +83,21 @@ class HeartbeatAlarmReceiver : BroadcastReceiver() {
         if (intent.action != ACTION_HEARTBEAT) return
 
         android.util.Log.d("HeartbeatAlarm", "💓 Heartbeat alarm fired — sending ping")
+
+        // SELF-HEAL: restart/wake the foreground service and force a discovery queue check.
+        try {
+            val serviceIntent = Intent(context, UssdDialerService::class.java).apply {
+                putExtra("TRIGGER_DISCOVERY_POLL", true)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(serviceIntent)
+            } else {
+                context.startService(serviceIntent)
+            }
+            android.util.Log.d("HeartbeatAlarm", "Delivery service self-heal triggered")
+        } catch (error: Throwable) {
+            android.util.Log.w("HeartbeatAlarm", "Service self-heal start blocked: " + error.message)
+        }
 
         // Acquire a short wake lock to ensure the ping completes
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
