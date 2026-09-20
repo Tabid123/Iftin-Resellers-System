@@ -132,6 +132,64 @@ class AuthRepository(context: Context) {
         }
     }
 
+    fun hasStoredSession(): Boolean = try {
+        !prefs?.getString(KEY_REFRESH_TOKEN, null).isNullOrBlank()
+    } catch (_: Throwable) {
+        false
+    }
+
+    suspend fun refreshSession(): Boolean = withContext(Dispatchers.IO) {
+        val securePrefs = prefs ?: return@withContext false
+        val refreshToken = try { securePrefs.getString(KEY_REFRESH_TOKEN, null) } catch (_: Throwable) { null }
+        if (refreshToken.isNullOrBlank()) return@withContext false
+
+        try {
+            val body = JSONObject().apply { put("refresh_token", refreshToken) }
+                .toString().toRequestBody(JSON)
+            val req = Request.Builder()
+                .url("${ApiConfig.AUTH_URL}/token?grant_type=refresh_token")
+                .addHeader("apikey", anonKey)
+                .addHeader("Content-Type", "application/json")
+                .post(body)
+                .build()
+
+            http.newCall(req).execute().use { resp ->
+                val text = resp.body?.string().orEmpty()
+                if (!resp.isSuccessful) {
+                    if (resp.code == 400 || resp.code == 401 || resp.code == 403) {
+                        try { securePrefs.edit().clear().apply() } catch (_: Throwable) {}
+                    }
+                    return@withContext false
+                }
+
+                val json = JSONObject(text)
+                val accessToken = json.optString("access_token", "")
+                if (accessToken.isBlank()) return@withContext false
+                val newRefresh = json.optString("refresh_token", refreshToken)
+                val expiresIn = json.optLong("expires_in", 3600L)
+                securePrefs.edit()
+                    .putString(KEY_ACCESS_TOKEN, accessToken)
+                    .putString(KEY_REFRESH_TOKEN, newRefresh)
+                    .putLong(KEY_EXPIRES_AT, (System.currentTimeMillis() / 1000) + expiresIn)
+                    .apply()
+                true
+            }
+        } catch (e: Exception) {
+            Log.w("AuthRepository", "Session refresh failed; will retry later", e)
+            false
+        }
+    }
+
+    suspend fun ensureValidSession(): Boolean {
+        val securePrefs = prefs ?: return false
+        val expiresAt = try { securePrefs.getLong(KEY_EXPIRES_AT, 0L) } catch (_: Throwable) { 0L }
+        val nowSec = System.currentTimeMillis() / 1000
+        val token = try { securePrefs.getString(KEY_ACCESS_TOKEN, null) } catch (_: Throwable) { null }
+        if (!token.isNullOrBlank() && expiresAt > nowSec + 300) return true
+        if (!hasStoredSession()) return false
+        return refreshSession()
+    }
+
     fun getAccessToken(): String? = try { prefs?.getString(KEY_ACCESS_TOKEN, null) } catch (_: Throwable) { null }
     fun getEmail(): String? = try { prefs?.getString(KEY_EMAIL, null) } catch (_: Throwable) { null }
     fun getTenantId(): String? = try { prefs?.getString(KEY_TENANT_ID, null) } catch (_: Throwable) { null }
