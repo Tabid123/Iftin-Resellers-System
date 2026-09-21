@@ -13,8 +13,8 @@ android {
         applicationId = "com.iftin.resellers"
         minSdk = 23
         targetSdk = 34
-        versionCode = 19
-        versionName = "3.7"
+        versionCode = 20
+        versionName = "3.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

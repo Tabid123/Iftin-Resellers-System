@@ -461,7 +461,8 @@ class DeliveryApiClient(
         val id: String,
         val phoneNumber: String,
         val menu1Label: String,
-        val ussdCode: String
+        val ussdCode: String,
+        val simSlot: Int = 0
     )
 
     /** Qabo shaqada baarista xigta (claim_next_discovery RPC). */
@@ -484,7 +485,8 @@ class DeliveryApiClient(
                     id = json.getString("id"),
                     phoneNumber = json.optString("phone_number", ""),
                     menu1Label = json.optString("menu1_label", ""),
-                    ussdCode = json.optString("ussd_code", "")
+                    ussdCode = json.optString("ussd_code", ""),
+                    simSlot = json.optInt("sim_slot", 0)
                 )
             }
         } catch (e: Exception) {
@@ -526,7 +528,10 @@ class DeliveryApiClient(
                 .build()
 
             sharedHttpClient.newCall(request).execute().use { response ->
-                return@withContext response.isSuccessful
+                if (!response.isSuccessful) return@withContext false
+                // PostgREST can return HTTP 200 with success=false (expired claim).
+                val result = response.body?.string() ?: return@withContext false
+                return@withContext JSONObject(result).optBoolean("success", false)
             }
         } catch (e: Exception) {
             println("❌ Discovery complete error: ${e.message}")

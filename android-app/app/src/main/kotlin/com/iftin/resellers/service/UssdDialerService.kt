@@ -1353,7 +1353,7 @@ class UssdDialerService : Service() {
             val dialCode = Ussd870Flow.triggerCode(job.phoneNumber, prefix)
             android.util.Log.d("UssdDialer", "🔎 [Discovery] Dialing $dialCode")
 
-            val dialed = dialUssdCode(dialCode, job.phoneNumber, null, provider, null)
+            val dialed = dialUssdCode(dialCode, job.phoneNumber, null, provider, job.simSlot)
 
             // Sug ilaa 30s in menu-ga xirmooyinka la qabto.
             // Fallback: haddii accessibility-gu uusan step-ka match gareyn, dialog kasta
@@ -1361,7 +1361,7 @@ class UssdDialerService : Service() {
             val ussdPrefs = getSharedPreferences("iftin_ussd_prefs", Context.MODE_PRIVATE)
             var menuText: String? = null
             var waited = 0
-            while (waited < 30000 && menuText.isNullOrBlank()) {
+            while (dialed && waited < 30000 && menuText.isNullOrBlank()) {
                 // Hubi isla markiiba (ha sugin 200ms marka hore)
                 menuText = Ussd870Flow.consumeDiscoveryMenu(this)
                 if (menuText.isNullOrBlank()) {
@@ -2304,6 +2304,8 @@ class UssdDialerService : Service() {
     ): Boolean {
         try {
             android.util.Log.d("UssdDialer", "📞 Using Intent.ACTION_CALL fallback...")
+            // Capture before accessibility finishes the flow and clears its active flag.
+            val discoveryDial = Ussd870Flow.isDiscoveryMode(this)
             
             val subscriptionManager = getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as SubscriptionManager
             val subscriptionInfoList = subscriptionManager.activeSubscriptionInfoList ?: return false
@@ -2351,6 +2353,13 @@ class UssdDialerService : Service() {
 
             launch()
             android.util.Log.d("UssdDialer", "📞 USSD dialed via Intent.ACTION_CALL")
+
+            // Discovery completes when a package menu is captured, not when the
+            // interactive carrier session closes. Its caller owns the 30s menu
+            // deadline and uploads immediately; waiting here can exhaust the
+            // server's 90s claim lease before the caller even reads the menu.
+            if (discoveryDial) return true
+
 
             // ===== MMI ERROR AUTO-RETRY =====
             // Haddii shirkaddu/radio-gu soo celiyo "Connection problem or invalid MMI code",
