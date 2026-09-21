@@ -14,8 +14,8 @@ import kotlinx.coroutines.*
 
 /**
  * HeartbeatAlarmReceiver — Sends a ping/self-heal check to the server every 1 minute using AlarmManager
- * exact alarms. This survives Doze mode (setExactAndAllowWhileIdle) ensuring the device
- * never appears offline when the screen is locked.
+ * alarms as a recovery fallback. Android may throttle alarms in Doze; the foreground
+ * service owns the regular heartbeat independently of USSD work.
  */
 class HeartbeatAlarmReceiver : BroadcastReceiver() {
 
@@ -106,6 +106,10 @@ class HeartbeatAlarmReceiver : BroadcastReceiver() {
         )
         wakeLock.acquire(30_000L) // 30 seconds max
 
+        val pendingResult = goAsync()
+        // Schedule before starting network work, including failed/slow pings.
+        schedule(context)
+
         // Send ping in background coroutine
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         scope.launch {
@@ -118,15 +122,16 @@ class HeartbeatAlarmReceiver : BroadcastReceiver() {
                 val charging = isCharging(context)
 
                 // Use devicePing which updates last_ping_at on the server
-                apiClient.devicePing(deviceId, battery, charging, 0)
-                android.util.Log.d("HeartbeatAlarm", "✅ Heartbeat ping sent successfully")
+                val acknowledged = apiClient.devicePing(deviceId, battery, charging, 0)
+                android.util.Log.d("HeartbeatAlarm", "Heartbeat acknowledged=$acknowledged")
             } catch (e: Exception) {
                 android.util.Log.e("HeartbeatAlarm", "❌ Heartbeat ping failed: ${e.message}")
             } finally {
-                // Re-schedule next alarm
-                schedule(context)
-                // Release wake lock
-                if (wakeLock.isHeld) wakeLock.release()
+                try {
+                    if (wakeLock.isHeld) wakeLock.release()
+                } finally {
+                    pendingResult.finish()
+                }
             }
         }
     }
