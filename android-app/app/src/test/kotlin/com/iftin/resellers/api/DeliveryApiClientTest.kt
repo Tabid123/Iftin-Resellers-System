@@ -49,4 +49,16 @@ class DeliveryApiClientTest {
         server.enqueue(MockResponse().setResponseCode(503))
         assertFalse(client.devicePing("device-a", 72, false, 0))
     }
+
+    @Test fun discoveryUsesServerSelectedSim() = runBlocking {
+        server.enqueue(MockResponse().setBody("""{"id":"job-a","phone_number":"619535029","menu1_label":"Data","ussd_code":"*212*619535029#","sim_slot":1}"""))
+        assertEquals(1, client.claimNextDiscovery("device-a")!!.simSlot)
+    }
+
+    @Test fun rejectedMenuUploadIsNotTreatedAsPublished() = runBlocking {
+        server.enqueue(MockResponse().setBody("""{"success":false}"""))
+        assertFalse(client.completeDiscovery("device-a", "job-a", "menu", listOf(1 to "1 Saac"), null, true))
+        server.enqueue(MockResponse().setBody("""{"success":true}"""))
+        assertTrue(client.completeDiscovery("device-a", "job-a", "menu", listOf(1 to "1 Saac"), null, true))
+    }
 }
