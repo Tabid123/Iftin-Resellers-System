@@ -1402,19 +1402,39 @@ class UssdDialerService : Service() {
                     // SESSION HOLD: dialog-ga shirkadda waa la sii hayaa (lama xirayo)
                     // ilaa user-ku lacagta bixiyo oo xirmo doorto.
                     var uploaded = false
-                    repeat(3) { attempt ->
+                    var uploadAttempt = 0
+                    val uploadDeadline = System.currentTimeMillis() + 150_000L
+
+                    // Network-ga taleefanka mararka qaar 20-60s ayuu DNS/HTTPS luminayaa
+                    // iyadoo USSD menu-gu horey u qabsoomay. Ha lumin menu-ga kadib 3 retries;
+                    // sii hay carrier session-ka oo dib u dir ilaa 150s, si reconnect gaaban
+                    // uusan discovery-ga u burburin.
+                    while (!uploaded && System.currentTimeMillis() < uploadDeadline) {
+                        uploadAttempt += 1
+                        uploaded = apiClient.completeDiscovery(
+                            deviceId,
+                            job.id,
+                            menuText,
+                            items,
+                            null,
+                            holdSession = true
+                        )
                         if (!uploaded) {
-                            uploaded = apiClient.completeDiscovery(deviceId, job.id, menuText, items, null, holdSession = true)
-                            if (!uploaded) {
-                                android.util.Log.w("UssdDialer", "⚠️ [Discovery] Menu upload failed; retry ${attempt + 1}/3")
-                                delay(300)
-                            }
+                            val remaining = ((uploadDeadline - System.currentTimeMillis()).coerceAtLeast(0L) / 1000L)
+                            android.util.Log.w(
+                                "UssdDialer",
+                                "⚠️ [Discovery] Menu upload failed; retry #$uploadAttempt (remaining=${remaining}s)"
+                            )
+                            // Give Android DNS/mobile-data time to recover. Each HTTP call already
+                            // has its own 10s timeout via the shared Riyokaab-style client.
+                            delay(2_000L)
                         }
                     }
+
                     if (!uploaded) {
-                        android.util.Log.e("UssdDialer", "❌ [Discovery] Menu server-ka ma gaarin; session waa la xirayaa")
+                        android.util.Log.e("UssdDialer", "❌ [Discovery] Menu server-ka 150s kadib ma gaarin; session waa la xirayaa")
                         closeHeldSession()
-                        try { apiClient.completeDiscovery(deviceId, job.id, null, emptyList(), "Menu server-ka ma gaarin") } catch (_: Exception) {}
+                        try { apiClient.completeDiscovery(deviceId, job.id, null, emptyList(), "Menu server-ka ma gaarin 150s kadib") } catch (_: Exception) {}
                     } else {
                         android.util.Log.d("UssdDialer", "✅ [Discovery] Menu server-ku xaqiijiyay — xulasho la sugayo")
                         holdSessionUntilSelection(job.id, prefix, job.phoneNumber, menuText, job.menu1Label)
