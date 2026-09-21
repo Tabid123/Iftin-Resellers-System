@@ -3401,27 +3401,17 @@ export type Database = {
         Args: { p_code?: string; p_phone: string }
         Returns: undefined
       }
-      storefront_save_offline_registration:
-        | {
-            Args: {
-              p_provider_id?: string
-              p_provider_name?: string
-              p_receiver: string
-              p_sender: string
-            }
-            Returns: undefined
-          }
-        | {
-            Args: {
-              p_package_id?: string
-              p_package_name?: string
-              p_provider_id?: string
-              p_provider_name?: string
-              p_receiver: string
-              p_sender: string
-            }
-            Returns: undefined
-          }
+      storefront_save_offline_registration: {
+        Args: {
+          p_package_id?: string
+          p_package_name?: string
+          p_provider_id?: string
+          p_provider_name?: string
+          p_receiver: string
+          p_sender: string
+        }
+        Returns: undefined
+      }
       tenant_sim_routes: {
         Args: { p_tenant_id: string }
         Returns: {
