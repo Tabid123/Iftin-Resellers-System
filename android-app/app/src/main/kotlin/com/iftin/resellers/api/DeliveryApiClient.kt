@@ -10,10 +10,11 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
-class DeliveryApiClient {
-    private val baseUrl = com.iftin.resellers.config.ApiConfig.FUNCTIONS_URL
-    private val supabaseRestUrl = com.iftin.resellers.config.ApiConfig.REST_URL
-    private val anonKey = com.iftin.resellers.config.ApiConfig.ANON_KEY
+class DeliveryApiClient(
+    private val baseUrl: String = com.iftin.resellers.config.ApiConfig.FUNCTIONS_URL,
+    private val supabaseRestUrl: String = com.iftin.resellers.config.ApiConfig.REST_URL,
+    private val anonKey: String = com.iftin.resellers.config.ApiConfig.ANON_KEY
+) {
     
     // ==================== CONNECTION POOLING ====================
     // Single shared OkHttpClient instance reuses TCP+TLS connections across all API calls.
@@ -73,6 +74,8 @@ class DeliveryApiClient {
             val versionQuery = "&appVersion=${BuildConfig.VERSION_NAME}&versionCode=${BuildConfig.VERSION_CODE}"
             val request = Request.Builder()
                 .url("$baseUrl/activate-package/pending?deviceId=$deviceId$batteryQuery$versionQuery")
+                .addHeader("apikey", anonKey)
+                .addHeader("Authorization", "Bearer $anonKey")
                 .get()
                 .build()
             
@@ -175,10 +178,13 @@ class DeliveryApiClient {
                 put("batteryLevel", batteryLevel)
                 put("isCharging", isCharging)
                 put("queueSize", queueSize)
+                put("presenceOnly", true)
             }
             
             val request = Request.Builder()
                 .url("$baseUrl/activate-package/ping")
+                .addHeader("apikey", anonKey)
+                .addHeader("Authorization", "Bearer $anonKey")
                 .post(json.toString().toRequestBody(JSON_MEDIA_TYPE))
                 .build()
             
@@ -537,13 +543,13 @@ class DeliveryApiClient {
 
     /** Hubi in user-ku lacagta bixiyay oo xirmo doortay (claim_discovery_selection RPC). */
     /** Ma jiraa codsi baaris ah oo safka ku jira? (si hold-ka loo joojiyo) */
-    suspend fun discoveryHasWaitingRequest(): Boolean = withContext(Dispatchers.IO) {
+    suspend fun discoveryHasWaitingRequest(deviceId: String): Boolean = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder()
                 .url("$supabaseRestUrl/rpc/discovery_has_waiting_request")
                 .addHeader("apikey", anonKey)
                 .addHeader("Authorization", "Bearer $anonKey")
-                .post("{}".toRequestBody(JSON_MEDIA_TYPE))
+                .post(JSONObject().put("p_device_id", deviceId).toString().toRequestBody(JSON_MEDIA_TYPE))
                 .build()
             sharedHttpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext false

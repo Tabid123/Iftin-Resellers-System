@@ -22,7 +22,7 @@ type Props = {
 };
 
 export default function DiscoverySearchOverlay({ open, rootPackageId, receiverPhone, onCancel, onSelect }: Props) {
-  const [state, setState] = useState<'queue' | 'searching' | 'results' | 'failed'>('queue');
+  const [state, setState] = useState<'connecting' | 'queue' | 'searching' | 'results' | 'failed'>('connecting');
   const [ahead, setAhead] = useState(0);
   const [items, setItems] = useState<DiscoveryItem[]>([]);
   const [error, setError] = useState('');
@@ -30,8 +30,11 @@ export default function DiscoverySearchOverlay({ open, rootPackageId, receiverPh
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [discoveryId, setDiscoveryId] = useState('');
   const pollRef = useRef<number | null>(null);
+  const generationRef = useRef(0);
+  const startedAtRef = useRef(0);
 
   const stopPolling = () => {
+    generationRef.current += 1;
     if (pollRef.current != null) window.clearTimeout(pollRef.current);
     pollRef.current = null;
   };
@@ -56,9 +59,11 @@ export default function DiscoverySearchOverlay({ open, rootPackageId, receiverPh
     }
   }, [state, secondsLeft]);
 
-  const poll = async (id: string) => {
+  const poll = async (id: string, generation: number) => {
+    if (generation !== generationRef.current) return;
     try {
       const { data, error: rpcError } = await (supabase as any).rpc('get_package_discovery', { p_id: id });
+      if (generation !== generationRef.current) return;
       if (rpcError) throw rpcError;
       const result = data || {};
       if (result.status === 'done') {
@@ -72,15 +77,23 @@ export default function DiscoverySearchOverlay({ open, rootPackageId, receiverPh
         setError(result.error || 'Raadinta xirmooyinka way fashilantay.');
         return;
       }
-      const { data: queue } = await (supabase as any).rpc('get_discovery_queue_status', { p_id: id });
-      if (queue?.found && queue?.status === 'pending') {
-        setAhead(Number(queue.ahead ?? 0));
-        setState('queue');
+      const { data: queue, error: queueError } = await (supabase as any).rpc('get_discovery_queue_status', { p_id: id });
+      if (generation !== generationRef.current) return;
+      if (queueError) throw queueError;
+      if (!queue?.found) throw new Error('Codsiga lama helin. Fadlan mar kale isku day.');
+      if (queue.status === 'pending') {
+        const waitingAhead = Number(queue.ahead ?? 0);
+        setAhead(waitingAhead);
+        setState(waitingAhead > 0 ? 'queue' : 'connecting');
+        if (waitingAhead === 0 && Date.now() - startedAtRef.current > 30_000) {
+          throw new Error('Qalabka delivery-ga kama jawaabin. Fadlan hubi APK-ga kadib mar kale isku day.');
+        }
       } else {
         setState('searching');
       }
-      pollRef.current = window.setTimeout(() => void poll(id), 350);
+      pollRef.current = window.setTimeout(() => void poll(id, generation), 350);
     } catch (e: any) {
+      if (generation !== generationRef.current) return;
       setState('failed');
       setError(e?.message || 'Raadinta xirmooyinka way fashilantay.');
     }
@@ -88,7 +101,10 @@ export default function DiscoverySearchOverlay({ open, rootPackageId, receiverPh
 
   const start = async () => {
     stopPolling();
-    setState('queue');
+    const generation = generationRef.current;
+    startedAtRef.current = Date.now();
+    setAhead(0);
+    setState('connecting');
     setItems([]);
     setError('');
     setElapsed(0);
@@ -98,11 +114,13 @@ export default function DiscoverySearchOverlay({ open, rootPackageId, receiverPh
         p_root_package_id: rootPackageId,
         p_phone: receiverPhone,
       });
+      if (generation !== generationRef.current) return;
       if (rpcError) throw rpcError;
       if (!data?.success || !data?.id) throw new Error(data?.message || 'Codsiga lama abuuri karin.');
       setDiscoveryId(String(data.id));
-      void poll(String(data.id));
+      void poll(String(data.id), generation);
     } catch (e: any) {
+      if (generation !== generationRef.current) return;
       setState('failed');
       setError(e?.message || 'Codsiga lama abuuri karin.');
     }
@@ -139,10 +157,12 @@ export default function DiscoverySearchOverlay({ open, rootPackageId, receiverPh
         </div>
 
         <div className="p-4 space-y-3">
-          {(state === 'queue' || state === 'searching') && (
+          {(state === 'connecting' || state === 'queue' || state === 'searching') && (
             <div className="flex flex-col items-center gap-3 py-10 text-center">
               <Loader2 className="w-9 h-9 animate-spin text-primary" />
-              {state === 'queue' ? (
+              {state === 'connecting' ? (
+                <p className="font-bold text-foreground">Qalabka delivery-ga ayaa lala xiriirayaa…</p>
+              ) : state === 'queue' ? (
                 <>
                   <p className="font-bold text-foreground">Waxaad ku jirtaa safka</p>
                   {ahead > 0 && <p className="text-sm text-muted-foreground">{ahead} codsi ayaa kaa horreeya.</p>}

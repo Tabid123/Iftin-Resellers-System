@@ -1253,7 +1253,7 @@ serve(async (req) => {
 
     // Route: Device heartbeat
     if (req.method === 'POST' && path === 'ping') {
-      const { deviceId, batteryLevel, isCharging, queueSize } = await req.json();
+      const { deviceId, batteryLevel, isCharging, queueSize, presenceOnly } = await req.json();
       const { device, errorResponse } = await resolveActiveDevice(supabase, deviceId, 'id, device_id, tenant_id');
       if (errorResponse) return errorResponse;
       const tenantId = device.tenant_id;
@@ -1263,11 +1263,14 @@ serve(async (req) => {
         .from('android_devices')
         .update({ 
           last_ping_at: new Date().toISOString(),
-          battery_level: typeof batteryLevel === 'number' ? batteryLevel : null
+          ...(typeof batteryLevel === 'number' && batteryLevel >= 0 ? { battery_level: batteryLevel } : {}),
+          ...(typeof isCharging === 'boolean' ? { is_charging: isCharging } : {}),
         })
         .eq('device_id', deviceId)
         .eq('tenant_id', tenantId)
         .is('archived_at', null);
+
+      if (updateErr) return json({ error: 'Heartbeat could not be saved' }, 500);
 
       // If no rows updated and no error, device doesn't exist. Do not auto-register here;
       // first login/register-device must bind it to a tenant.
@@ -1285,6 +1288,9 @@ serve(async (req) => {
           return json({ error: 'Device must be registered with reseller login first', needsLogin: true }, 403);
         }
       }
+
+      // Regular presence checks must not reclaim an order while the worker is dialing.
+      if (presenceOnly === true) return json({ success: true });
 
       // Sweep stuck 'processing' deliveries for this device.
       // ONE-SEND LOCK: if row was already dispatched (USSD dialed), NEVER re-queue.

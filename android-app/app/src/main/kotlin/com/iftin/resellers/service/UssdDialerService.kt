@@ -28,6 +28,7 @@ import com.iftin.resellers.data.DeliveryDatabase
 import com.iftin.resellers.data.DeliveryTask
 import com.iftin.resellers.util.PaymentReceiptDedup
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -62,6 +63,8 @@ class UssdDialerService : Service() {
     
     private var serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var discoveryPollingJob: Job? = null
+    private var heartbeatJob: Job? = null
+    private val ussdMutex = Mutex()
     private lateinit var wakeLock: PowerManager.WakeLock
     private lateinit var wifiLock: WifiManager.WifiLock
     private lateinit var apiClient: DeliveryApiClient
@@ -132,7 +135,7 @@ class UssdDialerService : Service() {
         apiClient = DeliveryApiClient()
         database = DeliveryDatabase.getInstance(this)
         
-        // Schedule heartbeat alarm (5-min exact alarm that survives Doze mode)
+        // Alarm is a recovery fallback; the independent service loop sends regular heartbeats.
         HeartbeatAlarmReceiver.schedule(this)
         
         // Register broadcast receiver for USSD click completion
@@ -279,6 +282,7 @@ class UssdDialerService : Service() {
         } else {
             ensureDiscoveryPollingLoop()
         }
+        ensureHeartbeatLoop()
         if (intent?.getBooleanExtra("TRIGGER_IMMEDIATE_POLL", false) == true) {
             // Force immediate poll even if already running (triggered by SMS payment)
             serviceScope.launch {
@@ -302,6 +306,25 @@ class UssdDialerService : Service() {
      */
     private fun addJitter(interval: Long): Long {
         return interval + (Random().nextDouble() * JITTER_MAX_MS).toLong()
+    }
+
+    // Presence must not wait for USSD, a held menu, order cooldown, or offline sync.
+    private fun ensureHeartbeatLoop() {
+        if (heartbeatJob?.isActive == true) return
+        heartbeatJob = serviceScope.launch(Dispatchers.IO) {
+            while (isRunning && isActive) {
+                try {
+                    if (!apiClient.devicePing(deviceId, getBatteryLevel(), isCharging(), 0)) {
+                        android.util.Log.w("UssdDialer", "Heartbeat was not acknowledged; retrying")
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    android.util.Log.w("UssdDialer", "Heartbeat failed: ${e.message}")
+                }
+                delay(15_000L)
+            }
+        }
     }
 
     private fun ensureDiscoveryPollingLoop() {
@@ -1240,6 +1263,15 @@ class UssdDialerService : Service() {
     // ==================== END SMS INBOX POLLING ====================
 
     private suspend fun pollPendingOrders(batteryLevel: Int = -1, charging: Boolean = false): Boolean {
+        if (!ussdMutex.tryLock()) return false
+        try {
+            return pollPendingOrdersLocked(batteryLevel, charging)
+        } finally {
+            ussdMutex.unlock()
+        }
+    }
+
+    private suspend fun pollPendingOrdersLocked(batteryLevel: Int, charging: Boolean): Boolean {
         // Single-flight: skip if already processing an order
         if (isProcessingOrder) {
             android.util.Log.d("UssdDialer", "⏳ Order already processing (queueId=$activeQueueId), skipping poll")
@@ -1279,6 +1311,15 @@ class UssdDialerService : Service() {
      * kadib menu-ga xirmooyinka akhri oo server-ka ku celi. Iibsi lama dhameystirayo.
      */
     private suspend fun pollDiscoveryJobs(): Boolean {
+        if (!ussdMutex.tryLock()) return false
+        try {
+            return pollDiscoveryJobsLocked()
+        } finally {
+            ussdMutex.unlock()
+        }
+    }
+
+    private suspend fun pollDiscoveryJobsLocked(): Boolean {
         if (isProcessingOrder) return false
 
         val job = try {
@@ -1444,7 +1485,7 @@ class UssdDialerService : Service() {
 
                 // PREEMPTION: macaamiil kale ayaa baaris sugaya — hold-ka jooji si
                 // taleefanku codsiga cusub u qabsado (ha timeout gaarin).
-                if (waited >= 8_000L && apiClient.discoveryHasWaitingRequest()) {
+                if (apiClient.discoveryHasWaitingRequest(deviceId)) {
                     android.util.Log.w("UssdDialer", "⏭️ [Hold] Codsi baaris cusub ayaa sugaya — hold waa la joojinayaa")
                     break
                 }
@@ -2630,6 +2671,8 @@ class UssdDialerService : Service() {
         isRunning = false
         discoveryPollingJob?.cancel()
         discoveryPollingJob = null
+        heartbeatJob?.cancel()
+        heartbeatJob = null
         serviceScope.cancel()
         
         // Immediately restart service to keep it running

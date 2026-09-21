@@ -445,12 +445,27 @@ export const DevicesCustomView = ({ isSo }: { isSo: boolean }) => {
       supabase.from('android_devices').select('*').is('archived_at', null).order('last_ping_at', { ascending: false }),
       supabase.from('sim_balances').select('*'),
     ]);
-    setDevices(devRes.data || []);
-    setBalances(balRes.data || []);
+    if (!devRes.error) setDevices(devRes.data || []);
+    if (!balRes.error) setBalances(balRes.data || []);
     setLoading(false);
   }, []);
 
-  useEffect(() => { loadDevices(); }, [loadDevices]);
+  useEffect(() => {
+    void loadDevices();
+    const refreshVisible = () => {
+      if (document.visibilityState === 'visible') void loadDevices();
+    };
+    const timer = window.setInterval(refreshVisible, 10_000);
+    window.addEventListener('focus', refreshVisible);
+    window.addEventListener('online', refreshVisible);
+    document.addEventListener('visibilitychange', refreshVisible);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refreshVisible);
+      window.removeEventListener('online', refreshVisible);
+      document.removeEventListener('visibilitychange', refreshVisible);
+    };
+  }, [loadDevices]);
   useRealtimeRefresh(['android_devices', 'sim_balances'], loadDevices, 800, { notify: true, lang: isSo ? 'so' : 'en' });
 
   const OFFLINE_THRESHOLD = 3 * 60 * 1000;
