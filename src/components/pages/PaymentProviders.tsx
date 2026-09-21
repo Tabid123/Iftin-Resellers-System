@@ -20,7 +20,7 @@ import { workspaceQueryKey, workspaceStorage } from '@/lib/workspaceKeys';
 import { useTenant } from '@/contexts/TenantContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useConnectivity } from '@/contexts/ConnectivityContext';
-import { buildPaymentUssd, fetchIftinCatalog, hasCatalog, isOrderingBlocked, mapPaymentProviders } from '@/lib/iftinCatalog';
+import { buildPaymentUssd, fetchIftinCatalog, hasCatalog, isApiPartnerTenant, isOrderingBlocked, mapPaymentProviders } from '@/lib/iftinCatalog';
 import {
   createIftinIntent,
   fetchIftinIntentStatus,
@@ -494,9 +494,15 @@ const PaymentProviders = () => {
         ? paymentNumber.substring(4)
         : paymentNumber.startsWith('0') ? paymentNumber.substring(1) : paymentNumber;
 
+      // Only API-partner tenants may use Iftin prepaid intents.
+      // Android-device tenants (e.g. Marwaan) own their local package IDs and must
+      // continue through the local pending-payment + delivery queue path. Sending a
+      // local package UUID to Iftin Partner API returns package_not_found.
+      const useIftinIntent = workspaceId ? await isApiPartnerTenant(workspaceId) : false;
+
       // WaafiPay = API payment. Skip the Iftin intent/USSD dial path entirely,
       // otherwise the dialer opens and the WaafiPay branch below never runs.
-      if (!discoveryId && !isWaafiPaySelected) {
+      if (!discoveryId && !isWaafiPaySelected && useIftinIntent) {
         try {
         const created = await createIftinIntent({
           receiver_phone: receiverNumber,
