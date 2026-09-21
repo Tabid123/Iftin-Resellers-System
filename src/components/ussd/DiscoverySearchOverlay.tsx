@@ -85,9 +85,9 @@ export default function DiscoverySearchOverlay({ open, rootPackageId, receiverPh
         const waitingAhead = Number(queue.ahead ?? 0);
         setAhead(waitingAhead);
         setState(waitingAhead > 0 ? 'queue' : 'connecting');
-        if (waitingAhead === 0 && Date.now() - startedAtRef.current > 30_000) {
-          throw new Error('Qalabka delivery-ga kama jawaabin. Fadlan hubi APK-ga kadib mar kale isku day.');
-        }
+        // Do not invent a client-side timeout while the server still has a valid pending job.
+        // The delivery device can legitimately take longer to open the carrier USSD menu.
+        // Backend/device state is authoritative and will report a real failure if needed.
       } else {
         setState('searching');
       }
