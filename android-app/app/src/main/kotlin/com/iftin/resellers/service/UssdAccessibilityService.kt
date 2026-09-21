@@ -1328,7 +1328,7 @@ class UssdAccessibilityService : AccessibilityService() {
             "waxaad", "haraaga", "haraagaagu", "guuleys", "guul",
             "successful", "success", "failed", "fashil", "khalad",
             "invalid", "lagu shubay", "ugu shubtay", "loo diray",
-            "xirmada", "internet", "daqiiqo", "mb", "gb", "$"
+            "xirmada", "internet", "daqiiqo", "mb", "gb", "\\$"
         )
         return resultMarkers.any { lower.contains(it) } || hasTerminalResultButton(root)
     }
