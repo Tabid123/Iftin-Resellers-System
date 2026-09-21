@@ -9,7 +9,7 @@ import {
   Globe, Package, DollarSign, CheckCircle, XCircle, Hash, Calendar, Code, Settings, Star,
   Pencil, Power, Trash2, Plus, ChevronDown, Image, CreditCard, Phone,
 } from './shared';
-import { FileText } from 'lucide-react';
+import { FileText, Lock, Unlock } from 'lucide-react';
 import { validateUssdTemplate } from '@/lib/ussdValidator';
 import CachedImage from '@/components/CachedImage';
 import { findPriceConflicts, parseSecretPrices, secretPricesOf } from '@/lib/secretPrices';
@@ -170,6 +170,28 @@ export const PackagesCustomView = ({ isSo }: { isSo: boolean }) => {
     toast.success(isSo ? 'Waa la cusboonaysiiyay' : 'Updated');
   };
 
+  const toggleCostVisibility = async (id: string, currentlyHidden: boolean) => {
+    const { error } = await supabase
+      .from('data_packages_config')
+      .update({ hide_cost_price: !currentlyHidden })
+      .eq('id', id);
+
+    if (error) {
+      toast.error((isSo ? 'Qufulka cost price-ka lama beddeli karin: ' : 'Could not change cost visibility: ') + error.message);
+      return;
+    }
+
+    setPackages(prev =>
+      prev.map(p => p.id === id ? { ...p, hide_cost_price: !currentlyHidden } : p)
+    );
+
+    toast.success(
+      !currentlyHidden
+        ? (isSo ? '🔒 Cost price-ka macaamiisha waa laga qariyay' : '🔒 Cost price hidden from customers')
+        : (isSo ? '🔓 Cost price-ka macaamiisha waa loo muujiyay' : '🔓 Cost price visible to customers')
+    );
+  };
+
   const deletePackage = async (id: string) => {
     if (!confirm(isSo ? 'Ma hubtaa inaad tirtirto package-kan?' : 'Delete this package?')) return;
     await supabase.from('data_packages_config').delete().eq('id', id);
@@ -279,14 +301,30 @@ Save anyway?`;
             { icon: Calendar, label: 'Validity', value: /^\d+$/.test(String(item.validity_days ?? '')) ? `${item.validity_days} days` : String(item.validity_days ?? '—'), color: 'text-blue-500' },
             { icon: DollarSign, label: isSo ? 'Iibka' : 'Sell Price', value: `$${Number(item.selling_price).toFixed(2)}`, color: 'text-emerald-500' },
             ...(secretPricesOf(item).length > 0 ? [{ icon: DollarSign, label: '🔒 Qiimooyin Gaar ah', value: secretPricesOf(item).map((price) => `$${price}`).join(', '), color: 'text-amber-600' }] : []),
-            { icon: DollarSign, label: isSo ? 'Kharash' : 'Cost', value: `$${Number(item.cost_price || 0).toFixed(2)}`, color: 'text-red-500' },
-            { icon: DollarSign, label: isSo ? "Faa'iido" : 'Profit', value: `$${profit.toFixed(2)}`, color: 'text-green-600' },
+            { icon: DollarSign, label: isSo ? 'Kharash' : 'Cost', value: `${Number(item.cost_price || 0).toFixed(2)}`, color: 'text-red-500' },
+            {
+              icon: item.hide_cost_price ? Lock : Unlock,
+              label: isSo ? 'Macaamiisha' : 'Customers',
+              value: item.hide_cost_price
+                ? (isSo ? 'Cost qarsoon' : 'Cost hidden')
+                : (isSo ? 'Cost muuqda' : 'Cost visible'),
+              color: item.hide_cost_price ? 'text-amber-600' : 'text-emerald-600'
+            },
+            { icon: DollarSign, label: isSo ? "Faa'iido" : 'Profit', value: `${profit.toFixed(2)}`, color: 'text-green-600' },
             ...(evRate > 0 ? [{ icon: Hash, label: 'E-Voucher', value: `${(evRate * 100).toFixed(1)}%`, color: 'text-amber-500' }] : []),
             { icon: Settings, label: 'Connection', value: item.connection_type_label || '—', color: 'text-gray-500' },
             ...(item.ussd_code ? [{ icon: Code, label: 'USSD', value: item.ussd_code, color: 'text-indigo-500' }] : []),
           ]} actions={
             <>
               <ActionBtn onClick={() => startEditPkg(item)} icon={Pencil} label={isSo ? 'Beddel' : 'Edit'} />
+              <ActionBtn
+                onClick={() => toggleCostVisibility(item.id, Boolean(item.hide_cost_price))}
+                icon={item.hide_cost_price ? Unlock : Lock}
+                label={item.hide_cost_price
+                  ? (isSo ? 'Fur Cost' : 'Show Cost')
+                  : (isSo ? 'Qari Cost' : 'Hide Cost')}
+                variant="warning"
+              />
               <ActionBtn onClick={() => togglePackage(item.id, item.is_active)} icon={Power} label={item.is_active ? 'Off' : 'On'} variant="warning" />
               <ActionBtn onClick={() => deletePackage(item.id)} icon={Trash2} label={isSo ? 'Tirtir' : 'Delete'} variant="danger" />
             </>
