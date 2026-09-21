@@ -83,10 +83,13 @@ class HeartbeatAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION_HEARTBEAT) return
 
-        android.util.Log.d("HeartbeatAlarm", "💓 Heartbeat alarm fired — sending ping")
+        android.util.Log.d("HeartbeatAlarm", "💓 Recovery alarm fired — reviving delivery service")
 
-        // Self-heal the foreground delivery worker before pinging. If Samsung/OEM
-        // killed the service, this restarts the 600ms discovery polling loop.
+        // IMPORTANT: BroadcastReceiver must return immediately. The foreground
+        // UssdDialerService already owns the regular network heartbeat loop.
+        // Doing devicePing() under goAsync() here caused Samsung to hold this
+        // broadcast for 60s when DNS/network stalled, leading to ANRs exactly
+        // while Maamuus discovery was trying to upload its captured menu.
         try {
             val serviceIntent = Intent(context, UssdDialerService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -96,43 +99,9 @@ class HeartbeatAlarmReceiver : BroadcastReceiver() {
             }
         } catch (e: Throwable) {
             android.util.Log.e("HeartbeatAlarm", "❌ Could not revive delivery service: ${e.message}")
-        }
-
-        // Acquire a short wake lock to ensure the ping completes
-        val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-        val wakeLock = powerManager.newWakeLock(
-            PowerManager.PARTIAL_WAKE_LOCK,
-            "IftinAgents::HeartbeatWakeLock"
-        )
-        wakeLock.acquire(30_000L) // 30 seconds max
-
-        val pendingResult = goAsync()
-        // Schedule before starting network work, including failed/slow pings.
-        schedule(context)
-
-        // Send ping in background coroutine
-        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-        scope.launch {
-            try {
-                val deviceId = Settings.Secure.getString(
-                    context.contentResolver, Settings.Secure.ANDROID_ID
-                )
-                val apiClient = DeliveryApiClient()
-                val battery = getBatteryLevel(context)
-                val charging = isCharging(context)
-
-                // Use devicePing which updates last_ping_at on the server
-                val acknowledged = apiClient.devicePing(deviceId, battery, charging, 0)
-                android.util.Log.d("HeartbeatAlarm", "Heartbeat acknowledged=$acknowledged")
-            } catch (e: Exception) {
-                android.util.Log.e("HeartbeatAlarm", "❌ Heartbeat ping failed: ${e.message}")
-            } finally {
-                try {
-                    if (wakeLock.isHeld) wakeLock.release()
-                } finally {
-                    pendingResult.finish()
-                }
-            }
+        } finally {
+            // Schedule next recovery alarm before returning; no network work here.
+            schedule(context)
         }
     }
 
