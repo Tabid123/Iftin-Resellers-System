@@ -1274,18 +1274,63 @@ class UssdAccessibilityService : AccessibilityService() {
 
     private fun clickFinalResultOk(root: AccessibilityNodeInfo): Boolean {
         val finalText = extractDialogText(root).orEmpty()
+
+        // Some carrier/phone implementations expose the final USSD text before
+        // exposing the terminal OK/Haye button (or never expose that button as
+        // an Accessibility button at all). Once we are explicitly waiting for
+        // the final result, preserve the carrier text first so delivery_notes
+        // never loses the real response.
+        if (finalResultModeActive && isLikelyFinalCarrierResult(root, finalText)) {
+            saveFinalUssdResult(finalText)
+        }
+
         if (!isTerminalResultRoot(root, finalText)) return false
+
+        // Save again at the exact terminal dialog in case this window contains
+        // a cleaner/more complete carrier message than an earlier event.
+        saveFinalUssdResult(finalText)
 
         val clicked = clickButtonLikeByLabel(root, TERMINAL_RESULT_BUTTONS)
         if (!clicked) return false
 
-        saveFinalUssdResult(finalText)
         clickCount++
         lastClickTime = System.currentTimeMillis()
         Log.d(TAG, "✅ Final carrier result OK clicked (click #$clickCount)")
         startMultiDialogListener()
         notifyClickComplete()
         return true
+    }
+
+    private fun isLikelyFinalCarrierResult(root: AccessibilityNodeInfo, text: String): Boolean {
+        if (text.isBlank() || isKeyboardRoot(root, text)) return false
+        if (Ussd870Flow.isPackageMenuDialog(text)) return false
+        if (Ussd870Flow.matchStep(this, text) != null) return false
+
+        val lower = text.lowercase()
+        if (lower.contains("notification:") || lower.contains("notification,") ||
+            lower.contains(", folder") || lower.contains("play store") ||
+            lower.contains("phone | search") || lower.contains("voicemail")) {
+            return false
+        }
+
+        // A live prompt/editable field is not a terminal result.
+        val promptMarkers = listOf(
+            "geli", "gali", "enter", "dooro", "choose", "select",
+            "pin", "password", "furaha", "send", "cancel"
+        )
+        if (hasVisibleEditableNode(root) && promptMarkers.any { lower.contains(it) }) {
+            return false
+        }
+
+        // Typical Somali carrier final-result vocabulary. In final-result mode
+        // this is intentionally broad, but still excludes interactive menus.
+        val resultMarkers = listOf(
+            "waxaad", "haraaga", "haraagaagu", "guuleys", "guul",
+            "successful", "success", "failed", "fashil", "khalad",
+            "invalid", "lagu shubay", "ugu shubtay", "loo diray",
+            "xirmada", "internet", "daqiiqo", "mb", "gb", "$"
+        )
+        return resultMarkers.any { lower.contains(it) } || hasTerminalResultButton(root)
     }
 
     private fun clickFinalResultAcrossWindows(primary: AccessibilityNodeInfo? = null): Boolean {
