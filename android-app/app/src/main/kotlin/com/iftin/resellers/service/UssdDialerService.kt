@@ -2365,6 +2365,19 @@ class UssdDialerService : Service() {
                 delay(1500)
             }
 
+            // Discovery (*212* / dynamic package lookup) must NOT wait for the normal
+            // interactive-flow completion timeout here. The caller owns the live menu watcher
+            // and needs to start polling consumeDiscoveryMenu()/KEY_LAST_USSD_RESPONSE
+            // immediately. Waiting here for up to 60s caused the server's 90s processing
+            // lease to expire before the fallback watcher even got a chance to read the menu.
+            if (Ussd870Flow.isDiscoveryMode(this)) {
+                android.util.Log.d(
+                    "UssdDialer",
+                    "🔎 [Discovery] Dial launched; returning to live menu watcher without waiting for flow completion"
+                )
+                return true
+            }
+
             // Show toast message on main thread while in USSD dialer
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 android.widget.Toast.makeText(
