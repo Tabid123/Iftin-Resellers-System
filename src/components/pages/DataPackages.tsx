@@ -233,7 +233,12 @@ const DataPackages = () => {
           if (prov) {
             const { data, error } = await (supabase as any).rpc('get_public_packages', { p_provider_id: prov.id });
             if (error || activeWorkspaceId() !== workspaceId) return cachedPackages;
-            return (data as any[]) || [];
+            const fresh = (data as any[]) || [];
+            try {
+              const allCached = workspaceStorage.getJson<Record<string, any[]>>('offline_packages', {}, workspaceId) || {};
+              workspaceStorage.setJson('offline_packages', { ...allCached, [prov.id]: fresh }, workspaceId);
+            } catch {}
+            return fresh;
           }
         }
         return cachedPackages;
@@ -241,7 +246,12 @@ const DataPackages = () => {
       
       const { data, error } = await (supabase as any).rpc('get_public_packages', { p_provider_id: provider });
       if (error || activeWorkspaceId() !== workspaceId) return cachedPackages;
-      return (data as any[]) || [];
+      const fresh = (data as any[]) || [];
+      try {
+        const allCached = workspaceStorage.getJson<Record<string, any[]>>('offline_packages', {}, workspaceId) || {};
+        workspaceStorage.setJson('offline_packages', { ...allCached, [provider]: fresh }, workspaceId);
+      } catch {}
+      return fresh;
     },
     enabled: !!provider,
     staleTime: 60 * 1000,
