@@ -28,19 +28,6 @@ class DeliveryApiClient(
             .retryOnConnectionFailure(true)
             .connectionPool(okhttp3.ConnectionPool(5, 5, TimeUnit.MINUTES)) // 5 idle connections, 5 min keep-alive
             .build()
-
-        // Discovery completion is latency-critical: the carrier menu is already
-        // captured and the server processing lease is ticking. Use a separate
-        // client with a hard call timeout so DNS/connect stalls cannot block a
-        // retry for ~60 seconds or be delayed behind unrelated heartbeat traffic.
-        private val discoveryHttpClient: OkHttpClient = OkHttpClient.Builder()
-            .callTimeout(7, TimeUnit.SECONDS)
-            .connectTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(5, TimeUnit.SECONDS)
-            .writeTimeout(5, TimeUnit.SECONDS)
-            .retryOnConnectionFailure(false)
-            .connectionPool(okhttp3.ConnectionPool(2, 2, TimeUnit.MINUTES))
-            .build()
         
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
     }
@@ -538,35 +525,11 @@ class DeliveryApiClient(
                 .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))
                 .build()
 
-            discoveryHttpClient.newCall(request).execute().use { response ->
-                val responseBody = response.body?.string().orEmpty()
-                if (!response.isSuccessful) {
-                    android.util.Log.w(
-                        "DeliveryApiClient",
-                        "Discovery complete HTTP ${response.code}: ${responseBody.take(300)}"
-                    )
-                    return@withContext false
-                }
-
-                // complete_discovery returns {"success":false} with HTTP 200 when
-                // the processing row no longer matches (expired/wrong device).
-                // Treat that as a failed upload so the caller retries promptly.
-                val acknowledged = try {
-                    if (responseBody.isBlank()) true
-                    else JSONObject(responseBody).optBoolean("success", true)
-                } catch (_: Exception) {
-                    true
-                }
-                if (!acknowledged) {
-                    android.util.Log.w(
-                        "DeliveryApiClient",
-                        "Discovery complete not acknowledged: ${responseBody.take(300)}"
-                    )
-                }
-                return@withContext acknowledged
+            sharedHttpClient.newCall(request).execute().use { response ->
+                return@withContext response.isSuccessful
             }
         } catch (e: Exception) {
-            android.util.Log.w("DeliveryApiClient", "Discovery complete transport error: ${e.message}")
+            println("❌ Discovery complete error: ${e.message}")
             return@withContext false
         }
     }
