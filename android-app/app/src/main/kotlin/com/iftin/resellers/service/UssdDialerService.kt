@@ -1355,13 +1355,17 @@ class UssdDialerService : Service() {
 
             val dialed = dialUssdCode(dialCode, job.phoneNumber, null, provider, null)
 
-            // Sug ilaa 30s in menu-ga xirmooyinka la qabto.
+            // Sug ilaa 45s in menu-ga xirmooyinka la qabto.
+            // Discovery dial-ku hadda isla markiiba ayuu kusoo laabtaa watcher-kan, sidaas darteed
+            // 45s waa carrier-response window dhab ah (ma aha 60s wait + watcher). Tani waxay
+            // ka hortagtaa false timeout-yada shabakadda gaabiska ah iyadoo backend 90s lease-ka
+            // weli si ammaan ah uga dheer yahay.
             // Fallback: haddii accessibility-gu uusan step-ka match gareyn, dialog kasta
             // waa la kaydiyaa KEY_LAST_USSD_RESPONSE — halkaas ka akhri menu-ga xirmooyinka.
             val ussdPrefs = getSharedPreferences("iftin_ussd_prefs", Context.MODE_PRIVATE)
             var menuText: String? = null
             var waited = 0
-            while (waited < 30000 && menuText.isNullOrBlank()) {
+            while (waited < 45000 && menuText.isNullOrBlank()) {
                 // Hubi isla markiiba (ha sugin 200ms marka hore)
                 menuText = Ussd870Flow.consumeDiscoveryMenu(this)
                 if (menuText.isNullOrBlank()) {
