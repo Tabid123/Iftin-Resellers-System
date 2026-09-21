@@ -34,6 +34,7 @@ interface DataPackage {
   validity_days: string;
   selling_price: number;
   cost_price: number | null;
+  hide_cost_price?: boolean;
   is_active: boolean;
   category_id: string | null;
   connection_type_label: string;
