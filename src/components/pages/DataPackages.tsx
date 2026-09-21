@@ -684,7 +684,7 @@ const DataPackages = () => {
                 <h3 className="text-lg font-semibold text-foreground">{pkg.package_name}</h3>
               </div>
               <div className="text-right">
-                {pkg.cost_price !== null && pkg.cost_price !== undefined && (
+                {pkg.hide_cost_price === false && pkg.cost_price !== null && pkg.cost_price !== undefined && (
                   <span className="text-sm text-destructive line-through mr-2">
                     ${formatPrice(pkg.cost_price)}
                   </span>
