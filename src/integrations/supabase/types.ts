@@ -894,6 +894,7 @@ export type Database = {
           created_at: string
           data_amount: string
           display_order: number
+          hide_cost_price: boolean
           id: string
           is_active: boolean
           is_discovery_root: boolean
@@ -916,6 +917,7 @@ export type Database = {
           created_at?: string
           data_amount: string
           display_order?: number
+          hide_cost_price?: boolean
           id?: string
           is_active?: boolean
           is_discovery_root?: boolean
@@ -938,6 +940,7 @@ export type Database = {
           created_at?: string
           data_amount?: string
           display_order?: number
+          hide_cost_price?: boolean
           id?: string
           is_active?: boolean
           is_discovery_root?: boolean
@@ -3184,6 +3187,7 @@ export type Database = {
           cost_price: number
           data_amount: string
           display_order: number
+          hide_cost_price: boolean
           id: string
           is_active: boolean
           package_name: string
