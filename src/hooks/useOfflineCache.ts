@@ -443,6 +443,28 @@ export const useOfflineCache = () => {
     }
   }, [workspaceId, isReallyOnline, cacheData, isCacheStale]);
 
+  // Native/web resume safety: packaged APKs must revalidate live tenant data when
+  // the app becomes visible again. This also repairs missed realtime events.
+  useEffect(() => {
+    if (!workspaceId) return;
+    let lastRefreshAt = 0;
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState !== 'visible' || !isReallyOnline) return;
+      const now = Date.now();
+      if (now - lastRefreshAt < 15_000) return;
+      lastRefreshAt = now;
+      void cacheData(true);
+    };
+
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    window.addEventListener('focus', refreshWhenVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.removeEventListener('focus', refreshWhenVisible);
+    };
+  }, [workspaceId, isReallyOnline, cacheData]);
+
   // Local realtime invalidation, bound to the active workspace.
   useEffect(() => {
     if (!workspaceId) return;
@@ -471,6 +493,26 @@ export const useOfflineCache = () => {
               if (!data || cancelled || !stillActive(id)) return;
               workspaceStorage.setJson(CACHE_RESOURCES.providers, data, id);
               queryClient.setQueryData(workspaceQueryKey(id, 'providers'), data);
+              workspaceStorage.set(CACHE_RESOURCES.timestamp, Date.now().toString(), id);
+            } catch {
+              // Preserve the existing snapshot on transient errors.
+            }
+          },
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'payment_providers_config',
+            filter: `tenant_id=eq.${id}`,
+          },
+          async () => {
+            try {
+              const data = await rpcWithRetry<any[]>('get_active_payment_providers');
+              if (!Array.isArray(data) || cancelled || !stillActive(id)) return;
+              workspaceStorage.setJson(CACHE_RESOURCES.paymentProviders, data, id);
+              queryClient.setQueryData(workspaceQueryKey(id, 'paymentProviders'), data);
               workspaceStorage.set(CACHE_RESOURCES.timestamp, Date.now().toString(), id);
             } catch {
               // Preserve the existing snapshot on transient errors.
