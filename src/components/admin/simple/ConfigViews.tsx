@@ -150,12 +150,22 @@ export const PackagesCustomView = ({ isSo }: { isSo: boolean }) => {
   const [newPkg, setNewPkg] = useState({ package_name: '', data_amount: '', selling_price: '', secret_prices: '', cost_price: '', validity_days: '30', provider_id: '', category_id: '', ussd_code: '', connection_type_label: 'Data' });
 
   const loadPackages = useCallback(async () => {
-    const [pkgRes, provRes, catRes] = await Promise.all([
+    const [pkgRes, provRes, catRes, rulesRes] = await Promise.all([
       supabase.from('data_packages_config').select('*').order('display_order').limit(500),
       supabase.from('providers_config').select('id, provider_name, provider_logo, evoucher_rate').order('display_order'),
       supabase.from('package_categories').select('*').order('display_order'),
+      supabase.from('package_delivery_rules').select('source_package_id, target_package_id, delivery_count').eq('is_active', true),
     ]);
-    setPackages(pkgRes.data || []);
+    const pkgs = pkgRes.data || [];
+    // Kharashka dhabta ah ee xirmo isku xiran: wadarta (kharashka target-ka × tirada dirida).
+    const pkgCost = new Map<string, number>(pkgs.map((p: any) => [p.id, Number(p.cost_price || 0)]));
+    const ruleCost = new Map<string, number>();
+    for (const r of (rulesRes.data || []) as any[]) {
+      const per = (pkgCost.get(r.target_package_id) ?? 0) * Number(r.delivery_count || 1);
+      ruleCost.set(r.source_package_id, (ruleCost.get(r.source_package_id) ?? 0) + per);
+    }
+    setRuleCosts(ruleCost);
+    setPackages(pkgs);
     setProviders(provRes.data || []);
     setCategories(catRes.data || []);
     setLoading(false);
