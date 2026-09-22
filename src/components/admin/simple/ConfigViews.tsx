@@ -13,6 +13,7 @@ import { FileText, Lock, Unlock } from 'lucide-react';
 import { validateUssdTemplate } from '@/lib/ussdValidator';
 import CachedImage from '@/components/CachedImage';
 import { findPriceConflicts, parseSecretPrices, secretPricesOf } from '@/lib/secretPrices';
+import { calculateUsdProfit } from '@/lib/iftinProfit';
 
 // ========== PROVIDERS ==========
 export const ProvidersCustomView = ({ isSo }: { isSo: boolean }) => {
