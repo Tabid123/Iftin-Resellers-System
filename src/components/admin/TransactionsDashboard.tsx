@@ -25,6 +25,7 @@ interface Transaction {
   receiver_phone?: string | null;
   provider_name: string;
   is_direct_flow: boolean;
+  bundle_profit?: number | null;
 }
 
 interface Provider {
@@ -39,6 +40,7 @@ interface PackageConfig {
   category_id: string | null;
   ussd_code: string | null;
   is_discovery_root: boolean | null;
+  selling_price: number;
   cost_price: number;
 }
 
@@ -54,12 +56,16 @@ const PAGE_SIZE = 50;
 // *870*, *866*, *101* and *212* are cash-cost menu flows.
 // Their business profit is always Selling - Cost; E-Voucher rate must not be added.
 const calculateRowProfit = (row: Transaction): number =>
-  calculateOrderProfit(row.selling_price, row.cost_price, row.evoucher_rate, row.is_direct_flow);
+  row.bundle_profit != null
+    ? Number(row.bundle_profit)
+    : calculateOrderProfit(row.selling_price, row.cost_price, row.evoucher_rate, row.is_direct_flow);
 
 const calculateRowEvProfit = (row: Transaction): number =>
-  row.is_direct_flow
-    ? Number(row.selling_price || 0) - Number(row.cost_price || 0)
-    : calculateEvoucherProfit(row.selling_price, row.cost_price, row.evoucher_rate);
+  row.bundle_profit != null
+    ? Number(row.bundle_profit)
+    : row.is_direct_flow
+      ? Number(row.selling_price || 0) - Number(row.cost_price || 0)
+      : calculateEvoucherProfit(row.selling_price, row.cost_price, row.evoucher_rate);
 
 const isDelivered = (row: Transaction) =>
   row.delivery_status === 'delivered' || (!row.delivery_status && row.status === 'completed');
@@ -165,7 +171,7 @@ export function TransactionsDashboard() {
     if (start) orderQuery = orderQuery.gte('created_at', start);
     if (end) orderQuery = orderQuery.lt('created_at', end);
 
-    const [ordersResult, providersResult, packagesResult, instructionsResult] = await Promise.all([
+    const [ordersResult, providersResult, packagesResult, instructionsResult, bundleRulesResult] = await Promise.all([
       orderQuery,
       supabase
         .from('providers_config')
@@ -174,15 +180,20 @@ export function TransactionsDashboard() {
         .order('display_order'),
       supabase
         .from('data_packages_config')
-        .select('id, provider_id, category_id, ussd_code, is_discovery_root, cost_price')
+        .select('id, provider_id, category_id, ussd_code, is_discovery_root, selling_price, cost_price')
         .eq('tenant_id', tenantId),
       supabase
         .from('delivery_instructions')
         .select('package_id, category_id, provider_id, code_template')
         .eq('tenant_id', tenantId),
+      supabase
+        .from('package_delivery_rules')
+        .select('source_package_id, target_package_id, delivery_count, is_active')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true),
     ]);
 
-    const firstError = ordersResult.error || providersResult.error || packagesResult.error || instructionsResult.error;
+    const firstError = ordersResult.error || providersResult.error || packagesResult.error || instructionsResult.error || bundleRulesResult.error;
     if (firstError) {
       setError(firstError.message);
       setLoading(false);
@@ -194,6 +205,18 @@ export function TransactionsDashboard() {
     const packageRows = (packagesResult.data || []) as PackageConfig[];
     const packageMap = new Map(packageRows.map((pkg) => [pkg.id, pkg]));
     const instructions = (instructionsResult.data || []) as DeliveryInstruction[];
+
+    const bundleProfitBySource = new Map<string, number>();
+    for (const rule of (bundleRulesResult.data || []) as any[]) {
+      const target = packageMap.get(rule.target_package_id);
+      if (!target) continue;
+      const count = Math.max(1, Number(rule.delivery_count || 1));
+      const perDeliveryProfit = Number(target.selling_price || 0) - Number(target.cost_price || 0);
+      bundleProfitBySource.set(
+        rule.source_package_id,
+        (bundleProfitBySource.get(rule.source_package_id) || 0) + (perDeliveryProfit * count),
+      );
+    }
 
     const decorated = (ordersResult.data || []).map((order: any) => {
       const provider = providerMap.get(order.provider_id);
@@ -213,6 +236,9 @@ export function TransactionsDashboard() {
         evoucher_rate: Number(provider?.evoucher_rate || 0),
         provider_name: provider?.provider_name || '—',
         is_direct_flow: isDirectFlow,
+        bundle_profit: bundleProfitBySource.has(order.package_id)
+          ? bundleProfitBySource.get(order.package_id)!
+          : null,
       } as Transaction;
     });
 
@@ -344,8 +370,8 @@ export function TransactionsDashboard() {
                     <div><DollarSign className="mr-1 inline h-3 w-3" />Selling: ${row.selling_price.toFixed(2)}</div>
                     <div><DollarSign className="mr-1 inline h-3 w-3" />Cost: ${row.cost_price.toFixed(2)}</div>
                     <div><DollarSign className="mr-1 inline h-3 w-3" />USD Profit: ${profitUsd.toFixed(4)}</div>
-                    <div><DollarSign className="mr-1 inline h-3 w-3" />{row.is_direct_flow ? 'Flow Profit' : 'EV Profit'}: ${profitEv.toFixed(4)}</div>
-                    <div><Hash className="mr-1 inline h-3 w-3" />{row.is_direct_flow ? 'Flow: Selling − Cost' : `Rate: ${(row.evoucher_rate * 100).toFixed(2)}%`}</div>
+                    <div><DollarSign className="mr-1 inline h-3 w-3" />{row.bundle_profit != null ? 'Bundle Profit' : row.is_direct_flow ? 'Flow Profit' : 'EV Profit'}: ${profitEv.toFixed(4)}</div>
+                    <div><Hash className="mr-1 inline h-3 w-3" />{row.bundle_profit != null ? 'Bundle: Σ(Target Sell − Target Cost) × Count' : row.is_direct_flow ? 'Flow: Selling − Cost' : `Rate: ${(row.evoucher_rate * 100).toFixed(2)}%`}</div>
                     <div className="truncate font-mono">ID: {row.id.slice(0, 8).toUpperCase()}</div>
                   </div>
                 )}
