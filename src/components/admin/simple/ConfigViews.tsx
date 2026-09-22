@@ -286,7 +286,8 @@ Save anyway?`;
     const evRate = getProviderEvoucherRate(item.provider_id);
     // Xirmo isku xiran (2x dirid iwm): kharashka dhabta ah waa wadarta dirisyada.
     const effectiveCost = ruleCosts.get(item.id) ?? Number(item.cost_price || 0);
-    const profit = (Number(item.selling_price) * (1 + evRate)) - effectiveCost;
+    // Faa'iidada USD: (sell*(1+rate) - cost) / (1+rate) — sida calculateUsdProfit.
+    const profit = calculateUsdProfit(Number(item.selling_price), effectiveCost, evRate);
     return (
       <div key={item.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-purple-100/50 dark:border-purple-900/20 overflow-hidden">
         <button onClick={() => setExpandedId(isExpanded ? null : item.id)} className="w-full px-3 py-2.5 flex items-center justify-between text-left active:bg-purple-50/50">
