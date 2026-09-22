@@ -100,6 +100,18 @@ jobs:
             cfg.plugins.SplashScreen.backgroundColor = color;
             cfg.plugins.StatusBar.backgroundColor = color;
             cfg.plugins.NavigationBar.backgroundColor = color;
+
+            // Tenant APKs use the live storefront as their primary web layer.
+            // This means normal website HTML/CSS/JS fixes and new UI features
+            // appear without rebuilding every tenant APK. The packaged dist +
+            // tenant snapshot are still shipped for cached/offline recovery.
+            const slug = String(process.env.TENANT_SLUG || "").trim().toLowerCase();
+            cfg.server = {
+              url: `https://iftinagents.com/t/${slug}`,
+              cleartext: false,
+              allowNavigation: ["iftinagents.com"]
+            };
+
             fs.writeFileSync("capacitor.config.json", JSON.stringify(cfg, null, 2));
           '
         env:
@@ -198,6 +210,8 @@ jobs:
 
           grep -Eq '"captureInput"[[:space:]]*:[[:space:]]*false' capacitor.config.json \
             || fail "captureInput is not false in capacitor.config.json"
+          grep -Fq "\"url\": \"https://iftinagents.com/t/${TENANT_SLUG}\"" capacitor.config.json \
+            || fail "tenant live storefront URL is missing from capacitor.config.json"
           if [ -f "$ASSETS/capacitor.config.json" ]; then
             grep -Eq '"captureInput"[[:space:]]*:[[:space:]]*false' "$ASSETS/capacitor.config.json" \
               || fail "captureInput is not false in the synced Android capacitor.config.json"
