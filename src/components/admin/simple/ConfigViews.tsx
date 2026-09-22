@@ -141,6 +141,7 @@ export const PackagesCustomView = ({ isSo }: { isSo: boolean }) => {
   const [packages, setPackages] = useState<any[]>([]);
   const [providers, setProviders] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [ruleCosts, setRuleCosts] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -283,7 +284,9 @@ Save anyway?`;
   const renderPackageCard = (item: any) => {
     const isExpanded = expandedId === item.id;
     const evRate = getProviderEvoucherRate(item.provider_id);
-    const profit = (Number(item.selling_price) * (1 + evRate)) - Number(item.cost_price || 0);
+    // Xirmo isku xiran (2x dirid iwm): kharashka dhabta ah waa wadarta dirisyada.
+    const effectiveCost = ruleCosts.get(item.id) ?? Number(item.cost_price || 0);
+    const profit = (Number(item.selling_price) * (1 + evRate)) - effectiveCost;
     return (
       <div key={item.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-purple-100/50 dark:border-purple-900/20 overflow-hidden">
         <button onClick={() => setExpandedId(isExpanded ? null : item.id)} className="w-full px-3 py-2.5 flex items-center justify-between text-left active:bg-purple-50/50">
