@@ -37,6 +37,7 @@ interface OrderDetail {
   provider_name?: string;
   evoucher_rate?: number;
   is_direct_flow?: boolean;
+  bundle_profit?: number | null;
   // All delivery queue entries for this order
   deliveries: DeliveryQueueItem[];
   device_name?: string;
@@ -80,13 +81,14 @@ export const AbdiqafarView = ({ isSo }: { isSo: boolean }) => {
       const tid = getTenantId();
       const scoped = (q: any) => (tid ? q.eq('tenant_id', tid) : q);
 
-      const [ordersRes, deliveryRes, providersRes, devicesRes, packagesRes, instructionsRes] = await Promise.all([
+      const [ordersRes, deliveryRes, providersRes, devicesRes, packagesRes, instructionsRes, bundleRulesRes] = await Promise.all([
         scoped(supabase.from('orders').select('*').gte('created_at', today.toISOString()).order('created_at', { ascending: false }).limit(200)),
         scoped(supabase.from('delivery_queue').select('order_id, ussd_code, provider_response, sim_slot, android_device_id, status').gte('created_at', today.toISOString())),
         scoped(supabase.from('providers_config').select('id, provider_name, evoucher_rate')),
         scoped(supabase.from('android_devices').select('device_id, device_name, sim_number, sim2_number')),
-        scoped(supabase.from('data_packages_config').select('id, cost_price, provider_id, category_id, ussd_code, is_discovery_root')),
+        scoped(supabase.from('data_packages_config').select('id, selling_price, cost_price, provider_id, category_id, ussd_code, is_discovery_root')),
         scoped(supabase.from('delivery_instructions').select('package_id, category_id, provider_id, code_template')),
+        scoped(supabase.from('package_delivery_rules').select('source_package_id, target_package_id, delivery_count, is_active').eq('is_active', true)),
       ]);
 
       const deliveries = (deliveryRes.data || []) as DeliveryQueueItem[];
@@ -95,6 +97,17 @@ export const AbdiqafarView = ({ isSo }: { isSo: boolean }) => {
       const packages = packagesRes.data || [];
       const instructions = instructionsRes.data || [];
       const packageMap = new Map(packages.map((p: any) => [p.id, p]));
+      const bundleProfitBySource = new Map<string, number>();
+      for (const rule of (bundleRulesRes.data || []) as any[]) {
+        const target: any = packageMap.get(rule.target_package_id);
+        if (!target) continue;
+        const count = Math.max(1, Number(rule.delivery_count || 1));
+        const perDeliveryProfit = Number(target.selling_price || 0) - Number(target.cost_price || 0);
+        bundleProfitBySource.set(
+          rule.source_package_id,
+          (bundleProfitBySource.get(rule.source_package_id) || 0) + (perDeliveryProfit * count),
+        );
+      }
 
       const enriched: OrderDetail[] = (ordersRes.data || []).map((o: any) => {
         // Get ALL delivery queue entries for this order (not just first)
@@ -123,6 +136,9 @@ export const AbdiqafarView = ({ isSo }: { isSo: boolean }) => {
           provider_name: prov?.provider_name || 'Unknown',
           evoucher_rate: prov?.evoucher_rate || 0,
           is_direct_flow: isDirectFlow,
+          bundle_profit: bundleProfitBySource.has(o.package_id)
+            ? bundleProfitBySource.get(o.package_id)!
+            : null,
           deliveries: orderDeliveries,
           device_name: dev?.device_name,
           sim_number: firstDq?.sim_slot === 2 ? dev?.sim2_number : dev?.sim_number,
@@ -204,7 +220,9 @@ export const AbdiqafarView = ({ isSo }: { isSo: boolean }) => {
           </div>
 
           {filtered.map((order, idx) => {
-            const profit = calculateOrderProfit(order.selling_price, order.cost_price, order.evoucher_rate || 0, Boolean(order.is_direct_flow));
+            const profit = order.bundle_profit != null
+              ? Number(order.bundle_profit)
+              : calculateOrderProfit(order.selling_price, order.cost_price, order.evoucher_rate || 0, Boolean(order.is_direct_flow));
             const displayStatus = order.delivery_status || order.status;
             const isExpanded = expandedId === order.id;
             
