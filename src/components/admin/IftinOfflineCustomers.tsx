@@ -145,7 +145,7 @@ const IftinOfflineCustomers: React.FC = () => {
       providerId,
       categoryId: matchedPackage?.category_id ? String(matchedPackage.category_id) : '',
       packageId: r.package_id ?? '',
-      notes: r.notes ?? '',
+      notes: (r as any).notes ?? '',
     });
     setFormOpen(true);
   };
