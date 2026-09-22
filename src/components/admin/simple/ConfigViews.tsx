@@ -13,6 +13,7 @@ import { FileText, Lock, Unlock } from 'lucide-react';
 import { validateUssdTemplate } from '@/lib/ussdValidator';
 import CachedImage from '@/components/CachedImage';
 import { findPriceConflicts, parseSecretPrices, secretPricesOf } from '@/lib/secretPrices';
+import { calculateUsdProfit } from '@/lib/iftinProfit';
 
 // ========== PROVIDERS ==========
 export const ProvidersCustomView = ({ isSo }: { isSo: boolean }) => {
@@ -141,6 +142,7 @@ export const PackagesCustomView = ({ isSo }: { isSo: boolean }) => {
   const [packages, setPackages] = useState<any[]>([]);
   const [providers, setProviders] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [ruleCosts, setRuleCosts] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -150,12 +152,22 @@ export const PackagesCustomView = ({ isSo }: { isSo: boolean }) => {
   const [newPkg, setNewPkg] = useState({ package_name: '', data_amount: '', selling_price: '', secret_prices: '', cost_price: '', validity_days: '30', provider_id: '', category_id: '', ussd_code: '', connection_type_label: 'Data' });
 
   const loadPackages = useCallback(async () => {
-    const [pkgRes, provRes, catRes] = await Promise.all([
+    const [pkgRes, provRes, catRes, rulesRes] = await Promise.all([
       supabase.from('data_packages_config').select('*').order('display_order').limit(500),
       supabase.from('providers_config').select('id, provider_name, provider_logo, evoucher_rate').order('display_order'),
       supabase.from('package_categories').select('*').order('display_order'),
+      supabase.from('package_delivery_rules').select('source_package_id, target_package_id, delivery_count').eq('is_active', true),
     ]);
-    setPackages(pkgRes.data || []);
+    const pkgs = pkgRes.data || [];
+    // Kharashka dhabta ah ee xirmo isku xiran: wadarta (kharashka target-ka × tirada dirida).
+    const pkgCost = new Map<string, number>(pkgs.map((p: any) => [p.id, Number(p.cost_price || 0)]));
+    const ruleCost = new Map<string, number>();
+    for (const r of (rulesRes.data || []) as any[]) {
+      const per = (pkgCost.get(r.target_package_id) ?? 0) * Number(r.delivery_count || 1);
+      ruleCost.set(r.source_package_id, (ruleCost.get(r.source_package_id) ?? 0) + per);
+    }
+    setRuleCosts(ruleCost);
+    setPackages(pkgs);
     setProviders(provRes.data || []);
     setCategories(catRes.data || []);
     setLoading(false);
@@ -273,7 +285,10 @@ Save anyway?`;
   const renderPackageCard = (item: any) => {
     const isExpanded = expandedId === item.id;
     const evRate = getProviderEvoucherRate(item.provider_id);
-    const profit = (Number(item.selling_price) * (1 + evRate)) - Number(item.cost_price || 0);
+    // Xirmo isku xiran (2x dirid iwm): kharashka dhabta ah waa wadarta dirisyada.
+    const effectiveCost = ruleCosts.get(item.id) ?? Number(item.cost_price || 0);
+    // Faa'iidada USD: (sell*(1+rate) - cost) / (1+rate) — sida calculateUsdProfit.
+    const profit = calculateUsdProfit(Number(item.selling_price), effectiveCost, evRate);
     return (
       <div key={item.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-purple-100/50 dark:border-purple-900/20 overflow-hidden">
         <button onClick={() => setExpandedId(isExpanded ? null : item.id)} className="w-full px-3 py-2.5 flex items-center justify-between text-left active:bg-purple-50/50">

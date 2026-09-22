@@ -382,7 +382,7 @@ export default function AppsPage() {
                   </div>
                   {group.apk_updated_at && (
                     <div className="mt-1 text-[11px] font-medium text-emerald-700">
-                      APK la beddelay: {new Date(group.rows[0].apk_updated_at).toLocaleString()}
+                      APK la beddelay: {new Date(group.rows[0].apk_updated_at ?? '').toLocaleString()}
                     </div>
                   )}
                   {!group.isAllTenants && (
