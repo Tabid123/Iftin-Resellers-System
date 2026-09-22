@@ -216,9 +216,17 @@ const bootstrapScript = `(() => {\n` +
   `    const id = String(tenant.id);\n` +
   `    const slug = String(tenant.slug).toLowerCase();\n` +
   `    const prefix = 'ws:' + id + ':';\n` +
+  `    const packagedAt = Date.parse(snapshot.generated_at || '') || 0;\n` +
+  `    const runtimeAt = Number(localStorage.getItem(prefix + 'offline_cache_timestamp') || 0);\n` +
+  `    const packagedSeedAt = Date.parse(localStorage.getItem(prefix + 'offline_packaged_bootstrap_at') || '') || 0;\n` +
   `    localStorage.setItem('najax.tenant_slug', slug);\n` +
   `    localStorage.setItem('najax.cache_owner_slug', slug);\n` +
-  `    localStorage.setItem('najax.tenant_cache.' + slug, JSON.stringify(tenant));\n` +
+  `    if (!localStorage.getItem('najax.tenant_cache.' + slug)) {\n` +
+  `      localStorage.setItem('najax.tenant_cache.' + slug, JSON.stringify(tenant));\n` +
+  `    }\n` +
+  `    // Seed packaged data only when it is newer than any runtime sync and has\n` +
+  `    // not already been applied. Never overwrite live data on every app launch.\n` +
+  `    if ((runtimeAt && runtimeAt > packagedAt) || (packagedSeedAt && packagedSeedAt >= packagedAt)) return;\n` +
   `    localStorage.setItem(prefix + 'offline_providers', JSON.stringify(snapshot.providers || []));\n` +
   `    localStorage.setItem(prefix + 'offline_categories', JSON.stringify(snapshot.categories || []));\n` +
   `    localStorage.setItem(prefix + 'offline_packages', JSON.stringify(snapshot.packages || {}));\n` +
@@ -228,8 +236,10 @@ const bootstrapScript = `(() => {\n` +
   `    localStorage.setItem(prefix + 'offline_featured_packages', JSON.stringify(snapshot.featuredPackages || []));\n` +
   `    localStorage.setItem(prefix + 'offline_popular_packages_v2', JSON.stringify(snapshot.popularPackages || []));\n` +
   `    localStorage.setItem(prefix + 'offline_banners', JSON.stringify(snapshot.banners || []));\n` +
-  `    localStorage.setItem(prefix + 'offline_banners_at', String(Date.now()));\n` +
-  `    localStorage.setItem(prefix + 'offline_cache_timestamp', String(Date.now()));\n` +
+  `    const stamp = packagedAt || Date.now();\n` +
+  `    localStorage.setItem(prefix + 'offline_banners_at', String(stamp));\n` +
+  `    localStorage.setItem(prefix + 'offline_cache_timestamp', String(stamp));\n` +
+  `    localStorage.setItem(prefix + 'offline_packaged_bootstrap_at', snapshot.generated_at || new Date(stamp).toISOString());\n` +
   `    localStorage.setItem(prefix + 'offline_bootstrap_version', String(snapshot.version || 1));\n` +
   `  } catch (_) {}\n` +
   `})();\n`;
