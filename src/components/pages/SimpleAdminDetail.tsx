@@ -18,7 +18,7 @@ import { prefetchAdminViews } from '@/lib/prefetchAdminViews';
 const DailyOrdersCustomView = lazy(() => import('@/components/admin/simple/OrderViews').then(m => ({ default: m.DailyOrdersCustomView })));
 const OrdersListView = lazy(() => import('@/components/admin/simple/OrderViews').then(m => ({ default: m.OrdersListView })));
 const AutoTopUpCustomView = lazy(() => import('@/components/admin/simple/OrderViews').then(m => ({ default: m.AutoTopUpCustomView })));
-const AbdiqafarView = lazy(() => import('@/components/admin/simple/AbdiqafarView').then(m => ({ default: m.AbdiqafarView })));
+const OrdersView = lazy(() => import('@/components/admin/simple/OrdersView').then(m => ({ default: m.OrdersView })));
 const CustomersCustomView = lazy(() => import('@/components/admin/simple/CustomerViews').then(m => ({ default: m.CustomersCustomView })));
 const OfflineRegistrationsCustomView = lazy(() => import('@/components/admin/simple/CustomerViews').then(m => ({ default: m.OfflineRegistrationsCustomView })));
 const DevicesCustomView = lazy(() => import('@/components/admin/simple/CustomerViews').then(m => ({ default: m.DevicesCustomView })));
@@ -211,7 +211,7 @@ const SimpleAdminDetail = () => {
       case 'fraud-alerts': return <FraudAlerts />;
       case 'deliveries': return <DeliveryTracker />;
       case 'orders':
-      case 'abdiqafar': return <AbdiqafarView isSo={isSo} />; // legacy URL alias
+      case 'abdiqafar': return <OrdersView isSo={isSo} />; // keep old URL as a backward-compatible alias
       case 'unmatched': return <UnmatchedPayments />;
       case 'sms-logs': return <SmsLogsViewer />;
       case 'iftin-pricing': return <IftinPricing />;
