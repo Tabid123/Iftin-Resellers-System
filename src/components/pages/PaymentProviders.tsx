@@ -18,7 +18,7 @@ import amtelLogo from '@/assets/providers/amtel-logo.png';
 import { supabase } from '@/integrations/supabase/client';
 import { workspaceQueryKey, workspaceStorage } from '@/lib/workspaceKeys';
 import { useTenant } from '@/contexts/TenantContext';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useConnectivity } from '@/contexts/ConnectivityContext';
 import { buildPaymentUssd, fetchIftinCatalog, hasCatalog, isApiPartnerTenant, isOrderingBlocked, mapPaymentProviders } from '@/lib/iftinCatalog';
 import {
@@ -87,7 +87,6 @@ const PaymentProviders = () => {
   const navigate = useNavigate();
   const { isReallyOnline } = useConnectivity();
   const { queueOrder } = useOfflineSync();
-  const queryClient = useQueryClient();
   const paymentTenantState = useTenant();
   const workspaceId = (paymentTenantState as any).tenant?.id ?? null;
   const { provider } = useParams<{ provider: string }>();
@@ -206,16 +205,6 @@ const PaymentProviders = () => {
     };
     return [...paymentProviders].sort((a: any, b: any) => rank(a?.provider_name) - rank(b?.provider_name));
   }, [paymentProviders]);
-
-  useEffect(() => {
-    const channel = supabase
-      .channel('payment-providers-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_providers_config' }, () => {
-        queryClient.invalidateQueries({ queryKey: workspaceQueryKey(workspaceId, 'paymentProviders') });
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [queryClient]);
 
   const { data: deliveryInstructions = [] } = useQuery({
     queryKey: ['deliveryInstructions', packageData?.categoryId, packageData?.providerId],
