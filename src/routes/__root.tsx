@@ -31,7 +31,6 @@ import { TenantGate } from "@/components/TenantGate";
 import { StatusBarColor } from "@/components/StatusBarColor";
 import { PersistentBottomNav } from "@/components/PersistentBottomNav";
 import { registerTenantChangeListener } from '@/integrations/supabase/client';
-import { scheduleNativeSplashFallback } from '@/lib/nativeSplash';
 import { initNativeBars } from '@/lib/nativeStatusBar';
 import { usePackagedOfflineBootstrap } from "@/hooks/usePackagedOfflineBootstrap";
 import { useOfflineCache } from "@/hooks/useOfflineCache";
@@ -220,7 +219,6 @@ function AppContent() {
   useEffect(() => onStorefront("tenant-config-changed", () => appQueryClient.invalidateQueries()), [appQueryClient]);
   const { showExitDialog, handleExitApp, handleCancelExit } = useAndroidBackButton();
 
-  useEffect(() => { scheduleNativeSplashFallback(); }, []);
   useEffect(() => initNativeBars(), []);
 
   return (
