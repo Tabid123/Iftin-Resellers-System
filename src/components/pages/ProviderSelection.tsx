@@ -351,7 +351,21 @@ const ProviderSelection = () => {
         <div className="px-4 mt-6 mb-4">
           <PopularPackages />
         </div>
+
+        {/* Test button (APK sync check) */}
+        <div className="px-4 mb-6 flex justify-center">
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => toast({ title: 'Tijaabo', description: 'Badhanka tijaabada wuu shaqeeyaa ✅' })}
+            style={{ backgroundColor: 'hsl(var(--primary))' }}
+            className="rounded-full px-5 text-white"
+          >
+            Tijaabo
+          </Button>
+        </div>
       </div>
+
 
       {/* Support FAB */}
       <button
