@@ -443,146 +443,39 @@ export const useOfflineCache = () => {
     }
   }, [workspaceId, isReallyOnline, cacheData, isCacheStale]);
 
-  // Native/web resume safety: packaged APKs must revalidate live tenant data when
-  // the app becomes visible again. This also repairs missed realtime events.
+  // Resume safety: mark active storefront queries stale without doing a full
+  // providers/categories/packages crawl on every focus. Active screens refetch
+  // in the background while cached content stays instantly tappable.
   useEffect(() => {
     if (!workspaceId) return;
     let lastRefreshAt = 0;
 
-    const refreshWhenVisible = () => {
+    const revalidateWhenVisible = () => {
       if (document.visibilityState !== 'visible' || !isReallyOnline) return;
       const now = Date.now();
-      if (now - lastRefreshAt < 15_000) return;
+      if (now - lastRefreshAt < 10_000) return;
       lastRefreshAt = now;
-      void cacheData(true);
+
+      for (const resource of [
+        'providers',
+        'categories',
+        'packages',
+        'featuredPackages',
+        'popularPackages',
+        'paymentProviders',
+        'banners',
+      ]) {
+        void queryClient.invalidateQueries({ queryKey: workspaceQueryKey(workspaceId, resource) });
+      }
     };
 
-    document.addEventListener('visibilitychange', refreshWhenVisible);
-    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', revalidateWhenVisible);
+    window.addEventListener('focus', revalidateWhenVisible);
     return () => {
-      document.removeEventListener('visibilitychange', refreshWhenVisible);
-      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', revalidateWhenVisible);
+      window.removeEventListener('focus', revalidateWhenVisible);
     };
-  }, [workspaceId, isReallyOnline, cacheData]);
-
-  // Local realtime invalidation, bound to the active workspace.
-  useEffect(() => {
-    if (!workspaceId) return;
-    let cancelled = false;
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-    const id = workspaceId;
-
-    const subscribeLocalRealtime = async () => {
-      const partner = await isApiPartnerTenant(id);
-      if (cancelled || !stillActive(id) || partner) return;
-      sourceRef.current = 'local';
-
-      channel = supabase.channel(`offline-cache-invalidation-${id}`);
-      channel
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'providers_config',
-            filter: `tenant_id=eq.${id}`,
-          },
-          async () => {
-            try {
-              const data = await rpcWithRetry<any[]>('get_active_providers');
-              if (!data || cancelled || !stillActive(id)) return;
-              workspaceStorage.setJson(CACHE_RESOURCES.providers, data, id);
-              queryClient.setQueryData(workspaceQueryKey(id, 'providers'), data);
-              workspaceStorage.set(CACHE_RESOURCES.timestamp, Date.now().toString(), id);
-            } catch {
-              // Preserve the existing snapshot on transient errors.
-            }
-          },
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'payment_providers_config',
-            filter: `tenant_id=eq.${id}`,
-          },
-          async () => {
-            try {
-              const data = await rpcWithRetry<any[]>('get_active_payment_providers');
-              if (!Array.isArray(data) || cancelled || !stillActive(id)) return;
-              workspaceStorage.setJson(CACHE_RESOURCES.paymentProviders, data, id);
-              queryClient.setQueryData(workspaceQueryKey(id, 'paymentProviders'), data);
-              workspaceStorage.set(CACHE_RESOURCES.timestamp, Date.now().toString(), id);
-            } catch {
-              // Preserve the existing snapshot on transient errors.
-            }
-          },
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'data_packages_config',
-            filter: `tenant_id=eq.${id}`,
-          },
-          async () => {
-            const providers = workspaceStorage.getJson<any[]>(CACHE_RESOURCES.providers, [], id);
-            if (!providers.length) return;
-
-            const existing = workspaceStorage.getJson<Record<string, any[]>>(
-              CACHE_RESOURCES.packages,
-              {},
-              id,
-            );
-            const snapshots = await Promise.all(
-              providers.map(async (provider: any) => {
-                try {
-                  const data = await rpcWithRetry<any[]>('get_public_packages', {
-                    p_provider_id: provider.id,
-                  });
-                  return { providerId: provider.id, data };
-                } catch {
-                  return { providerId: provider.id, data: existing[provider.id] ?? null };
-                }
-              }),
-            );
-            if (cancelled || !stillActive(id)) return;
-
-            const allPackages: Record<string, any[]> = { ...existing };
-            for (const snapshot of snapshots) {
-              if (!Array.isArray(snapshot.data)) continue;
-              allPackages[snapshot.providerId] = snapshot.data;
-              queryClient.setQueryData(
-                workspaceQueryKey(id, 'packages', snapshot.providerId),
-                snapshot.data,
-              );
-            }
-            workspaceStorage.setJson(CACHE_RESOURCES.packages, allPackages, id);
-
-            try {
-              const featured = await rpcWithRetry<any[]>('get_featured_packages');
-              if (!cancelled && stillActive(id) && Array.isArray(featured)) {
-                workspaceStorage.setJson(CACHE_RESOURCES.featuredPackages, featured, id);
-                queryClient.setQueryData(workspaceQueryKey(id, 'featuredPackages'), featured);
-              }
-            } catch {
-              // Keep prior featured packages.
-            }
-            workspaceStorage.set(CACHE_RESOURCES.timestamp, Date.now().toString(), id);
-          },
-        )
-        .subscribe();
-    };
-
-    void subscribeLocalRealtime();
-
-    return () => {
-      cancelled = true;
-      if (channel) supabase.removeChannel(channel);
-    };
-  }, [workspaceId, queryClient, stillActive]);
+  }, [workspaceId, isReallyOnline, queryClient]);
 
   return {
     cacheData,
