@@ -3,8 +3,9 @@ import { bundledStaticImages } from '@/lib/localImages';
 import { useTenant } from '@/contexts/TenantContext';
 import { workspaceStorage } from '@/lib/workspaceKeys';
 
-const PRELOAD_BATCH_SIZE = 8;
-const PRELOAD_BATCH_DELAY_MS = 24;
+const PRELOAD_BATCH_SIZE = 3;
+const PRELOAD_BATCH_DELAY_MS = 220;
+const PRELOAD_START_DELAY_MS = 1200;
 
 export const useGlobalImagePreloader = () => {
   const tenantState = useTenant();
@@ -31,10 +32,11 @@ export const useGlobalImagePreloader = () => {
         batch.forEach((url, batchIndex) => {
           const img = new Image();
           img.decoding = 'async';
-          // The first visible storefront artwork should start immediately. The
-          // remaining images are still decoded asynchronously so taps stay light.
-          if (index === 0 && batchIndex < 4 && 'fetchPriority' in img) {
-            (img as HTMLImageElement).fetchPriority = 'high';
+          // Global warming must never compete with the visible screen or taps.
+          // Visible components load their own artwork normally; these requests are
+          // only low-priority background preparation for the next screen.
+          if ('fetchPriority' in img) {
+            (img as HTMLImageElement).fetchPriority = 'low';
           }
           img.src = url;
         });
@@ -79,13 +81,24 @@ export const useGlobalImagePreloader = () => {
       }
     };
 
-    preloadTenantImages();
-    window.addEventListener('online', preloadTenantImages);
+    const startTimer = window.setTimeout(() => {
+      if ('requestIdleCallback' in window) {
+        (window as any).requestIdleCallback(preloadTenantImages, { timeout: 2500 });
+      } else {
+        preloadTenantImages();
+      }
+    }, PRELOAD_START_DELAY_MS);
+
+    const handleOnline = () => {
+      window.setTimeout(preloadTenantImages, PRELOAD_START_DELAY_MS);
+    };
+    window.addEventListener('online', handleOnline);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(startTimer);
       if (batchTimer !== null) window.clearTimeout(batchTimer);
-      window.removeEventListener('online', preloadTenantImages);
+      window.removeEventListener('online', handleOnline);
     };
   }, [workspaceId]);
 };
