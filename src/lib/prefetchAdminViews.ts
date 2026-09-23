@@ -14,7 +14,7 @@ const loaders: Array<() => Promise<unknown>> = [
   () => import('@/components/admin/DeliveryTracker'),
   () => import('@/components/admin/UnmatchedPayments'),
   () => import('@/components/admin/BalanceManagement'),
-  () => import('@/components/admin/simple/AbdiqafarView'),
+  () => import('@/components/admin/simple/OrdersView'),
   () => import('@/components/admin/BankTransactions'),
   () => import('@/components/admin/IftinWallet'),
   () => import('@/components/admin/IftinPricing'),
