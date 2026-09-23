@@ -210,6 +210,10 @@ jobs:
 
           grep -Eq '"captureInput"[[:space:]]*:[[:space:]]*false' capacitor.config.json \
             || fail "captureInput is not false in capacitor.config.json"
+          grep -Eq '"launchShowDuration"[[:space:]]*:[[:space:]]*1500' capacitor.config.json \
+            || fail "tenant splash duration is not 1500ms"
+          grep -Eq '"launchAutoHide"[[:space:]]*:[[:space:]]*true' capacitor.config.json \
+            || fail "tenant splash auto-hide is not enabled"
           grep -Fq "\"url\": \"https://iftinagents.com/t/${TENANT_SLUG}\"" capacitor.config.json \
             || fail "tenant live storefront URL is missing from capacitor.config.json"
           if [ -f "$ASSETS/capacitor.config.json" ]; then
