@@ -12,16 +12,6 @@ import { warmPages } from "@/lib/lazyPages";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { TenantProvider } from "@/contexts/TenantContext";
@@ -218,7 +208,7 @@ function AppContent() {
   const appQueryClient = useQueryClient();
 
   useEffect(() => onStorefront("tenant-config-changed", () => appQueryClient.invalidateQueries()), [appQueryClient]);
-  const { showExitDialog, handleExitApp, handleCancelExit } = useAndroidBackButton();
+  useAndroidBackButton();
 
   useEffect(() => { scheduleNativeSplashFallback(); }, []);
   useEffect(() => initNativeBars(), []);
@@ -234,18 +224,7 @@ function AppContent() {
         <PersistentBottomNav />
       </div>
 
-      <AlertDialog open={showExitDialog} onOpenChange={handleCancelExit}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Ka bax App-ka?</AlertDialogTitle>
-            <AlertDialogDescription>Ma hubtaa inaad rabto inaad ka baxdo Najax Data app-ka?</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleCancelExit}>Maya</AlertDialogCancel>
-            <AlertDialogAction onClick={handleExitApp}>Haa, Ka bax</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+
     </>
   );
 }
