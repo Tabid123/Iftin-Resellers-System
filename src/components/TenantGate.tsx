@@ -1,7 +1,7 @@
 import React from "react";
 import { useTenant } from "@/contexts/TenantContext";
 import { ResellerCodeGate } from "@/components/ResellerCodeGate";
-import { AlertCircle, Loader2, Lock, MessageCircle, Wallet, WifiOff } from "lucide-react";
+import { AlertCircle, Lock, MessageCircle, Wallet, WifiOff } from "lucide-react";
 import { normalizeSupportPhone } from "@/hooks/useSupportPhone";
 
 
@@ -21,11 +21,9 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
   const state = useTenant();
 
   if (state.status === "loading") {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    // Never show an intermediate spinner during launch. Tenant Android builds
+    // initialize from their packaged tenant snapshot before first paint.
+    return null;
   }
 
   if (state.status === "needs_code") {
