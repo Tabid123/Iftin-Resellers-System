@@ -54,11 +54,8 @@ export function registerServiceWorker(): void {
 
   const register = () => {
     void navigator.serviceWorker
-      .register(SW_URL, { scope: "/", updateViaCache: "none" })
+      .register(SW_URL, { scope: "/" })
       .then((registration) => {
-        // Check the live worker on every app/site start without using the HTTP
-        // cache. This keeps APK UI changes current while retaining offline cache.
-        void registration.update().catch(() => {});
         const version = import.meta.env.VITE_BUILD_VERSION;
         if (!version) return;
         const worker =

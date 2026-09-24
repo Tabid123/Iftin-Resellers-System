@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useLayoutEffect, useState } from "react";
-import { supabaseAllTenants, setTenantHeader } from '@/integrations/supabase/client';
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { supabase } from '@/integrations/supabase/client';
+import { setTenantHeader } from '@/integrations/supabase/client';
 import { emitStorefront, purgeStorefrontStorage } from '@/lib/storefrontEvents';
 import { purgeNonActiveWorkspaceStorage } from '@/lib/workspaceKeys';
 import {
@@ -320,26 +321,13 @@ function buildFallbackTenant(slug: string): Tenant | null {
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [state, setState] = useState<TenantState>(() => {
-    if (typeof window !== "undefined") {
-      const initial = resolveSlug();
-      if (initial.slug) {
-        const cached = readCachedTenant(initial.slug);
-        if (cached && cached.slug === initial.slug) {
-          return isTenantBlocked(cached)
-            ? { status: "suspended", tenant: cached, isPlatform: false }
-            : { status: "ready", tenant: cached, isPlatform: false };
-        }
-        const fallback = buildFallbackTenant(initial.slug);
-        if (fallback) {
-          return { status: "ready", tenant: fallback, isPlatform: false };
-        }
-      }
-    }
-    return { status: "loading", tenant: null, isPlatform: false };
+  const [state, setState] = useState<TenantState>({
+    status: "loading",
+    tenant: null,
+    isPlatform: false,
   });
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     const { slug, isPlatform, needsCode } = resolveSlug();
 
     void registerDeepLinkTenantListener(() => window.location.reload());
@@ -368,9 +356,9 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
       return;
     }
 
-    // Do not clear the active header during startup. The slug lookup below uses
-    // an unscoped public client, so there is no reason to make the storefront
-    // lose its query scope/caches while the tenant is being verified.
+    // Clear any stale header before resolving the new tenant so the lookup
+    // itself isn't filtered by a wrong tenant.
+    setTenantHeader(null);
     purgeForeignContentCaches(slug);
 
     const cached = readCachedTenant(slug);
@@ -417,8 +405,10 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
         return { kind: "transient" };
       }
       try {
+        // The slug lookup itself must never inherit a stale tenant header.
+        setTenantHeader(null);
         const res = (await Promise.race([
-          supabaseAllTenants.rpc("get_tenant_by_slug", { p_slug: slug }),
+          supabase.rpc("get_tenant_by_slug", { p_slug: slug }),
           new Promise((_, reject) =>
             setTimeout(() => reject(new Error("tenant-lookup-timeout")), LOOKUP_TIMEOUT_MS),
           ),

@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from "@/lib/router-compat";
+import { useNotifications } from '@/hooks/useNotifications';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTenant } from '@/contexts/TenantContext';
 
@@ -47,10 +48,17 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
   const navigate = useNavigate();
   const location = useLocation();
   const { language } = useLanguage();
+  const { unreadCount, markAsSeen } = useNotifications();
   const t = useTenant();
   const tenant = t.status === 'ready' || t.status === 'suspended' ? t.tenant : null;
 
-  const currentPath = normalizeStorefrontPath(location.pathname);
+  const [pendingPath, setPendingPath] = useState<string | null>(null);
+  const pointerActivatedPathRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (pendingPath && normalizeStorefrontPath(location.pathname) === pendingPath) setPendingPath(null);
+  }, [location.pathname, pendingPath]);
+
+  const currentPath = pendingPath ?? normalizeStorefrontPath(location.pathname);
   const isCatalogHome =
     currentPath === '/providers' ||
     currentPath.startsWith('/categories/') ||
@@ -58,22 +66,46 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
   const isActive = (path: string) => path === '/providers' ? isCatalogHome : currentPath === path;
 
   const go = (path: string) => {
-    if (isActive(path) && !(path === '/providers' && currentPath !== '/providers')) return;
+    if (isActive(path)) {
+      if (path !== '/providers' || currentPath === '/providers') return;
+    }
+
+    // Paint the selected tab immediately, then navigate synchronously.
+    // Avoid React startTransition here: on slower Android WebViews it can defer
+    // route work long enough to make the bottom bar feel unresponsive.
+    setPendingPath(path);
     navigate(path);
   };
 
   const handleNotificationsClick = () => {
     if (onNotificationsClick) {
+      setPendingPath('/notifications');
       onNotificationsClick();
+      queueMicrotask(markAsSeen);
       return;
     }
-    go('/notifications');
+    if (!isActive('/notifications')) go('/notifications');
+    queueMicrotask(markAsSeen);
+  };
+
+  const activateOnPointerDown = (path: string, action: () => void, pointerType: string) => {
+    if (pointerType === 'mouse') return;
+    pointerActivatedPathRef.current = path;
+    action();
+  };
+
+  const activateOnClick = (path: string, action: () => void) => {
+    if (pointerActivatedPathRef.current === path) {
+      pointerActivatedPathRef.current = null;
+      return;
+    }
+    action();
   };
 
   const navItems = [
     { icon: HomeIcon, path: '/providers', label: language === 'so' ? 'Hoyga' : 'Home', onClick: () => go('/providers') },
     { icon: HistoryIcon, path: '/history', label: language === 'so' ? 'Dalabyada' : 'History', onClick: () => go('/history') },
-    { icon: BellIcon, path: '/notifications', label: language === 'so' ? 'Ogeysiis' : 'Notifications', onClick: handleNotificationsClick },
+    { icon: BellIcon, path: '/notifications', label: language === 'so' ? 'Ogeysiis' : 'Notifications', onClick: handleNotificationsClick, badge: unreadCount },
     { icon: UserIcon, path: '/profile', label: 'Profile', onClick: () => go('/profile') },
   ];
 
@@ -107,13 +139,14 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
     >
       <div className="mx-auto h-full w-full max-w-md">
         <div className="grid h-full grid-cols-4 items-center px-2">
-          {navItems.map(({ icon: Icon, path, label, onClick }) => {
+          {navItems.map(({ icon: Icon, path, label, onClick, badge }) => {
             const active = isActive(path);
             return (
               <button
                 key={path}
                 type="button"
-                onClick={onClick}
+                onPointerDown={(event) => activateOnPointerDown(path, onClick, event.pointerType)}
+                onClick={() => activateOnClick(path, onClick)}
                 tabIndex={visible ? 0 : -1}
                 className="relative flex h-[68px] min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1.5 bg-transparent px-1 outline-none"
                 style={{
@@ -138,6 +171,11 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
                 <span className={`w-full truncate text-center text-[11px] leading-none ${active ? 'text-white font-bold' : 'text-white/60'}`}>
                   {label}
                 </span>
+                {badge != null && badge > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                    {badge > 99 ? '99+' : badge}
+                  </span>
+                )}
               </button>
             );
           })}

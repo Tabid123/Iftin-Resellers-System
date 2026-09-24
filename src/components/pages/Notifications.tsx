@@ -4,6 +4,7 @@ import { ArrowLeft, Bell, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { useNotifications } from '@/hooks/useNotifications';
+import { showBannerAd, hideBannerAd } from '@/services/admob';
 
 const Notifications = () => {
   const navigate = useNavigate();
@@ -15,6 +16,12 @@ const Notifications = () => {
   }, []);
 
   // Show banner ad when component mounts
+  useEffect(() => {
+    showBannerAd();
+    return () => {
+      hideBannerAd();
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-background pb-24">

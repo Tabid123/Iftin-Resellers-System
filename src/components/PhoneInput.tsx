@@ -194,7 +194,7 @@ const PhoneInput = () => {
             <label htmlFor="phone" className="text-base font-medium text-muted-foreground">
               Geli lambarka telefoonkaaga
             </label>
-            <div className="flex gap-2" data-keyboard-anchor>
+            <div className="flex gap-2">
               <div className="flex items-center gap-2 bg-card border border-input rounded-xl px-3 py-2.5 text-base font-medium">
                 <img src={somaliaFlag} alt="Calanka Somalia" className="w-7 h-5 object-cover rounded" />
                 <span>+252</span>
@@ -260,7 +260,7 @@ const PhoneInput = () => {
             <p className="text-[11px] text-muted-foreground">Geli koodkan hoosta</p>
           </div>
           
-          <div className="space-y-1.5" data-keyboard-anchor>
+          <div className="space-y-1.5">
             <label htmlFor="code" className="text-sm font-medium text-muted-foreground">
               Koodka Xaqiijinta
             </label>

@@ -7,6 +7,7 @@ import RotatingBanner from '@/components/RotatingBanner';
 import CachedImage from '@/components/CachedImage';
 import { localizeImage } from '@/lib/localImages';
 import { Button } from '@/components/ui/button';
+import { showBannerAd, hideBannerAd } from '@/services/admob';
 import { useConnectivity } from '@/contexts/ConnectivityContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { useSupportPhone } from '@/hooks/useSupportPhone';
@@ -57,6 +58,12 @@ const CategorySelection = () => {
   const providerName = location.state?.providerName || 'Provider';
 
   // Show banner ad when component mounts
+  useEffect(() => {
+    showBannerAd();
+    return () => {
+      hideBannerAd();
+    };
+  }, []);
 
   // Realtime: categories changes, for this workspace only
   useEffect(() => {

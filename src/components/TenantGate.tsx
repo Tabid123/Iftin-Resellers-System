@@ -1,7 +1,7 @@
 import React from "react";
 import { useTenant } from "@/contexts/TenantContext";
 import { ResellerCodeGate } from "@/components/ResellerCodeGate";
-import { AlertCircle, Lock, MessageCircle, Wallet, WifiOff } from "lucide-react";
+import { AlertCircle, Loader2, Lock, MessageCircle, Wallet, WifiOff } from "lucide-react";
 import { normalizeSupportPhone } from "@/hooks/useSupportPhone";
 
 
@@ -21,10 +21,11 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
   const state = useTenant();
 
   if (state.status === "loading") {
-    // Tenant separation still happens in TenantContext/RLS. While the public
-    // tenant row resolves, render the route shell instead of a blank/spinner
-    // screen. Tenant-owned queries stay disabled until a real tenant id exists.
-    return <>{children}</>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   if (state.status === "needs_code") {

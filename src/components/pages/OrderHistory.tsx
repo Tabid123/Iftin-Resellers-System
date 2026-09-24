@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Capacitor } from '@capacitor/core';
+import { showBannerAd, hideBannerAd } from '@/services/admob';
 import { generateInvoiceImage } from '@/utils/invoiceGenerator';
 import { downloadBlobInBrowser } from '@/utils/downloadFile';
 import { fetchIftinCatalog, hasCatalog, mapProviders } from '@/lib/iftinCatalog';
@@ -48,6 +49,13 @@ const OrderHistory = () => {
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [orderHistory, setOrderHistory] = useState<any[]>(historyCache ?? []);
   const [loading, setLoading] = useState(!historyCache);
+  // Show AdMob banner on mount, hide on unmount
+  useEffect(() => {
+    showBannerAd();
+    return () => {
+      hideBannerAd();
+    };
+  }, []);
 
   useEffect(() => {
     const fetchOrderHistory = async () => {
