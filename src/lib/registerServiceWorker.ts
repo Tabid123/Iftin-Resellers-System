@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 // Registers the offline service worker (public/sw.js).
 //
 // Registration is refused in dev and in every Lovable preview/iframe context so
@@ -37,6 +38,7 @@ async function unregisterAppWorker() {
 }
 
 export function registerServiceWorker(): void {
+  if (Capacitor.isNativePlatform()) return;
   if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
 
   const isIframe = window.self !== window.top;
@@ -54,12 +56,8 @@ export function registerServiceWorker(): void {
 
   const register = () => {
     void navigator.serviceWorker
-      .register(SW_URL, { scope: "/", updateViaCache: "none" })
+      .register(SW_URL, { scope: "/" })
       .then((registration) => {
-        // Check the live worker every app/site start. The HTML itself is already
-        // network-first in sw.js, so a newly deployed bottom/color/UI can reach
-        // the APK without rebuilding it.
-        void registration.update().catch(() => {});
         const version = import.meta.env.VITE_BUILD_VERSION;
         if (!version) return;
         const worker =

@@ -2,10 +2,10 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { TrendingUp, Wifi, AlertCircle } from 'lucide-react';
 import { Card } from './ui/card';
+import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from "@/lib/router-compat";
 import { formatPrice } from '@/lib/utils';
-import { fetchIftinCatalog, mapPopularPackages, type PopularPackageDTO } from '@/lib/iftinCatalog';
-import { cacheImages } from '@/lib/imageCache';
+import { fetchIftinCatalog, isApiPartnerTenant, mapPopularPackages, type PopularPackageDTO } from '@/lib/iftinCatalog';
 import CachedImage from '@/components/CachedImage';
 import { useTenant } from '@/contexts/TenantContext';
 import { activeWorkspaceId, workspaceQueryKey, workspaceStorage } from '@/lib/workspaceKeys';
@@ -50,28 +50,31 @@ const PopularPackages = () => {
     queryKey: workspaceQueryKey(workspaceId, 'popularPackages', 'v3'),
     enabled: Boolean(workspaceId),
     queryFn: async (): Promise<PopularPackageDTO[]> => {
-      // Use the shared catalog cache. The old implementation forced a fresh
-      // API request every time this component mounted, which made API tenants
-      // feel slow and caused the list to disappear/reappear during navigation.
-      const catalog = await fetchIftinCatalog();
+      if (!workspaceId) return offline;
+
+      const partner = await isApiPartnerTenant(workspaceId).catch(() => false);
       if (activeWorkspaceId() !== workspaceId) return offline;
-      const mapped = mapPopularPackages(catalog);
-      if (mapped.length > 0) {
-        writeOffline(workspaceId, mapped);
-        void cacheImages(mapped.map((p) => p.provider_logo));
-        return mapped;
+
+      if (partner) {
+        const catalog = await fetchIftinCatalog();
+        if (activeWorkspaceId() !== workspaceId) return offline;
+        const mapped = mapPopularPackages(catalog);
+        if (mapped.length > 0) writeOffline(workspaceId, mapped);
+        return mapped.length > 0 ? mapped : offline;
       }
 
-      // Never replace a visible known-good list with a transient empty API
-      // response. Keep the last snapshot until a real non-empty refresh lands.
-      return offline;
+      const { data, error } = await (supabase as any).rpc('get_featured_packages');
+      if (error || activeWorkspaceId() !== workspaceId) return offline;
+      const fresh = Array.isArray(data) ? (data as PopularPackageDTO[]) : [];
+      if (fresh.length > 0) writeOffline(workspaceId, fresh);
+      return fresh.length > 0 ? fresh : offline;
     },
     initialData: offline.length > 0 ? offline : undefined,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    retry: 1,
+    staleTime: 30 * 1000,
+    gcTime: 60 * 60 * 1000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    retry: false,
   });
 
   const packages = data && data.length > 0 ? data : offline;

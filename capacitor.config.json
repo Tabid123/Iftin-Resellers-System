@@ -22,13 +22,13 @@
       "resizeOnFullScreen": false
     },
     "SplashScreen": {
-      "launchShowDuration": 1500,
+      "launchShowDuration": 0,
       "launchAutoHide": true,
       "backgroundColor": "#0F4C81",
       "showSpinner": false,
-      "androidScaleType": "CENTER_CROP",
+      "androidScaleType": "CENTER",
       "splashFullScreen": true,
-      "splashImmersive": true,
+      "splashImmersive": false,
       "launchFadeOutDuration": 0
     },
     "StatusBar": {

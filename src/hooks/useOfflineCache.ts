@@ -15,7 +15,6 @@ import {
   readCachedCatalog,
   type IftinCatalog,
 } from '@/lib/iftinCatalog';
-import { cacheImages } from '@/lib/imageCache';
 import { activeWorkspaceId, workspaceQueryKey, workspaceStorage } from '@/lib/workspaceKeys';
 
 /**
@@ -124,13 +123,6 @@ export const useOfflineCache = () => {
       workspaceStorage.setJson(CACHE_RESOURCES.paymentProviders, paymentProviders, id);
       workspaceStorage.setJson(CACHE_RESOURCES.popularPackages, popularPackages, id);
       workspaceStorage.set(CACHE_RESOURCES.timestamp, Date.now().toString(), id);
-
-      cacheImages([
-        ...providers.map((p: any) => p.provider_logo),
-        ...categories.map((c: any) => c.category_image),
-        ...paymentProviders.map((p: any) => p.provider_logo),
-        ...popularPackages.map((p: any) => p.provider_logo),
-      ]);
 
       return true;
     },
@@ -327,19 +319,6 @@ export const useOfflineCache = () => {
           }
         }
 
-        cacheImages([
-          ...providers.map((p: any) => p.provider_logo),
-          ...uniqueCategories.map((c: any) => c.category_image),
-          ...(paymentProvidersResult.status === 'fulfilled' && Array.isArray(paymentProvidersResult.value)
-            ? paymentProvidersResult.value.map((p: any) => p.provider_logo)
-            : []),
-          ...(bannersResult.status === 'fulfilled' && Array.isArray(bannersResult.value)
-            ? bannersResult.value
-                .filter((b: any) => b?.media_type !== 'video')
-                .map((b: any) => b.banner_image)
-            : []),
-        ]);
-
         workspaceStorage.set(CACHE_RESOURCES.timestamp, Date.now().toString(), id);
       } catch {
         // Keep the last known workspace cache visible.
@@ -409,11 +388,6 @@ export const useOfflineCache = () => {
       const banners = workspaceStorage.getJson<any[]>(CACHE_RESOURCES.banners, [], id);
       if (Array.isArray(banners) && banners.length) {
         queryClient.setQueryData(workspaceQueryKey(id, 'banners'), banners);
-        cacheImages(
-          banners
-            .filter((banner: any) => banner?.media_type !== 'video')
-            .map((banner: any) => banner.banner_image),
-        );
       }
     } catch {
       // Ignore malformed cache; the network refresh repairs it.
@@ -438,151 +412,32 @@ export const useOfflineCache = () => {
     if (!workspaceId || !isReallyOnline) return;
     if (cachedForRef.current === workspaceId) return;
     cachedForRef.current = workspaceId;
-    if (sourceRef.current === 'unknown' || isCacheStale(workspaceId)) {
-      void cacheData();
-    }
-  }, [workspaceId, isReallyOnline, cacheData, isCacheStale]);
+    if (!(sourceRef.current === 'unknown' || isCacheStale(workspaceId))) return;
 
-  // Native/web resume safety: packaged APKs must revalidate live tenant data when
-  // the app becomes visible again. This also repairs missed realtime events.
-  useEffect(() => {
-    if (!workspaceId) return;
-    let lastRefreshAt = 0;
-
-    const refreshWhenVisible = () => {
-      if (document.visibilityState !== 'visible' || !isReallyOnline) return;
-      const now = Date.now();
-      if (now - lastRefreshAt < 15_000) return;
-      lastRefreshAt = now;
-      void cacheData(true);
-    };
-
-    document.addEventListener('visibilitychange', refreshWhenVisible);
-    window.addEventListener('focus', refreshWhenVisible);
-    return () => {
-      document.removeEventListener('visibilitychange', refreshWhenVisible);
-      window.removeEventListener('focus', refreshWhenVisible);
-    };
-  }, [workspaceId, isReallyOnline, cacheData]);
-
-  // Local realtime invalidation, bound to the active workspace.
-  useEffect(() => {
-    if (!workspaceId) return;
     let cancelled = false;
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-    const id = workspaceId;
+    let idleId: number | null = null;
 
-    const subscribeLocalRealtime = async () => {
-      const partner = await isApiPartnerTenant(id);
-      if (cancelled || !stillActive(id) || partner) return;
-      sourceRef.current = 'local';
+    const timer = window.setTimeout(() => {
+      if (cancelled) return;
+      const run = () => {
+        if (!cancelled) void cacheData();
+      };
 
-      channel = supabase.channel(`offline-cache-invalidation-${id}`);
-      channel
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'providers_config',
-            filter: `tenant_id=eq.${id}`,
-          },
-          async () => {
-            try {
-              const data = await rpcWithRetry<any[]>('get_active_providers');
-              if (!data || cancelled || !stillActive(id)) return;
-              workspaceStorage.setJson(CACHE_RESOURCES.providers, data, id);
-              queryClient.setQueryData(workspaceQueryKey(id, 'providers'), data);
-              workspaceStorage.set(CACHE_RESOURCES.timestamp, Date.now().toString(), id);
-            } catch {
-              // Preserve the existing snapshot on transient errors.
-            }
-          },
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'payment_providers_config',
-            filter: `tenant_id=eq.${id}`,
-          },
-          async () => {
-            try {
-              const data = await rpcWithRetry<any[]>('get_active_payment_providers');
-              if (!Array.isArray(data) || cancelled || !stillActive(id)) return;
-              workspaceStorage.setJson(CACHE_RESOURCES.paymentProviders, data, id);
-              queryClient.setQueryData(workspaceQueryKey(id, 'paymentProviders'), data);
-              workspaceStorage.set(CACHE_RESOURCES.timestamp, Date.now().toString(), id);
-            } catch {
-              // Preserve the existing snapshot on transient errors.
-            }
-          },
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'data_packages_config',
-            filter: `tenant_id=eq.${id}`,
-          },
-          async () => {
-            const providers = workspaceStorage.getJson<any[]>(CACHE_RESOURCES.providers, [], id);
-            if (!providers.length) return;
-
-            const existing = workspaceStorage.getJson<Record<string, any[]>>(
-              CACHE_RESOURCES.packages,
-              {},
-              id,
-            );
-            const snapshots = await Promise.all(
-              providers.map(async (provider: any) => {
-                try {
-                  const data = await rpcWithRetry<any[]>('get_public_packages', {
-                    p_provider_id: provider.id,
-                  });
-                  return { providerId: provider.id, data };
-                } catch {
-                  return { providerId: provider.id, data: existing[provider.id] ?? null };
-                }
-              }),
-            );
-            if (cancelled || !stillActive(id)) return;
-
-            const allPackages: Record<string, any[]> = { ...existing };
-            for (const snapshot of snapshots) {
-              if (!Array.isArray(snapshot.data)) continue;
-              allPackages[snapshot.providerId] = snapshot.data;
-              queryClient.setQueryData(
-                workspaceQueryKey(id, 'packages', snapshot.providerId),
-                snapshot.data,
-              );
-            }
-            workspaceStorage.setJson(CACHE_RESOURCES.packages, allPackages, id);
-
-            try {
-              const featured = await rpcWithRetry<any[]>('get_featured_packages');
-              if (!cancelled && stillActive(id) && Array.isArray(featured)) {
-                workspaceStorage.setJson(CACHE_RESOURCES.featuredPackages, featured, id);
-                queryClient.setQueryData(workspaceQueryKey(id, 'featuredPackages'), featured);
-              }
-            } catch {
-              // Keep prior featured packages.
-            }
-            workspaceStorage.set(CACHE_RESOURCES.timestamp, Date.now().toString(), id);
-          },
-        )
-        .subscribe();
-    };
-
-    void subscribeLocalRealtime();
+      if ('requestIdleCallback' in window) {
+        idleId = (window as any).requestIdleCallback(run, { timeout: 3000 });
+      } else {
+        run();
+      }
+    }, 1500);
 
     return () => {
       cancelled = true;
-      if (channel) supabase.removeChannel(channel);
+      window.clearTimeout(timer);
+      if (idleId !== null && 'cancelIdleCallback' in window) {
+        (window as any).cancelIdleCallback(idleId);
+      }
     };
-  }, [workspaceId, queryClient, stillActive]);
+  }, [workspaceId, isReallyOnline, cacheData, isCacheStale]);
 
   return {
     cacheData,

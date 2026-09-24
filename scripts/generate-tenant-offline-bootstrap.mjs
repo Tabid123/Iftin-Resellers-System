@@ -70,7 +70,7 @@ async function rpc(name, tenantId, body = {}) {
 let tenantRow;
 if (serviceKey) {
   const tenantRows = await fetchJson(
-    `${supabaseUrl}/rest/v1/tenants?slug=eq.${encodeURIComponent(tenantSlug)}&select=id,slug,name,logo_url,primary_color,accent_color,status,trial_ends_at,current_period_end,support_phone&limit=1`,
+    `${supabaseUrl}/rest/v1/tenants?slug=eq.${encodeURIComponent(tenantSlug)}&select=id,slug,name,logo_url,primary_color,accent_color,status,trial_ends_at,current_period_end,support_phone,delivery_mode&limit=1`,
   );
   tenantRow = tenantRows?.[0];
 } else {
@@ -95,6 +95,7 @@ const tenant = {
   trial_ends_at: tenantRow.trial_ends_at ?? null,
   current_period_end: tenantRow.current_period_end ?? null,
   support_phone: tenantRow.support_phone ?? null,
+  delivery_mode: tenantRow.delivery_mode ?? 'android_device',
 };
 
 const tenantId = String(tenant.id);
@@ -148,7 +149,6 @@ const appSettings = Array.isArray(appSettingsRaw)
 const snapshot = {
   version: 1,
   generated_at: new Date().toISOString(),
-  tenantLogoUrl: String(tenantRow.logo_url || ''),
   tenant,
   providers: Array.isArray(providers) ? providers : [],
   categories,
@@ -159,10 +159,6 @@ const snapshot = {
   featuredPackages: Array.isArray(featuredPackages) ? featuredPackages : [],
   popularPackages: [],
   banners: Array.isArray(banners) ? banners : [],
-  firstBannerUrl:
-    Array.isArray(banners) && banners.length > 0
-      ? String(banners[0]?.banner_image || '')
-      : '',
 };
 
 const assetsDir = path.resolve('public/offline-assets/tenant-bootstrap');
@@ -226,6 +222,8 @@ const bootstrapScript = `(() => {\n` +
   `    const packagedSeedAt = Date.parse(localStorage.getItem(prefix + 'offline_packaged_bootstrap_at') || '') || 0;\n` +
   `    localStorage.setItem('najax.tenant_slug', slug);\n` +
   `    localStorage.setItem('najax.cache_owner_slug', slug);\n` +
+  `    localStorage.setItem('najax.tenant_delivery_mode', JSON.stringify({ id, mode: tenant.delivery_mode || 'android_device' }));\n` +
+
   `    if (!localStorage.getItem('najax.tenant_cache.' + slug)) {\n` +
   `      localStorage.setItem('najax.tenant_cache.' + slug, JSON.stringify(tenant));\n` +
   `    }\n` +

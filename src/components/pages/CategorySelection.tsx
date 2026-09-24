@@ -7,13 +7,13 @@ import RotatingBanner from '@/components/RotatingBanner';
 import CachedImage from '@/components/CachedImage';
 import { localizeImage } from '@/lib/localImages';
 import { Button } from '@/components/ui/button';
-import { showBannerAd, hideBannerAd } from '@/services/admob';
 import { useConnectivity } from '@/contexts/ConnectivityContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { useSupportPhone } from '@/hooks/useSupportPhone';
 import { fetchIftinCatalog, hasCatalog, isApiPartnerTenant, mapCategories } from '@/lib/iftinCatalog';
 import { setCategoryIntent } from '@/lib/categoryIntent';
 import { activeWorkspaceId, workspaceQueryKey, workspaceStorage } from '@/lib/workspaceKeys';
+import { BottomNavigation } from '@/components/BottomNavigation';
 
 interface Category {
   id: string;
@@ -58,33 +58,6 @@ const CategorySelection = () => {
   const providerName = location.state?.providerName || 'Provider';
 
   // Show banner ad when component mounts
-  useEffect(() => {
-    showBannerAd();
-    return () => {
-      hideBannerAd();
-    };
-  }, []);
-
-  // Realtime: categories changes, for this workspace only
-  useEffect(() => {
-    if (!workspaceId) return;
-    const channel = supabase
-      .channel(`categories-realtime-${workspaceId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'package_categories',
-          filter: `tenant_id=eq.${workspaceId}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: workspaceQueryKey(workspaceId, 'categories') });
-        },
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [queryClient, workspaceId]);
 
   // Read offline state and phone numbers from navigation
   const isOffline = location.state?.isOffline || false;
@@ -135,9 +108,11 @@ const CategorySelection = () => {
       return data;
     },
     enabled: !!provider && Boolean(workspaceId) && !provider?.includes('-'),
-    staleTime: 5 * 60 * 1000,
-    retry: 1,
-    retryDelay: 250,
+    staleTime: 30 * 1000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    retry: false,
   });
   const providerId = provider?.includes('-') ? provider : providerData?.id;
   
@@ -237,12 +212,13 @@ const CategorySelection = () => {
         return cachedCategories;
       }
     },
-    // Show cache immediately but still fetch fresh data
-    placeholderData: () => getCachedCategories(),
+    initialData: () => getCachedCategories(),
     enabled: !!providerId && Boolean(workspaceId),
-    staleTime: 5 * 60 * 1000,
-    retry: 1,
-    retryDelay: 250,
+    staleTime: 30 * 1000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    retry: false,
   });
 
   // Persist category artwork as data URLs the moment we know about it, so the
@@ -409,6 +385,8 @@ const CategorySelection = () => {
           </Button>
         </div>
       )}
+
+      <BottomNavigation />
 
       {/* Bottom Navigation - Fixed */}
     </div>;

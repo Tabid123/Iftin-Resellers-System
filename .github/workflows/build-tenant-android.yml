@@ -7,21 +7,20 @@ on:
         description: "Tenant slug (reseller code), e.g. marwaan"
         required: true
       app_name:
-        description: "Fallback app name only; tenant database name is authoritative"
-        required: false
-        default: ""
+        description: "App name shown on the phone"
+        required: true
       app_id:
         description: "Android applicationId (reverse domain)"
         required: false
         default: ""
       logo_url:
-        description: "Fallback logo only; tenant database logo is authoritative"
+        description: "Public URL of the tenant logo (PNG, >=1024px, square)"
         required: false
         default: ""
       splash_color:
-        description: "Fallback color only; tenant primary color is authoritative"
+        description: "Splash / status bar color (hex)"
         required: false
-        default: ""
+        default: "#0F4C81"
       version_name:
         description: "Version name, e.g. 1.0.0"
         required: false
@@ -36,10 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TENANT_SLUG: ${{ inputs.tenant_slug }}
-      INPUT_APP_NAME: ${{ inputs.app_name }}
-      INPUT_APP_ID: ${{ inputs.app_id }}
-      INPUT_LOGO_URL: ${{ inputs.logo_url }}
-      INPUT_SPLASH_COLOR: ${{ inputs.splash_color }}
+      APP_NAME: ${{ inputs.app_name }}
       APP_VERSION_NAME: ${{ inputs.version_name }}
       APP_VERSION_CODE: ${{ inputs.version_code }}
       ONESIGNAL_DISABLE_LOCATION: "true"
@@ -89,6 +85,46 @@ jobs:
         run: |
           node -e 'const p=require("./package.json"); if(!p.dependencies?.["@onesignal/capacitor-plugin"]) process.exit(1)'
 
+      - name: Verify AdMob is completely absent
+        run: |
+          set -e
+          if grep -Fq '@capacitor-community/admob' package.json bun.lock; then
+            echo "::error::AdMob dependency must not be present"
+            exit 1
+          fi
+          if grep -Rqi 'capacitor-community-admob\|com.google.android.gms.ads.APPLICATION_ID' android; then
+            echo "::error::AdMob Android integration must not be present"
+            exit 1
+          fi
+
+      - name: Configure app identity for this tenant
+        run: |
+          APP_ID="${{ inputs.app_id }}"
+          if [ -z "$APP_ID" ]; then APP_ID="com.iftin.$(echo "$TENANT_SLUG" | tr -cd '[:alnum:]')"; fi
+          export APP_ID
+          echo "APP_ID=$APP_ID" >> "$GITHUB_ENV"
+          node -e '
+            const fs = require("fs");
+            const cfg = JSON.parse(fs.readFileSync("capacitor.config.json", "utf8"));
+            cfg.appId = process.env.APP_ID;
+            cfg.appName = process.env.APP_NAME;
+            const color = process.env.SPLASH_COLOR;
+            cfg.plugins.SplashScreen.backgroundColor = color;
+            cfg.plugins.StatusBar.backgroundColor = color;
+            cfg.plugins.NavigationBar.backgroundColor = color;
+
+            // Tenant APKs boot from the packaged Capacitor web bundle.
+            // This keeps cold/offline startup fast and independent of network.
+            // Tenant identity is baked through VITE_TENANT_SLUG and live business
+            // data still refreshes directly from Supabase after startup.
+            delete cfg.server;
+
+            fs.writeFileSync("capacitor.config.json", JSON.stringify(cfg, null, 2));
+          '
+        env:
+          APP_ID: ${{ inputs.app_id }}
+          SPLASH_COLOR: ${{ inputs.splash_color }}
+
       - name: Generate packaged offline tenant snapshot
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -106,106 +142,16 @@ jobs:
           test -s public/tenant-bootstrap.json
           echo "Tenant storefront snapshot packaged for first-launch offline mode"
 
-      - name: Resolve authoritative tenant build identity
+      - name: Package tenant voice prompts
         run: |
           set -e
-          node <<'NODE'
-          const fs = require('fs');
-          const path = require('path');
-
-          const snapshot = JSON.parse(fs.readFileSync('public/tenant-bootstrap.json', 'utf8'));
-          const tenant = snapshot.tenant || {};
-          const slug = String(tenant.slug || process.env.TENANT_SLUG || '').trim().toLowerCase();
-          const name = String(tenant.name || process.env.INPUT_APP_NAME || slug || 'App').trim();
-          const logo = String(snapshot.tenantLogoUrl || tenant.logo_url || process.env.INPUT_LOGO_URL || '').trim();
-          const firstBanner = String(snapshot.firstBannerUrl || '').trim();
-
-          let color = String(tenant.primary_color || process.env.INPUT_SPLASH_COLOR || '#0F4C81').trim();
-          if (!/^#[0-9A-Fa-f]{6}$/.test(color)) color = '#0F4C81';
-
-          let appId = String(process.env.INPUT_APP_ID || '').trim();
-          if (!appId) appId = 'com.iftin.' + slug.replace(/[^a-z0-9]/g, '');
-
-          fs.mkdirSync('.tenant-build', { recursive: true });
-
-          function materializeDataImage(value, basename) {
-            const match = String(value || '').match(/^data:image\/([a-zA-Z0-9.+-]+);base64,(.+)$/s);
-            if (!match) return '';
-            const extMap = { jpeg: 'jpg', 'svg+xml': 'svg' };
-            const ext = extMap[match[1].toLowerCase()] || match[1].toLowerCase();
-            const file = path.join('.tenant-build', `${basename}.${ext}`);
-            fs.writeFileSync(file, Buffer.from(match[2], 'base64'));
-            return file;
-          }
-
-          const logoFile = materializeDataImage(logo, 'tenant-logo');
-          const bannerFile = materializeDataImage(firstBanner, 'tenant-banner');
-
-          // IMPORTANT: never put data: URIs in GITHUB_ENV. A large base64 logo
-          // makes every following process inherit a huge environment and Linux
-          // refuses to start bash/node with "Argument list too long".
-          const logoUrl = /^https?:\/\//i.test(logo) ? logo : '';
-          const bannerUrl = /^https?:\/\//i.test(firstBanner) ? firstBanner : '';
-
-          const envLines = [
-            ['APP_NAME', name],
-            ['APP_ID', appId],
-            ['TENANT_LOGO_URL', logoUrl],
-            ['TENANT_LOGO_FILE', logoFile],
-            ['TENANT_FIRST_BANNER_URL', bannerUrl],
-            ['TENANT_FIRST_BANNER_FILE', bannerFile],
-            ['SPLASH_COLOR', color],
-            ['VITE_TENANT_NAME', name],
-            ['VITE_TENANT_LOGO_URL', logoUrl],
-            ['VITE_SPLASH_COLOR', color],
-          ];
-          fs.appendFileSync(
-            process.env.GITHUB_ENV,
-            envLines.map(([k,v]) => `${k}=${String(v).replace(/\r?\n/g, '')}`).join('\n') + '\n',
-          );
-
-          console.log(`Resolved tenant identity: ${slug} -> ${name}`);
-          console.log(`Resolved tenant logo: ${logoFile ? 'embedded data image -> ' + logoFile : (logoUrl || '(none)')}`);
-          console.log(`Resolved first banner: ${bannerFile ? 'embedded data image -> ' + bannerFile : (bannerUrl || '(none)')}`);
-          console.log(`Resolved tenant color: ${color}`);
-          NODE
-
-      - name: Configure app identity for this tenant
-        run: |
-          set -e
-          node <<'NODE'
-          const fs = require('fs');
-          const cfg = JSON.parse(fs.readFileSync('capacitor.config.json', 'utf8'));
-          const slug = String(process.env.TENANT_SLUG || '').trim().toLowerCase();
-          const name = String(process.env.APP_NAME || '').trim();
-          const logo = String(process.env.TENANT_LOGO_URL || '').trim();
-          const color = String(process.env.SPLASH_COLOR || '#0F4C81').trim();
-          const firstBanner = String(process.env.TENANT_FIRST_BANNER_URL || '').trim();
-
-          cfg.appId = process.env.APP_ID;
-          cfg.appName = name;
-          cfg.plugins.SplashScreen.backgroundColor = color;
-          cfg.plugins.StatusBar.backgroundColor = color;
-          cfg.plugins.NavigationBar.backgroundColor = color;
-
-          const params = new URLSearchParams({
-            apk: '1',
-            apkName: name,
-            apkColor: color,
-          });
-          // Only short HTTP(S) values belong in the live URL. Embedded base64
-          // artwork is already available in the tenant snapshot/native file.
-          if (logo) params.set('apkLogo', logo);
-          if (firstBanner) params.set('apkBanner', firstBanner);
-
-          cfg.server = {
-            url: `https://iftinagents.com/t/${slug}?${params.toString()}`,
-            cleartext: false,
-            allowNavigation: ['iftinagents.com'],
-          };
-
-          fs.writeFileSync('capacitor.config.json', JSON.stringify(cfg, null, 2));
-          NODE
+          mkdir -p public/audio
+          curl --retry 3 --retry-delay 1 -fsSL "https://iftinagents.com/__l5e/assets-v1/035ae08a-83c5-483c-a7a7-fc834544cf83/phone-number-prompt.wav" -o public/audio/phone.wav
+          curl --retry 3 --retry-delay 1 -fsSL "https://iftinagents.com/__l5e/assets-v1/bd53b427-602d-4cdb-9102-ac6c3d065c12/otp-code-prompt.wav" -o public/audio/otp.wav
+          curl --retry 3 --retry-delay 1 -fsSL "https://iftinagents.com/__l5e/assets-v1/d208b555-c658-4bb2-9ad9-fb3aeac0e72f/offline-mode-prompt.wav" -o public/audio/offline.wav
+          test -s public/audio/phone.wav
+          test -s public/audio/otp.wav
+          test -s public/audio/offline.wav
 
       - name: Stamp Android web bundle
         run: |
@@ -216,6 +162,9 @@ jobs:
         env:
           CAPACITOR_BUILD: "true"
           VITE_TENANT_SLUG: ${{ inputs.tenant_slug }}
+          VITE_TENANT_NAME: ${{ inputs.app_name }}
+          VITE_TENANT_LOGO_URL: ${{ inputs.logo_url }}
+          VITE_SPLASH_COLOR: ${{ inputs.splash_color }}
           VITE_BUILD_VERSION: ${{ github.sha }}
           VITE_ONESIGNAL_APP_ID: ${{ secrets.ONESIGNAL_APP_ID }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -263,6 +212,9 @@ jobs:
           test -f "$ASSETS/public/apk-build.json" || fail "apk-build.json missing from Android assets"
           test -f "$ASSETS/public/tenant-bootstrap.js" || fail "tenant-bootstrap.js missing from Android assets"
           test -f "$ASSETS/public/tenant-bootstrap.json" || fail "tenant-bootstrap.json missing from Android assets"
+          test -s "$ASSETS/public/audio/phone.wav" || fail "phone voice prompt missing from Android assets"
+          test -s "$ASSETS/public/audio/otp.wav" || fail "OTP voice prompt missing from Android assets"
+          test -s "$ASSETS/public/audio/offline.wav" || fail "offline voice prompt missing from Android assets"
 
           if [ -f "$ASSETS/public/apk-build.json" ]; then
             echo "apk-build.json: $(cat "$ASSETS/public/apk-build.json")"
@@ -279,10 +231,15 @@ jobs:
 
           grep -Eq '"captureInput"[[:space:]]*:[[:space:]]*false' capacitor.config.json \
             || fail "captureInput is not false in capacitor.config.json"
-          grep -Fq "\"url\": \"https://iftinagents.com/t/${TENANT_SLUG}?" capacitor.config.json \
-            || fail "tenant live storefront URL is missing from capacitor.config.json"
-          grep -Fq "\"appName\": \"${APP_NAME}\"" capacitor.config.json \
-            || fail "native app name does not match authoritative tenant name"
+          grep -Eq '"launchShowDuration"[[:space:]]*:[[:space:]]*0' capacitor.config.json \
+            || fail "tenant splash duration is not 0ms"
+          grep -Eq '"launchFadeOutDuration"[[:space:]]*:[[:space:]]*0' capacitor.config.json \
+            || fail "tenant splash fade-out duration is not 0ms"
+          grep -Eq '"launchAutoHide"[[:space:]]*:[[:space:]]*true' capacitor.config.json \
+            || fail "tenant splash auto-hide is not enabled"
+          if grep -Eq '"server"[[:space:]]*:' capacitor.config.json; then
+            fail "tenant APK must boot from packaged webDir, not remote server.url"
+          fi
           if [ -f "$ASSETS/capacitor.config.json" ]; then
             grep -Eq '"captureInput"[[:space:]]*:[[:space:]]*false' "$ASSETS/capacitor.config.json" \
               || fail "captureInput is not false in the synced Android capacitor.config.json"
@@ -300,6 +257,8 @@ jobs:
           echo "Fresh tenant offline snapshot, native push and native numeric keyboard configuration verified in Android bundle"
 
       - name: Apply app id, label and splash color
+        env:
+          SPLASH_COLOR: ${{ inputs.splash_color }}
         run: |
           sed -i "s/applicationId \".*\"/applicationId \"${APP_ID}\"/" android/app/build.gradle
           python3 - <<'PY'
@@ -321,34 +280,28 @@ jobs:
           PY
 
       - name: Generate icons and splash from tenant logo
+        env:
+          LOGO_URL: ${{ inputs.logo_url }}
+          SPLASH_COLOR: ${{ inputs.splash_color }}
         run: |
-          set -e
-          LOGO_URL="${TENANT_LOGO_URL:-}"
-          LOGO_FILE="${TENANT_LOGO_FILE:-}"
-          mkdir -p assets
-
-          if [ -n "$LOGO_FILE" ] && [ -s "$LOGO_FILE" ]; then
-            echo "Using embedded tenant logo file: $LOGO_FILE"
-            cp "$LOGO_FILE" assets/logo-source
-          elif [ -n "${LOGO_URL//[[:space:]]/}" ]; then
-            case "$LOGO_URL" in
-              https://*|http://*) ;;
-              *)
-                echo "Unsupported tenant logo value; keeping default Android artwork."
-                exit 0
-                ;;
-            esac
-            if ! curl --retry 3 --retry-delay 2 -fsSL "$LOGO_URL" -o assets/logo-source; then
-              echo "Tenant logo could not be downloaded; keeping default Android artwork."
-              exit 0
-            fi
-          else
-            echo "No tenant logo supplied; keeping default Android artwork."
+          if [ -z "${LOGO_URL//[[:space:]]/}" ]; then
+            echo "No tenant logo URL supplied; keeping the default Android artwork."
             exit 0
           fi
-
-          cp assets/logo-source assets/icon.png
-          cp assets/logo-source assets/splash.png
+          case "$LOGO_URL" in
+            https://*|http://*) ;;
+            *)
+              echo "Logo URL must begin with https:// or http://; keeping the default Android artwork."
+              exit 0
+              ;;
+          esac
+          mkdir -p assets
+          if ! curl --retry 3 --retry-delay 2 -fsSL "$LOGO_URL" -o assets/logo.png; then
+            echo "Tenant logo could not be downloaded; keeping the default Android artwork."
+            exit 0
+          fi
+          cp assets/logo.png assets/icon.png
+          cp assets/logo.png assets/splash.png
           npx @capacitor/assets generate --android \
             --iconBackgroundColor "$SPLASH_COLOR" \
             --splashBackgroundColor "$SPLASH_COLOR" || echo "Asset generation failed; keeping the existing Android artwork."

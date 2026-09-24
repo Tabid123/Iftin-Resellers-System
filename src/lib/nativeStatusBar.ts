@@ -15,6 +15,13 @@ export function resolveCssColor(input: string): string | null {
   return `#${hex(match[1])}${hex(match[2])}${hex(match[3])}`;
 }
 
+function isLight(hex: string): boolean {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 > 155;
+}
+
 /** Color chosen in the GitHub "Run workflow" form (splash / status bar color). */
 export const BUILD_BAR_COLOR: string | null =
   (import.meta.env.VITE_SPLASH_COLOR as string | undefined)?.trim() || null;
@@ -48,9 +55,8 @@ async function applyNow(hex: string) {
 
   try {
     const { StatusBar, Style } = await import('@capacitor/status-bar');
-    // Tenant apps always use white status-bar content so clock, battery and
-    // signal never flip to black after resume or a second launch.
-    await StatusBar.setStyle({ style: Style.Light });
+    // Light backgrounds need dark icons; dark backgrounds need light icons.
+    await StatusBar.setStyle({ style: isLight(hex) ? Style.Dark : Style.Light });
   } catch {
     /* plugin unavailable */
   }

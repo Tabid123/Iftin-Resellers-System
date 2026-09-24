@@ -1,9 +1,5 @@
 # Qorshaha hagaajinta APK-ga Android
 
-## 0. Badhan tijaabo ah (kan ugu horreeya)
-
-Bogga providers-ka waxaa lagu darayaa badhan yar oo "Tijaabo v2" ah (hoos, liiska shirkadaha kadib). Marka la taabto wuxuu tusayaa fariin gaaban oo leh waqtiga daabacaadda. Haddii APK-gu uu badhankan tuso, waxay caddaynaysaa in isbeddellada web-ka ay APK-ga gaaraan; haddii kale, APK-ga waa in dib loo dhisaa. Badhanka waa la saari doonaa marka tijaabadu dhammaato.
-
 Afar dhibaato ayaad soo sheegtay: codka oo aan APK-ga ka dhicin, lacag-bixinta oo daahda (ilaa 5 furitaan kadib), splash-ka oo 10-20 ilbiriqsi qaata, iyo app-ka oo guud ahaan culus.
 
 ## 1. Codka oo APK-ga ka dhaca

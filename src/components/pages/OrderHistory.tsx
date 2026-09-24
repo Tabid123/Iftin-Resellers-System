@@ -5,16 +5,13 @@ import { Button } from '@/components/ui/button';
 import { supabase, getTenantId } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Capacitor } from '@capacitor/core';
-import { showBannerAd, hideBannerAd } from '@/services/admob';
-import { generateInvoiceImage } from '@/utils/invoiceGenerator';
-import { downloadBlobInBrowser } from '@/utils/downloadFile';
 import { fetchIftinCatalog, hasCatalog, mapProviders } from '@/lib/iftinCatalog';
 import { sellPriceFor } from '@/lib/resellerOverrides';
 import { fetchIftinIntentStatus, isIntentPending } from '@/lib/iftinIntent';
 import CachedImage from '@/components/CachedImage';
 import { useTenant } from '@/contexts/TenantContext';
+import { BottomNavigation } from '@/components/BottomNavigation';
 
 // Helper function to get invoice image - uses cached URL if available, otherwise generates on-demand
 const getInvoiceBlob = async (
@@ -22,6 +19,7 @@ const getInvoiceBlob = async (
   branding?: { tenantName?: string | null; tenantLogo?: string | null }
 ): Promise<Blob> => {
   // Had iyo jeer dib u samee si logo-ga shirkadda (tenant) uu ugu soo baxo
+  const { generateInvoiceImage } = await import('@/utils/invoiceGenerator');
   return generateInvoiceImage({
     ...order,
     tenantName: branding?.tenantName ?? null,
@@ -49,13 +47,6 @@ const OrderHistory = () => {
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [orderHistory, setOrderHistory] = useState<any[]>(historyCache ?? []);
   const [loading, setLoading] = useState(!historyCache);
-  // Show AdMob banner on mount, hide on unmount
-  useEffect(() => {
-    showBannerAd();
-    return () => {
-      hideBannerAd();
-    };
-  }, []);
 
   useEffect(() => {
     const fetchOrderHistory = async () => {
@@ -480,6 +471,7 @@ const OrderHistory = () => {
 
                     const isNativeApp = Capacitor.isNativePlatform();
                     if (isNativeApp) {
+                      const { Filesystem, Directory } = await import('@capacitor/filesystem');
                       const androidVersionMatch = navigator.userAgent.match(/Android\s(\d+)/i);
                       const androidVersion = androidVersionMatch ? parseInt(androidVersionMatch[1], 10) : 0;
 
@@ -532,7 +524,7 @@ const OrderHistory = () => {
                         });
                       }
                     } else {
-                      // Website browser - use native download
+                      const { downloadBlobInBrowser } = await import('@/utils/downloadFile');
                       await downloadBlobInBrowser(imageBlob, fileName);
 
                       toast({
@@ -557,6 +549,8 @@ const OrderHistory = () => {
             </div>
           </div>
         </div>}
+
+      <BottomNavigation />
 
       {/* Bottom Navigation */}
     </div>;

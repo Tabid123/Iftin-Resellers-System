@@ -3,7 +3,6 @@ import { useTenant } from "@/contexts/TenantContext";
 import { ResellerCodeGate } from "@/components/ResellerCodeGate";
 import { AlertCircle, Lock, MessageCircle, Wallet, WifiOff } from "lucide-react";
 import { normalizeSupportPhone } from "@/hooks/useSupportPhone";
-import { hideNativeSplash } from "@/lib/nativeSplash";
 
 
 
@@ -18,109 +17,14 @@ interface Props {
  * - suspended → blocking banner
  * - ready / platform → render children
  */
-const WEB_SPLASH_MS = 1500;
-
 export const TenantGate: React.FC<Props> = ({ children }) => {
   const state = useTenant();
-  const [showStartupSplash, setShowStartupSplash] = React.useState(true);
-  const [apkIdentity] = React.useState(() => {
-    if (typeof window === "undefined") {
-      return { logo: "", name: "", color: "", banner: "" };
-    }
 
-    const params = new URLSearchParams(window.location.search);
-    const identity = {
-      logo: params.get("apkLogo") || "",
-      name: params.get("apkName") || "",
-      color: params.get("apkColor") || "",
-      banner: params.get("apkBanner") || "",
-    };
-
-    try {
-      if (identity.logo) sessionStorage.setItem("iftin.apk.logo", identity.logo);
-      if (identity.name) sessionStorage.setItem("iftin.apk.name", identity.name);
-      if (identity.color) sessionStorage.setItem("iftin.apk.color", identity.color);
-      if (identity.banner) sessionStorage.setItem("iftin.apk.banner", identity.banner);
-
-      if (!identity.logo) identity.logo = sessionStorage.getItem("iftin.apk.logo") || "";
-      if (!identity.name) identity.name = sessionStorage.getItem("iftin.apk.name") || "";
-      if (!identity.color) identity.color = sessionStorage.getItem("iftin.apk.color") || "";
-      if (!identity.banner) identity.banner = sessionStorage.getItem("iftin.apk.banner") || "";
-    } catch {}
-
-    return identity;
-  });
-
-  React.useEffect(() => {
-    let cancelled = false;
-    let timer: number | undefined;
-
-    void hideNativeSplash().finally(() => {
-      if (cancelled) return;
-      timer = window.setTimeout(() => {
-        if (!cancelled) setShowStartupSplash(false);
-      }, WEB_SPLASH_MS);
-    });
-
-    return () => {
-      cancelled = true;
-      if (timer !== undefined) window.clearTimeout(timer);
-    };
-  }, []);
-
-  // Keep the real route mounted behind the splash so Providers + bottom nav
-  // finish rendering together. If tenant resolution is unusually slow, keep
-  // showing the branded splash instead of exposing a white gate screen.
-  if (showStartupSplash) {
-    const tenant =
-      state.status === "ready" || state.status === "suspended" ? state.tenant : null;
-    const logo =
-      apkIdentity.logo ||
-      tenant?.logo_url ||
-      (import.meta.env.VITE_TENANT_LOGO_URL as string | undefined) ||
-      "";
-    const name =
-      apkIdentity.name ||
-      tenant?.name ||
-      (import.meta.env.VITE_TENANT_NAME as string | undefined) ||
-      "App";
-    const splashColor =
-      apkIdentity.color ||
-      tenant?.primary_color ||
-      (import.meta.env.VITE_SPLASH_COLOR as string | undefined) ||
-      undefined;
-
-    const splash = (
-      <div
-        className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-primary"
-        style={splashColor ? { backgroundColor: splashColor } : undefined}
-      >
-        {logo ? (
-          <img
-            src={logo}
-            alt={name}
-            className="h-36 w-36 rounded-2xl object-cover shadow-lg"
-            onError={(event) => {
-              event.currentTarget.style.display = "none";
-            }}
-          />
-        ) : null}
-        <div className="mt-8 h-9 w-9 animate-spin rounded-full border-[3px] border-accent/30 border-t-accent" />
-      </div>
-    );
-
-    // During Capacitor SPA prerender there is no browser. Rendering the whole
-    // storefront behind the splash can activate client data hooks during the
-    // build and keep prerendering from finishing. In the real browser/WebView,
-    // children still mount behind the splash so home + nav are ready together.
-    if (typeof window === "undefined") return splash;
-
-    return (
-      <>
-        {children}
-        {splash}
-      </>
-    );
+  if (state.status === "loading") {
+    // Keep the storefront shell interactive while the tenant row resolves.
+    // Tenant-owned queries remain disabled until a real workspace id exists,
+    // so no other tenant's data can render here.
+    return <>{children}</>;
   }
 
   if (state.status === "needs_code") {

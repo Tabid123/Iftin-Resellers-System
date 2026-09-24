@@ -2,7 +2,6 @@ import { QueryClient, hashKey } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 import { getTenantId } from "./integrations/supabase/client";
-import "./mobile-stability.css";
 
 /**
  * The storefront cache used to be hydrated here, synchronously, from shared
@@ -19,11 +18,11 @@ export const getRouter = () => {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 5 * 60 * 1000,
+        staleTime: 30 * 1000,
         gcTime: 60 * 60 * 1000,
-        refetchOnMount: false,
-        refetchOnWindowFocus: false,
-        refetchOnReconnect: false,
+        refetchOnMount: true,
+        refetchOnWindowFocus: true,
+        refetchOnReconnect: true,
         retry: 1,
         queryKeyHashFn: (queryKey) => hashKey([getTenantId() ?? "__no_workspace__", ...queryKey]),
       },
@@ -35,9 +34,8 @@ export const getRouter = () => {
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
-    defaultPreload: "intent",
-    defaultPreloadDelay: 0,
-    defaultPreloadStaleTime: 5 * 60 * 1000,
+    defaultPreload: false,
+    defaultPreloadStaleTime: 0,
   });
 
   return router;

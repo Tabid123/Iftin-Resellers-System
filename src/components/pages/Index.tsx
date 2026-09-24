@@ -4,6 +4,7 @@ import HeroSection from '@/components/HeroSection';
 import PhoneInput from '@/components/PhoneInput';
 import Footer from '@/components/Footer';
 
+// Validate Somali phone format: 9 digits starting with 61, 77, 62, or 68.
 const isValidSomaliPhone = (phone: string | null): boolean => {
   if (!phone) return false;
   return /^(61|77|62|68)\d{7}$/.test(phone);
@@ -19,11 +20,15 @@ const hasOfflineRegistration = (): boolean => {
 
 const Index = () => {
   const navigate = useNavigate();
+
   const verifiedPhone = localStorage.getItem('verifiedPhone');
-  const destination = isValidSomaliPhone(verifiedPhone)
+  const verified = isValidSomaliPhone(verifiedPhone);
+  const destination = verified
     ? (hasOfflineRegistration() ? '/providers' : '/offline-mode')
     : null;
 
+  // No web splash. Returning customers are redirected before the browser paints
+  // the login route, so launch goes straight into the storefront.
   useLayoutEffect(() => {
     sessionStorage.setItem('appInitialized', 'true');
 
@@ -32,9 +37,12 @@ const Index = () => {
       return;
     }
 
-    if (verifiedPhone) localStorage.removeItem('verifiedPhone');
-  }, [destination, navigate, verifiedPhone]);
+    if (verifiedPhone) {
+      localStorage.removeItem('verifiedPhone');
+    }
+  }, [navigate, destination, verifiedPhone]);
 
+  // During the synchronous redirect, render nothing — never a spinner/logo.
   if (destination) return null;
 
   return (
