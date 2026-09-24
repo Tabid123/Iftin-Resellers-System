@@ -13,7 +13,7 @@ import { useConnectivity } from '@/contexts/ConnectivityContext';
 import najaxLogo from '@/assets/najax-logo.jpeg';
 import { useTenant } from '@/contexts/TenantContext';
 import { useSupportPhone } from '@/hooks/useSupportPhone';
-import { fetchIftinCatalog, hasCatalog, isApiPartnerTenant, mapProviders } from '@/lib/iftinCatalog';
+import { fetchIftinCatalog, hasCatalog, isApiPartnerTenant, mapProviders, mapCategories, mapPackages } from '@/lib/iftinCatalog';
 import { Button } from '@/components/ui/button';
 import { localizeImage } from '@/lib/localImages';
 import { emitStorefront, purgeStorefrontStorage } from '@/lib/storefrontEvents';
