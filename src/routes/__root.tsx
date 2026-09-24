@@ -219,6 +219,9 @@ function RootComponent() {
 
   useEffect(() => {
     try {
+      // Old builds stored remote artwork as one large base64 JSON object.
+      // Removing it is cheap; parsing/stringifying it on mobile was not.
+      localStorage.removeItem("img_cache_v1");
       const version = String(import.meta.env.VITE_BUILD_VERSION ?? "dev");
       localStorage.setItem("app_cache_version", version);
       if (localStorage.getItem(OFFLINE_CACHE_SCHEMA_KEY) === OFFLINE_CACHE_SCHEMA_VERSION) return;
