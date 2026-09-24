@@ -111,6 +111,8 @@ jobs:
           set -e
           node <<'NODE'
           const fs = require('fs');
+          const path = require('path');
+
           const snapshot = JSON.parse(fs.readFileSync('public/tenant-bootstrap.json', 'utf8'));
           const tenant = snapshot.tenant || {};
           const slug = String(tenant.slug || process.env.TENANT_SLUG || '').trim().toLowerCase();
@@ -124,21 +126,47 @@ jobs:
           let appId = String(process.env.INPUT_APP_ID || '').trim();
           if (!appId) appId = 'com.iftin.' + slug.replace(/[^a-z0-9]/g, '');
 
+          fs.mkdirSync('.tenant-build', { recursive: true });
+
+          function materializeDataImage(value, basename) {
+            const match = String(value || '').match(/^data:image\/([a-zA-Z0-9.+-]+);base64,(.+)$/s);
+            if (!match) return '';
+            const extMap = { jpeg: 'jpg', 'svg+xml': 'svg' };
+            const ext = extMap[match[1].toLowerCase()] || match[1].toLowerCase();
+            const file = path.join('.tenant-build', `${basename}.${ext}`);
+            fs.writeFileSync(file, Buffer.from(match[2], 'base64'));
+            return file;
+          }
+
+          const logoFile = materializeDataImage(logo, 'tenant-logo');
+          const bannerFile = materializeDataImage(firstBanner, 'tenant-banner');
+
+          // IMPORTANT: never put data: URIs in GITHUB_ENV. A large base64 logo
+          // makes every following process inherit a huge environment and Linux
+          // refuses to start bash/node with "Argument list too long".
+          const logoUrl = /^https?:\/\//i.test(logo) ? logo : '';
+          const bannerUrl = /^https?:\/\//i.test(firstBanner) ? firstBanner : '';
+
           const envLines = [
             ['APP_NAME', name],
             ['APP_ID', appId],
-            ['TENANT_LOGO_URL', logo],
-            ['TENANT_FIRST_BANNER_URL', firstBanner],
+            ['TENANT_LOGO_URL', logoUrl],
+            ['TENANT_LOGO_FILE', logoFile],
+            ['TENANT_FIRST_BANNER_URL', bannerUrl],
+            ['TENANT_FIRST_BANNER_FILE', bannerFile],
             ['SPLASH_COLOR', color],
             ['VITE_TENANT_NAME', name],
-            ['VITE_TENANT_LOGO_URL', logo],
+            ['VITE_TENANT_LOGO_URL', logoUrl],
             ['VITE_SPLASH_COLOR', color],
           ];
-          fs.appendFileSync(process.env.GITHUB_ENV, envLines.map(([k,v]) => `${k}=${v}`).join('\n') + '\n');
+          fs.appendFileSync(
+            process.env.GITHUB_ENV,
+            envLines.map(([k,v]) => `${k}=${String(v).replace(/\r?\n/g, '')}`).join('\n') + '\n',
+          );
 
           console.log(`Resolved tenant identity: ${slug} -> ${name}`);
-          console.log(`Resolved tenant logo: ${logo || '(none)'}`);
-          console.log(`Resolved first banner: ${firstBanner || '(none)'}`);
+          console.log(`Resolved tenant logo: ${logoFile ? 'embedded data image -> ' + logoFile : (logoUrl || '(none)')}`);
+          console.log(`Resolved first banner: ${bannerFile ? 'embedded data image -> ' + bannerFile : (bannerUrl || '(none)')}`);
           console.log(`Resolved tenant color: ${color}`);
           NODE
 
@@ -165,6 +193,8 @@ jobs:
             apkName: name,
             apkColor: color,
           });
+          // Only short HTTP(S) values belong in the live URL. Embedded base64
+          // artwork is already available in the tenant snapshot/native file.
           if (logo) params.set('apkLogo', logo);
           if (firstBanner) params.set('apkBanner', firstBanner);
 
@@ -292,25 +322,33 @@ jobs:
 
       - name: Generate icons and splash from tenant logo
         run: |
+          set -e
           LOGO_URL="${TENANT_LOGO_URL:-}"
-          if [ -z "${LOGO_URL//[[:space:]]/}" ]; then
-            echo "No tenant logo URL supplied; keeping the default Android artwork."
-            exit 0
-          fi
-          case "$LOGO_URL" in
-            https://*|http://*) ;;
-            *)
-              echo "Logo URL must begin with https:// or http://; keeping the default Android artwork."
-              exit 0
-              ;;
-          esac
+          LOGO_FILE="${TENANT_LOGO_FILE:-}"
           mkdir -p assets
-          if ! curl --retry 3 --retry-delay 2 -fsSL "$LOGO_URL" -o assets/logo.png; then
-            echo "Tenant logo could not be downloaded; keeping the default Android artwork."
+
+          if [ -n "$LOGO_FILE" ] && [ -s "$LOGO_FILE" ]; then
+            echo "Using embedded tenant logo file: $LOGO_FILE"
+            cp "$LOGO_FILE" assets/logo-source
+          elif [ -n "${LOGO_URL//[[:space:]]/}" ]; then
+            case "$LOGO_URL" in
+              https://*|http://*) ;;
+              *)
+                echo "Unsupported tenant logo value; keeping default Android artwork."
+                exit 0
+                ;;
+            esac
+            if ! curl --retry 3 --retry-delay 2 -fsSL "$LOGO_URL" -o assets/logo-source; then
+              echo "Tenant logo could not be downloaded; keeping default Android artwork."
+              exit 0
+            fi
+          else
+            echo "No tenant logo supplied; keeping default Android artwork."
             exit 0
           fi
-          cp assets/logo.png assets/icon.png
-          cp assets/logo.png assets/splash.png
+
+          cp assets/logo-source assets/icon.png
+          cp assets/logo-source assets/splash.png
           npx @capacitor/assets generate --android \
             --iconBackgroundColor "$SPLASH_COLOR" \
             --splashBackgroundColor "$SPLASH_COLOR" || echo "Asset generation failed; keeping the existing Android artwork."
