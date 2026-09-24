@@ -45,20 +45,36 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
   // Keep the real route mounted behind the splash so Providers + bottom nav
   // finish rendering together. If tenant resolution is unusually slow, keep
   // showing the branded splash instead of exposing a white gate screen.
-  if (showStartupSplash || state.status === "loading") {
+  if (showStartupSplash) {
     const tenant =
       state.status === "ready" || state.status === "suspended" ? state.tenant : null;
+    const params =
+      typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const apkLogo = params?.get("apkLogo") || "";
+    const apkName = params?.get("apkName") || "";
+    const apkColor = params?.get("apkColor") || "";
+
     const logo =
       tenant?.logo_url ||
+      apkLogo ||
       (import.meta.env.VITE_TENANT_LOGO_URL as string | undefined) ||
       najaxLogoSplash;
     const name =
       tenant?.name ||
+      apkName ||
       (import.meta.env.VITE_TENANT_NAME as string | undefined) ||
       "App";
+    const splashColor =
+      tenant?.primary_color ||
+      apkColor ||
+      (import.meta.env.VITE_SPLASH_COLOR as string | undefined) ||
+      undefined;
 
     const splash = (
-      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-primary">
+      <div
+        className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-primary"
+        style={splashColor ? { backgroundColor: splashColor } : undefined}
+      >
         <img
           src={logo}
           alt={name}
