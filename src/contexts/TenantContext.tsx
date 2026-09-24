@@ -333,10 +333,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [state, setState] = useState<TenantState>(() => {
-    // A tenant Android build contains an authoritative public storefront
-    // snapshot generated before the web bundle is compiled. Use that identity
-    // for the very first render so the app opens like Iftin Internet instead of
-    // painting a tenant-resolution spinner first.
+    // Native tenant builds start from their packaged identity.
     const snapshot = tenantOfflineBootstrap as any;
     const packagedTenant = snapshot?.tenant as Tenant | undefined;
     const bakedSlug = buildTenantSlug();
@@ -349,6 +346,25 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
       return isTenantBlocked(packagedTenant)
         ? { status: "suspended", tenant: packagedTenant, isPlatform: false }
         : { status: "ready", tenant: packagedTenant, isPlatform: false };
+    }
+
+    // Web tenant routes should also avoid a blank first frame on repeat visits.
+    // Read only the tenant that matches the URL/subdomain; never reuse a saved
+    // tenant id as authority for another slug.
+    if (typeof window !== "undefined") {
+      const pathMatch = window.location.pathname.match(/^\/t\/([^/]+)(?=\/|$)/);
+      const hostParts = window.location.hostname.split(".");
+      const hostSlug =
+        hostParts.length >= 3 && !RESERVED.has(hostParts[0]) ? hostParts[0] : null;
+      const initialSlug = pathMatch?.[1] || hostSlug;
+      if (initialSlug) {
+        const cachedTenant = readCachedTenant(initialSlug);
+        if (cachedTenant && cachedTenant.slug === initialSlug) {
+          return isTenantBlocked(cachedTenant)
+            ? { status: "suspended", tenant: cachedTenant, isPlatform: false }
+            : { status: "ready", tenant: cachedTenant, isPlatform: false };
+        }
+      }
     }
 
     return {
@@ -387,9 +403,9 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
       return;
     }
 
-    // Clear any stale header before resolving the new tenant so the lookup
-    // itself isn't filtered by a wrong tenant.
-    setTenantHeader(null);
+    // The slug lookup uses the unscoped client, so never clear the active
+    // header just to resolve startup identity. Clearing it used to trigger a
+    // full React Query cache reset during the first interaction.
     purgeForeignContentCaches(slug);
 
     const cached = readCachedTenant(slug);
