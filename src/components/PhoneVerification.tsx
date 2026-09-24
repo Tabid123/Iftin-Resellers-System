@@ -154,7 +154,6 @@ const PhoneVerification = ({ isOpen, onClose, onSuccess, paymentProvider, packag
       localStorage.removeItem('verificationCode');
       setIsVerifying(false);
       onClose();
-      void playAudioPrompt('offline');
       navigate('/offline-mode');
     } else {
       toast({ title: "Khalad", description: "Koodka aad gelisay waa mid khaldan.", variant: "destructive" });
