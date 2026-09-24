@@ -115,7 +115,7 @@ jobs:
           const tenant = snapshot.tenant || {};
           const slug = String(tenant.slug || process.env.TENANT_SLUG || '').trim().toLowerCase();
           const name = String(tenant.name || process.env.INPUT_APP_NAME || slug || 'App').trim();
-          const logo = String(tenant.logo_url || process.env.INPUT_LOGO_URL || '').trim();
+          const logo = String(snapshot.tenantLogoUrl || tenant.logo_url || process.env.INPUT_LOGO_URL || '').trim();
           const firstBanner = String(snapshot.firstBannerUrl || '').trim();
 
           let color = String(tenant.primary_color || process.env.INPUT_SPLASH_COLOR || '#0F4C81').trim();
