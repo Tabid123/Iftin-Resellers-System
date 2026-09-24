@@ -14,7 +14,7 @@ import { showBannerAd, hideBannerAd } from '@/services/admob';
 import { logScreenView } from '@/services/firebase';
 import { useConnectivity } from '@/contexts/ConnectivityContext';
 import { useTenant } from '@/contexts/TenantContext';
-import { buildPaymentUssd, formatUssdAmount, fetchIftinCatalog, hasCatalog, isApiPartnerTenant, isOrderingBlocked, mapProviders, mapCategories, mapPackages } from '@/lib/iftinCatalog';
+import { buildPaymentUssd, formatUssdAmount, fetchIftinCatalog, hasCatalog, isApiPartnerTenant, isOrderingBlocked, mapProviders, mapCategories, mapPackages, mapPaymentProviders } from '@/lib/iftinCatalog';
 import UssdDiscoveryDialog, { type DiscoveryChoice } from '@/components/UssdDiscoveryDialog';
 import MaamuusFlow from '@/components/ussd/MaamuusFlow';
 
@@ -102,6 +102,35 @@ const DataPackages = () => {
     };
   }, []);
 
+  // Warm checkout data just like Iftin Internet does before purchase.
+  useEffect(() => {
+    if (!workspaceId || isReallyOnline === false) return;
+    void queryClient.prefetchQuery({
+      queryKey: workspaceQueryKey(workspaceId, 'paymentProviders'),
+      queryFn: async () => {
+        const cached = workspaceStorage.getJson<any[]>('offline_payment_providers', [], workspaceId);
+        try {
+          const partner = await isApiPartnerTenant(workspaceId);
+          if (activeWorkspaceId() !== workspaceId) return cached;
+          if (partner) {
+            const catalog = await fetchIftinCatalog();
+            if (activeWorkspaceId() !== workspaceId) return cached;
+            if (hasCatalog(catalog)) return mapPaymentProviders(catalog!);
+            return cached;
+          }
+          const { data, error } = await (supabase as any).rpc('get_active_payment_providers');
+          if (error || activeWorkspaceId() !== workspaceId) return cached;
+          const fresh = (data as any[]) || [];
+          workspaceStorage.setJson('offline_payment_providers', fresh, workspaceId);
+          return fresh;
+        } catch {
+          return cached;
+        }
+      },
+      staleTime: 30 * 1000,
+    });
+  }, [workspaceId, isReallyOnline, queryClient]);
+
   const getCachedCategories = (): Category[] => {
     if (!workspaceId) return [];
     const allCategories = workspaceStorage.getJson<Category[]>('offline_categories', [], workspaceId);
@@ -133,10 +162,12 @@ const DataPackages = () => {
       return (data as any[]) || [];
     },
     enabled: !!provider && Boolean(workspaceId),
-    staleTime: 5 * 60 * 1000,
-    retry: 1,
-    retryDelay: 250,
-    placeholderData: getCachedCategories,
+    staleTime: 30 * 1000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    retry: false,
+    initialData: getCachedCategories,
   });
 
   // Get cached packages - self-contained, resolves provider UUID internally
@@ -237,14 +268,12 @@ const DataPackages = () => {
       return fresh;
     },
     enabled: !!provider,
-    staleTime: 10 * 1000,
+    staleTime: 30 * 1000,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
-    retry: 1,
-    retryDelay: 250,
-    // Show cache immediately but still fetch fresh data
-    placeholderData: () => getCachedPackages(),
+    retry: false,
+    initialData: () => getCachedPackages(),
   });
 
   const resolvedProviderId = (() => {
