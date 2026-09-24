@@ -5,10 +5,7 @@ import { Button } from '@/components/ui/button';
 import { supabase, getTenantId } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Capacitor } from '@capacitor/core';
-import { generateInvoiceImage } from '@/utils/invoiceGenerator';
-import { downloadBlobInBrowser } from '@/utils/downloadFile';
 import { fetchIftinCatalog, hasCatalog, mapProviders } from '@/lib/iftinCatalog';
 import { sellPriceFor } from '@/lib/resellerOverrides';
 import { fetchIftinIntentStatus, isIntentPending } from '@/lib/iftinIntent';
@@ -22,6 +19,7 @@ const getInvoiceBlob = async (
   branding?: { tenantName?: string | null; tenantLogo?: string | null }
 ): Promise<Blob> => {
   // Had iyo jeer dib u samee si logo-ga shirkadda (tenant) uu ugu soo baxo
+  const { generateInvoiceImage } = await import('@/utils/invoiceGenerator');
   return generateInvoiceImage({
     ...order,
     tenantName: branding?.tenantName ?? null,
@@ -473,6 +471,7 @@ const OrderHistory = () => {
 
                     const isNativeApp = Capacitor.isNativePlatform();
                     if (isNativeApp) {
+                      const { Filesystem, Directory } = await import('@capacitor/filesystem');
                       const androidVersionMatch = navigator.userAgent.match(/Android\s(\d+)/i);
                       const androidVersion = androidVersionMatch ? parseInt(androidVersionMatch[1], 10) : 0;
 
@@ -525,7 +524,7 @@ const OrderHistory = () => {
                         });
                       }
                     } else {
-                      // Website browser - use native download
+                      const { downloadBlobInBrowser } = await import('@/utils/downloadFile');
                       await downloadBlobInBrowser(imageBlob, fileName);
 
                       toast({
