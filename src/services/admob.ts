@@ -11,8 +11,9 @@ export const initializeAdMob = async (): Promise<void> => {
  * an older app session instead of creating a new native advertising surface.
  */
 export const showBannerAd = async (): Promise<void> => {
-  if (!Capacitor.isNativePlatform()) return;
-  await removeBannerAd();
+  // Banner ads are disabled. Keep this as a true no-op so route transitions do
+  // not make an unnecessary Capacitor bridge call on every customer page.
+  return;
 };
 
 /**
