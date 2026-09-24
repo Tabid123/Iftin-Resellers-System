@@ -101,16 +101,11 @@ jobs:
             cfg.plugins.StatusBar.backgroundColor = color;
             cfg.plugins.NavigationBar.backgroundColor = color;
 
-            // Tenant APKs use the live storefront as their primary web layer.
-            // This means normal website HTML/CSS/JS fixes and new UI features
-            // appear without rebuilding every tenant APK. The packaged dist +
-            // tenant snapshot are still shipped for cached/offline recovery.
-            const slug = String(process.env.TENANT_SLUG || "").trim().toLowerCase();
-            cfg.server = {
-              url: `https://iftinagents.com/t/${slug}`,
-              cleartext: false,
-              allowNavigation: ["iftinagents.com"]
-            };
+            // Tenant APKs boot from the packaged Capacitor web bundle.
+            // This keeps cold/offline startup fast and independent of network.
+            // Tenant identity is baked through VITE_TENANT_SLUG and live business
+            // data still refreshes directly from Supabase after startup.
+            delete cfg.server;
 
             fs.writeFileSync("capacitor.config.json", JSON.stringify(cfg, null, 2));
           '
@@ -134,6 +129,17 @@ jobs:
           test -s public/tenant-bootstrap.js
           test -s public/tenant-bootstrap.json
           echo "Tenant storefront snapshot packaged for first-launch offline mode"
+
+      - name: Package tenant voice prompts
+        run: |
+          set -e
+          mkdir -p public/audio
+          curl --retry 3 --retry-delay 1 -fsSL "https://iftinagents.com/__l5e/assets-v1/035ae08a-83c5-483c-a7a7-fc834544cf83/phone-number-prompt.wav" -o public/audio/phone.wav
+          curl --retry 3 --retry-delay 1 -fsSL "https://iftinagents.com/__l5e/assets-v1/bd53b427-602d-4cdb-9102-ac6c3d065c12/otp-code-prompt.wav" -o public/audio/otp.wav
+          curl --retry 3 --retry-delay 1 -fsSL "https://iftinagents.com/__l5e/assets-v1/d208b555-c658-4bb2-9ad9-fb3aeac0e72f/offline-mode-prompt.wav" -o public/audio/offline.wav
+          test -s public/audio/phone.wav
+          test -s public/audio/otp.wav
+          test -s public/audio/offline.wav
 
       - name: Stamp Android web bundle
         run: |
@@ -194,6 +200,9 @@ jobs:
           test -f "$ASSETS/public/apk-build.json" || fail "apk-build.json missing from Android assets"
           test -f "$ASSETS/public/tenant-bootstrap.js" || fail "tenant-bootstrap.js missing from Android assets"
           test -f "$ASSETS/public/tenant-bootstrap.json" || fail "tenant-bootstrap.json missing from Android assets"
+          test -s "$ASSETS/public/audio/phone.wav" || fail "phone voice prompt missing from Android assets"
+          test -s "$ASSETS/public/audio/otp.wav" || fail "OTP voice prompt missing from Android assets"
+          test -s "$ASSETS/public/audio/offline.wav" || fail "offline voice prompt missing from Android assets"
 
           if [ -f "$ASSETS/public/apk-build.json" ]; then
             echo "apk-build.json: $(cat "$ASSETS/public/apk-build.json")"
@@ -214,8 +223,9 @@ jobs:
             || fail "tenant splash duration is not 1500ms"
           grep -Eq '"launchAutoHide"[[:space:]]*:[[:space:]]*true' capacitor.config.json \
             || fail "tenant splash auto-hide is not enabled"
-          grep -Fq "\"url\": \"https://iftinagents.com/t/${TENANT_SLUG}\"" capacitor.config.json \
-            || fail "tenant live storefront URL is missing from capacitor.config.json"
+          if grep -Eq '"server"[[:space:]]*:' capacitor.config.json; then
+            fail "tenant APK must boot from packaged webDir, not remote server.url"
+          fi
           if [ -f "$ASSETS/capacitor.config.json" ]; then
             grep -Eq '"captureInput"[[:space:]]*:[[:space:]]*false' "$ASSETS/capacitor.config.json" \
               || fail "captureInput is not false in the synced Android capacitor.config.json"
