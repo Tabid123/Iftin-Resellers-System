@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from "@/lib/router-compat";
 import RotatingBanner from '@/components/RotatingBanner';
 import ProviderCard from '@/components/ProviderCard';
 import PopularPackages from '@/components/PopularPackages';
-import { Phone, MessageCircle, WifiOff, X, RefreshCw, Headphones, Bot } from 'lucide-react';
+import { Phone, MessageCircle, WifiOff, X, Headphones, Bot } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
@@ -15,9 +15,10 @@ import { useSupportPhone } from '@/hooks/useSupportPhone';
 import { fetchIftinCatalog, hasCatalog, isApiPartnerTenant, mapProviders } from '@/lib/iftinCatalog';
 import { Button } from '@/components/ui/button';
 import { localizeImage } from '@/lib/localImages';
-import { emitStorefront, purgeStorefrontStorage } from '@/lib/storefrontEvents';
 import { activeWorkspaceId, workspaceQueryKey, workspaceStorage } from '@/lib/workspaceKeys';
-import StorefrontAIChat from '@/components/StorefrontAIChat';
+const StorefrontAIChat = React.lazy(() =>
+  import('@/components/StorefrontAIChat').then((m) => ({ default: m.StorefrontAIChat })),
+);
 
 
 interface Provider {
@@ -42,37 +43,11 @@ const ProviderSelection = () => {
   const [showAI, setShowAI] = useState(false);
   const [showContactSheet, setShowContactSheet] = useState(false);
   
-  // Pull to refresh state
-  const [isPulling, setIsPulling] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [pullDistance, setPullDistance] = useState(0);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const startY = useRef(0);
-  const PULL_THRESHOLD = 80;
 
   useEffect(() => { logScreenView('ProviderSelection'); }, []);
 
   const workspaceId = tenant?.id ?? null;
 
-  // Realtime: providers_config changes, bound to the active workspace only.
-  useEffect(() => {
-    if (!workspaceId) return;
-    const filter = `tenant_id=eq.${workspaceId}`;
-    const channel = supabase
-      .channel(`providers-realtime-${workspaceId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'providers_config', filter }, () => {
-        queryClient.invalidateQueries({ queryKey: workspaceQueryKey(workspaceId, 'providers') });
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'data_packages_config', filter }, () => {
-        queryClient.invalidateQueries({ queryKey: workspaceQueryKey(workspaceId, 'packages') });
-        queryClient.invalidateQueries({ queryKey: workspaceQueryKey(workspaceId, 'featuredPackages') });
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'package_categories', filter }, () => {
-        queryClient.invalidateQueries({ queryKey: workspaceQueryKey(workspaceId, 'categories') });
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [queryClient, workspaceId]);
 
   // Parsing + logo mapping is called on every render by React Query's
   // placeholderData, so memoize it against the raw cache string.
@@ -129,53 +104,14 @@ const ProviderSelection = () => {
       workspaceStorage.setJson('offline_providers', freshProviders, workspaceId);
       return freshProviders;
     },
-    placeholderData: getCachedProviders,
-    // Xogta shirkadaha waa la kaydiyaa 2 daqiiqo; pull-to-refresh ayaa cusboonaysiiya.
-    staleTime: 2 * 60 * 1000,
-    refetchOnMount: false,
-    retry: 1,
-    retryDelay: 250,
+    initialData: getCachedProviders,
+    staleTime: 30 * 1000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    retry: false,
   });
 
-
-  const handleRefresh = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      // A real refresh: throw away the cached snapshots first, otherwise the
-      // queries just re-read the same stale localStorage payload.
-      purgeStorefrontStorage();
-      emitStorefront('banners-changed');
-      await queryClient.invalidateQueries();
-    } finally {
-      setIsRefreshing(false);
-      setPullDistance(0);
-    }
-  }, [queryClient]);
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (contentRef.current && contentRef.current.scrollTop === 0) {
-      startY.current = e.touches[0].clientY;
-      setIsPulling(true);
-    }
-  }, []);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isPulling || isRefreshing) return;
-    const currentY = e.touches[0].clientY;
-    const distance = Math.max(0, currentY - startY.current);
-    if (distance > 0 && contentRef.current?.scrollTop === 0) {
-      setPullDistance(Math.min(distance * 0.5, PULL_THRESHOLD + 20));
-    }
-  }, [isPulling, isRefreshing]);
-
-  const handleTouchEnd = useCallback(() => {
-    if (pullDistance >= PULL_THRESHOLD && !isRefreshing) {
-      handleRefresh();
-    } else {
-      setPullDistance(0);
-    }
-    setIsPulling(false);
-  }, [pullDistance, isRefreshing, handleRefresh]);
 
   const detectProvider = (phone: string): { id: string; name: string } | null => {
     if (phone.length < 2) return null;
@@ -265,26 +201,13 @@ const ProviderSelection = () => {
       </div>
 
       {/* Scrollable Content */}
-      <div 
-        ref={contentRef}
+      <div
         className="flex-1 overflow-y-auto"
-        style={{ 
+        style={{
           paddingTop: 'calc(3.5rem + var(--effective-safe-area-top, 0px))',
-          paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' 
+          paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))'
         }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
       >
-        {/* Pull to refresh */}
-        <div 
-          className="flex items-center justify-center transition-all duration-200"
-          style={{ height: pullDistance > 0 ? `${pullDistance}px` : 0, opacity: pullDistance > 20 ? 1 : 0 }}
-        >
-          <RefreshCw className={`w-5 h-5 text-primary ${isRefreshing ? 'animate-spin' : ''}`} 
-            style={{ transform: `rotate(${pullDistance * 2}deg)` }}
-          />
-        </div>
 
         {/* Banner */}
         <div className="px-4 pt-5 pb-3">
@@ -309,7 +232,7 @@ const ProviderSelection = () => {
           <h2 className="text-base font-bold text-foreground">Dooro shirkada aa rabtid</h2>
           
           <div className="grid grid-cols-3 gap-3">
-            {providers.length === 0 && isFetchingProviders &&
+            {providers.length === 0 && (!workspaceId || isFetchingProviders) &&
               Array.from({ length: 3 }).map((_, index) => (
                 <div key={`provider-skeleton-${index}`} className="h-[92px] rounded-2xl bg-muted animate-pulse" />
               ))}
@@ -405,7 +328,11 @@ const ProviderSelection = () => {
         </div>
       )}
 
-      <StorefrontAIChat open={showAI} onOpenChange={setShowAI} />
+      {showAI && (
+        <React.Suspense fallback={null}>
+          <StorefrontAIChat open={showAI} onOpenChange={setShowAI} />
+        </React.Suspense>
+      )}
 
     </div>
   );
