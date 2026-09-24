@@ -7,20 +7,21 @@ on:
         description: "Tenant slug (reseller code), e.g. marwaan"
         required: true
       app_name:
-        description: "App name shown on the phone"
-        required: true
+        description: "Fallback app name only; tenant database name is authoritative"
+        required: false
+        default: ""
       app_id:
         description: "Android applicationId (reverse domain)"
         required: false
         default: ""
       logo_url:
-        description: "Public URL of the tenant logo (PNG, >=1024px, square)"
+        description: "Fallback logo only; tenant database logo is authoritative"
         required: false
         default: ""
       splash_color:
-        description: "Splash / status bar color (hex)"
+        description: "Fallback color only; tenant primary color is authoritative"
         required: false
-        default: "#0F4C81"
+        default: ""
       version_name:
         description: "Version name, e.g. 1.0.0"
         required: false
@@ -35,7 +36,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TENANT_SLUG: ${{ inputs.tenant_slug }}
-      APP_NAME: ${{ inputs.app_name }}
+      INPUT_APP_NAME: ${{ inputs.app_name }}
+      INPUT_APP_ID: ${{ inputs.app_id }}
+      INPUT_LOGO_URL: ${{ inputs.logo_url }}
+      INPUT_SPLASH_COLOR: ${{ inputs.splash_color }}
       APP_VERSION_NAME: ${{ inputs.version_name }}
       APP_VERSION_CODE: ${{ inputs.version_code }}
       ONESIGNAL_DISABLE_LOCATION: "true"
@@ -85,39 +89,6 @@ jobs:
         run: |
           node -e 'const p=require("./package.json"); if(!p.dependencies?.["@onesignal/capacitor-plugin"]) process.exit(1)'
 
-      - name: Configure app identity for this tenant
-        run: |
-          APP_ID="${{ inputs.app_id }}"
-          if [ -z "$APP_ID" ]; then APP_ID="com.iftin.$(echo "$TENANT_SLUG" | tr -cd '[:alnum:]')"; fi
-          export APP_ID
-          echo "APP_ID=$APP_ID" >> "$GITHUB_ENV"
-          node -e '
-            const fs = require("fs");
-            const cfg = JSON.parse(fs.readFileSync("capacitor.config.json", "utf8"));
-            cfg.appId = process.env.APP_ID;
-            cfg.appName = process.env.APP_NAME;
-            const color = process.env.SPLASH_COLOR;
-            cfg.plugins.SplashScreen.backgroundColor = color;
-            cfg.plugins.StatusBar.backgroundColor = color;
-            cfg.plugins.NavigationBar.backgroundColor = color;
-
-            // Tenant APKs use the live storefront as their primary web layer.
-            // This means normal website HTML/CSS/JS fixes and new UI features
-            // appear without rebuilding every tenant APK. The packaged dist +
-            // tenant snapshot are still shipped for cached/offline recovery.
-            const slug = String(process.env.TENANT_SLUG || "").trim().toLowerCase();
-            cfg.server = {
-              url: `https://iftinagents.com/t/${slug}`,
-              cleartext: false,
-              allowNavigation: ["iftinagents.com"]
-            };
-
-            fs.writeFileSync("capacitor.config.json", JSON.stringify(cfg, null, 2));
-          '
-        env:
-          APP_ID: ${{ inputs.app_id }}
-          SPLASH_COLOR: ${{ inputs.splash_color }}
-
       - name: Generate packaged offline tenant snapshot
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -135,6 +106,72 @@ jobs:
           test -s public/tenant-bootstrap.json
           echo "Tenant storefront snapshot packaged for first-launch offline mode"
 
+      - name: Resolve authoritative tenant build identity
+        run: |
+          set -e
+          node <<'NODE'
+          const fs = require('fs');
+          const snapshot = JSON.parse(fs.readFileSync('public/tenant-bootstrap.json', 'utf8'));
+          const tenant = snapshot.tenant || {};
+          const slug = String(tenant.slug || process.env.TENANT_SLUG || '').trim().toLowerCase();
+          const name = String(tenant.name || process.env.INPUT_APP_NAME || slug || 'App').trim();
+          const logo = String(tenant.logo_url || process.env.INPUT_LOGO_URL || '').trim();
+
+          let color = String(tenant.primary_color || process.env.INPUT_SPLASH_COLOR || '#0F4C81').trim();
+          if (!/^#[0-9A-Fa-f]{6}$/.test(color)) color = '#0F4C81';
+
+          let appId = String(process.env.INPUT_APP_ID || '').trim();
+          if (!appId) appId = 'com.iftin.' + slug.replace(/[^a-z0-9]/g, '');
+
+          const envLines = [
+            ['APP_NAME', name],
+            ['APP_ID', appId],
+            ['TENANT_LOGO_URL', logo],
+            ['SPLASH_COLOR', color],
+            ['VITE_TENANT_NAME', name],
+            ['VITE_TENANT_LOGO_URL', logo],
+            ['VITE_SPLASH_COLOR', color],
+          ];
+          fs.appendFileSync(process.env.GITHUB_ENV, envLines.map(([k,v]) => `${k}=${v}`).join('\n') + '\n');
+
+          console.log(`Resolved tenant identity: ${slug} -> ${name}`);
+          console.log(`Resolved tenant logo: ${logo || '(none)'}`);
+          console.log(`Resolved tenant color: ${color}`);
+          NODE
+
+      - name: Configure app identity for this tenant
+        run: |
+          set -e
+          node <<'NODE'
+          const fs = require('fs');
+          const cfg = JSON.parse(fs.readFileSync('capacitor.config.json', 'utf8'));
+          const slug = String(process.env.TENANT_SLUG || '').trim().toLowerCase();
+          const name = String(process.env.APP_NAME || '').trim();
+          const logo = String(process.env.TENANT_LOGO_URL || '').trim();
+          const color = String(process.env.SPLASH_COLOR || '#0F4C81').trim();
+
+          cfg.appId = process.env.APP_ID;
+          cfg.appName = name;
+          cfg.plugins.SplashScreen.backgroundColor = color;
+          cfg.plugins.StatusBar.backgroundColor = color;
+          cfg.plugins.NavigationBar.backgroundColor = color;
+
+          const params = new URLSearchParams({
+            apk: '1',
+            apkName: name,
+            apkColor: color,
+          });
+          if (logo) params.set('apkLogo', logo);
+
+          cfg.server = {
+            url: `https://iftinagents.com/t/${slug}?${params.toString()}`,
+            cleartext: false,
+            allowNavigation: ['iftinagents.com'],
+          };
+
+          fs.writeFileSync('capacitor.config.json', JSON.stringify(cfg, null, 2));
+          NODE
+
       - name: Stamp Android web bundle
         run: |
           printf '{"commit":"%s","tenant":"%s","bannerCache":"tenant-scoped","numericKeyboard":"native-webview-numeric","nativePush":"onesignal","offlineBootstrap":"packaged-v1"}\n' "${GITHUB_SHA}" "${TENANT_SLUG}" > public/apk-build.json
@@ -144,9 +181,6 @@ jobs:
         env:
           CAPACITOR_BUILD: "true"
           VITE_TENANT_SLUG: ${{ inputs.tenant_slug }}
-          VITE_TENANT_NAME: ${{ inputs.app_name }}
-          VITE_TENANT_LOGO_URL: ${{ inputs.logo_url }}
-          VITE_SPLASH_COLOR: ${{ inputs.splash_color }}
           VITE_BUILD_VERSION: ${{ github.sha }}
           VITE_ONESIGNAL_APP_ID: ${{ secrets.ONESIGNAL_APP_ID }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -210,8 +244,10 @@ jobs:
 
           grep -Eq '"captureInput"[[:space:]]*:[[:space:]]*false' capacitor.config.json \
             || fail "captureInput is not false in capacitor.config.json"
-          grep -Fq "\"url\": \"https://iftinagents.com/t/${TENANT_SLUG}\"" capacitor.config.json \
+          grep -Fq "\"url\": \"https://iftinagents.com/t/${TENANT_SLUG}?" capacitor.config.json \
             || fail "tenant live storefront URL is missing from capacitor.config.json"
+          grep -Fq "\"appName\": \"${APP_NAME}\"" capacitor.config.json \
+            || fail "native app name does not match authoritative tenant name"
           if [ -f "$ASSETS/capacitor.config.json" ]; then
             grep -Eq '"captureInput"[[:space:]]*:[[:space:]]*false' "$ASSETS/capacitor.config.json" \
               || fail "captureInput is not false in the synced Android capacitor.config.json"
@@ -229,8 +265,6 @@ jobs:
           echo "Fresh tenant offline snapshot, native push and native numeric keyboard configuration verified in Android bundle"
 
       - name: Apply app id, label and splash color
-        env:
-          SPLASH_COLOR: ${{ inputs.splash_color }}
         run: |
           sed -i "s/applicationId \".*\"/applicationId \"${APP_ID}\"/" android/app/build.gradle
           python3 - <<'PY'
@@ -253,8 +287,7 @@ jobs:
 
       - name: Generate icons and splash from tenant logo
         env:
-          LOGO_URL: ${{ inputs.logo_url }}
-          SPLASH_COLOR: ${{ inputs.splash_color }}
+          LOGO_URL: ${{ env.TENANT_LOGO_URL }}
         run: |
           if [ -z "${LOGO_URL//[[:space:]]/}" ]; then
             echo "No tenant logo URL supplied; keeping the default Android artwork."
