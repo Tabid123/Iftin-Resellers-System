@@ -6,17 +6,14 @@ import DataPackages from '@/components/pages/DataPackages';
 import PaymentProviders from '@/components/pages/PaymentProviders';
 import PaymentSuccess from '@/components/pages/PaymentSuccess';
 import OfflineMode from '@/components/pages/OfflineMode';
-import OrderHistory from '@/components/pages/OrderHistory';
 import Notifications from '@/components/pages/Notifications';
 import Profile from '@/components/pages/Profile';
-import PrivacyPolicy from '@/components/pages/PrivacyPolicy';
 
-/**
- * Match the proven Iftin Internet storefront behavior:
- * customer pages are already in the main bundle, so a bottom-nav tap never
- * waits for a route chunk to download/parse. Only admin/platform pages stay
- * lazy because they are not part of the customer purchase path.
- */
+const secondaryLoaders = {
+  OrderHistory: () => import('@/components/pages/OrderHistory'),
+  PrivacyPolicy: () => import('@/components/pages/PrivacyPolicy'),
+} as const;
+
 const pages = {
   Index,
   ProviderSelection,
@@ -25,10 +22,10 @@ const pages = {
   PaymentProviders,
   PaymentSuccess,
   OfflineMode,
-  OrderHistory,
   Notifications,
   Profile,
-  PrivacyPolicy,
+  OrderHistory: React.lazy(secondaryLoaders.OrderHistory),
+  PrivacyPolicy: React.lazy(secondaryLoaders.PrivacyPolicy),
   AdminLogin: React.lazy(() => import('@/components/pages/AdminLogin')),
   SimpleAdminDashboard: React.lazy(() => import('@/components/pages/SimpleAdminDashboard')),
   SimpleAdminDetail: React.lazy(() => import('@/components/pages/SimpleAdminDetailWithProviderOrdering')),
@@ -47,11 +44,21 @@ export function lazyPage(key: PageKey): React.ComponentType<any> {
   return pages[key];
 }
 
-export function prefetchPage(_key: PageKey) {}
+export function prefetchPage(key: PageKey) {
+  const loader = (secondaryLoaders as Partial<Record<PageKey, () => Promise<unknown>>>)[key];
+  if (loader) void loader();
+}
 
-export function warmPages() {}
+export function warmPages() {
+  if (typeof window === 'undefined') return;
+  const warm = () => { void secondaryLoaders.OrderHistory(); };
+  if ('requestIdleCallback' in window) {
+    (window as any).requestIdleCallback(warm, { timeout: 2500 });
+  } else {
+    window.setTimeout(warm, 500);
+  }
+}
 
-/** Customer pages are synchronous; admin chunks stream behind this boundary. */
 export function PageSuspense({ children }: { children: React.ReactNode }) {
   return <React.Suspense fallback={null}>{children}</React.Suspense>;
 }
