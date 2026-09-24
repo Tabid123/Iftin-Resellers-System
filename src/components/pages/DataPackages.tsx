@@ -254,7 +254,10 @@ const DataPackages = () => {
       return fresh;
     },
     enabled: !!provider,
-    staleTime: 60 * 1000,
+    staleTime: 10 * 1000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
     retry: 1,
     retryDelay: 250,
     // Show cache immediately but still fetch fresh data
