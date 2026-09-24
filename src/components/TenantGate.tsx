@@ -24,6 +24,33 @@ const WEB_SPLASH_MS = 1500;
 export const TenantGate: React.FC<Props> = ({ children }) => {
   const state = useTenant();
   const [showStartupSplash, setShowStartupSplash] = React.useState(true);
+  const [apkIdentity] = React.useState(() => {
+    if (typeof window === "undefined") {
+      return { logo: "", name: "", color: "", banner: "" };
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const identity = {
+      logo: params.get("apkLogo") || "",
+      name: params.get("apkName") || "",
+      color: params.get("apkColor") || "",
+      banner: params.get("apkBanner") || "",
+    };
+
+    try {
+      if (identity.logo) sessionStorage.setItem("iftin.apk.logo", identity.logo);
+      if (identity.name) sessionStorage.setItem("iftin.apk.name", identity.name);
+      if (identity.color) sessionStorage.setItem("iftin.apk.color", identity.color);
+      if (identity.banner) sessionStorage.setItem("iftin.apk.banner", identity.banner);
+
+      if (!identity.logo) identity.logo = sessionStorage.getItem("iftin.apk.logo") || "";
+      if (!identity.name) identity.name = sessionStorage.getItem("iftin.apk.name") || "";
+      if (!identity.color) identity.color = sessionStorage.getItem("iftin.apk.color") || "";
+      if (!identity.banner) identity.banner = sessionStorage.getItem("iftin.apk.banner") || "";
+    } catch {}
+
+    return identity;
+  });
 
   React.useEffect(() => {
     let cancelled = false;
@@ -48,25 +75,19 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
   if (showStartupSplash) {
     const tenant =
       state.status === "ready" || state.status === "suspended" ? state.tenant : null;
-    const params =
-      typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
-    const apkLogo = params?.get("apkLogo") || "";
-    const apkName = params?.get("apkName") || "";
-    const apkColor = params?.get("apkColor") || "";
-
     const logo =
       tenant?.logo_url ||
-      apkLogo ||
+      apkIdentity.logo ||
       (import.meta.env.VITE_TENANT_LOGO_URL as string | undefined) ||
       najaxLogoSplash;
     const name =
       tenant?.name ||
-      apkName ||
+      apkIdentity.name ||
       (import.meta.env.VITE_TENANT_NAME as string | undefined) ||
       "App";
     const splashColor =
       tenant?.primary_color ||
-      apkColor ||
+      apkIdentity.color ||
       (import.meta.env.VITE_SPLASH_COLOR as string | undefined) ||
       undefined;
 
