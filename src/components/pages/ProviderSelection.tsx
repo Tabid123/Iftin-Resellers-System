@@ -115,16 +115,83 @@ const ProviderSelection = () => {
       workspaceStorage.setJson('offline_providers', freshProviders, workspaceId);
       return freshProviders;
     },
-    placeholderData: getCachedProviders,
-    // Xogta shirkadaha waa la kaydiyaa 2 daqiiqo; pull-to-refresh ayaa cusboonaysiiya.
-    staleTime: 10 * 1000,
+    initialData: getCachedProviders,
+    staleTime: 30 * 1000,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
-    retry: 1,
-    retryDelay: 250,
+    retry: false,
   });
 
+
+  // Match Iftin Internet: once providers are visible, prepare the next
+  // purchase screens in the background. A provider tap should therefore open
+  // an already-warm categories/packages query instead of starting from zero.
+  useEffect(() => {
+    if (!workspaceId || !providers.length || isReallyOnline === false) return;
+
+    let cancelled = false;
+    const warm = async () => {
+      const partner = await isApiPartnerTenant(workspaceId).catch(() => false);
+      if (cancelled || activeWorkspaceId() !== workspaceId) return;
+
+      if (partner) {
+        const catalog = await fetchIftinCatalog().catch(() => null);
+        if (cancelled || activeWorkspaceId() !== workspaceId || !hasCatalog(catalog)) return;
+        for (const provider of providers) {
+          queryClient.setQueryData(
+            workspaceQueryKey(workspaceId, 'categories', provider.id),
+            mapCategories(catalog!, provider.id),
+          );
+          queryClient.setQueryData(
+            workspaceQueryKey(workspaceId, 'packages', provider.id),
+            mapPackages(catalog!, provider.id),
+          );
+        }
+        return;
+      }
+
+      await Promise.allSettled(
+        providers.flatMap((provider: Provider) => [
+          queryClient.prefetchQuery({
+            queryKey: workspaceQueryKey(workspaceId, 'categories', provider.id),
+            queryFn: async () => {
+              const { data, error } = await (supabase as any).rpc('get_active_categories', {
+                p_provider_id: provider.id,
+              });
+              if (error) throw error;
+              return data || [];
+            },
+            staleTime: 30 * 1000,
+          }),
+          queryClient.prefetchQuery({
+            queryKey: workspaceQueryKey(workspaceId, 'packages', provider.id),
+            queryFn: async () => {
+              const { data, error } = await (supabase as any).rpc('get_public_packages', {
+                p_provider_id: provider.id,
+              });
+              if (error) throw error;
+              return data || [];
+            },
+            staleTime: 30 * 1000,
+          }),
+        ]),
+      );
+    };
+
+    const timer = window.setTimeout(() => {
+      if ('requestIdleCallback' in window) {
+        (window as any).requestIdleCallback(() => void warm(), { timeout: 1200 });
+      } else {
+        void warm();
+      }
+    }, 150);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [workspaceId, providers, isReallyOnline, queryClient]);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
