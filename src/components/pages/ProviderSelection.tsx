@@ -7,7 +7,6 @@ import { Phone, MessageCircle, WifiOff, X, RefreshCw, Headphones, Bot } from 'lu
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
-import { showBannerAd, hideBannerAd } from '@/services/admob';
 import { logScreenView } from '@/services/firebase';
 import { useConnectivity } from '@/contexts/ConnectivityContext';
 import najaxLogo from '@/assets/najax-logo.jpeg';
@@ -50,12 +49,8 @@ const ProviderSelection = () => {
   const contentRef = useRef<HTMLDivElement>(null);
   const startY = useRef(0);
   const PULL_THRESHOLD = 80;
-  
-  useEffect(() => {
-    showBannerAd();
-    logScreenView('ProviderSelection');
-    return () => { hideBannerAd(); };
-  }, []);
+
+  useEffect(() => { logScreenView('ProviderSelection'); }, []);
 
   const workspaceId = tenant?.id ?? null;
 
