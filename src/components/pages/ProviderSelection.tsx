@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from "@/lib/router-compat";
 import RotatingBanner from '@/components/RotatingBanner';
 import ProviderCard from '@/components/ProviderCard';
 import PopularPackages from '@/components/PopularPackages';
-import { Phone, MessageCircle, WifiOff, X, RefreshCw, Headphones, Bot } from 'lucide-react';
+import { Phone, MessageCircle, WifiOff, X, Headphones, Bot } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
@@ -15,7 +15,6 @@ import { useSupportPhone } from '@/hooks/useSupportPhone';
 import { fetchIftinCatalog, hasCatalog, isApiPartnerTenant, mapProviders, mapCategories, mapPackages } from '@/lib/iftinCatalog';
 import { Button } from '@/components/ui/button';
 import { localizeImage } from '@/lib/localImages';
-import { emitStorefront, purgeStorefrontStorage } from '@/lib/storefrontEvents';
 import { activeWorkspaceId, workspaceQueryKey, workspaceStorage } from '@/lib/workspaceKeys';
 import { BottomNavigation } from '@/components/BottomNavigation';
 
@@ -45,14 +44,6 @@ const ProviderSelection = () => {
   const [showOfflineToast, setShowOfflineToast] = useState(false);
   const [showAI, setShowAI] = useState(false);
   const [showContactSheet, setShowContactSheet] = useState(false);
-  
-  // Pull to refresh state
-  const [isPulling, setIsPulling] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [pullDistance, setPullDistance] = useState(0);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const startY = useRef(0);
-  const PULL_THRESHOLD = 80;
   
   useEffect(() => {
     logScreenView('ProviderSelection');
@@ -124,114 +115,6 @@ const ProviderSelection = () => {
   });
 
 
-  // Match Iftin Internet: once providers are visible, prepare the next
-  // purchase screens in the background. A provider tap should therefore open
-  // an already-warm categories/packages query instead of starting from zero.
-  useEffect(() => {
-    if (!workspaceId || !providers.length || isReallyOnline === false) return;
-
-    let cancelled = false;
-    const warm = async () => {
-      const partner = await isApiPartnerTenant(workspaceId).catch(() => false);
-      if (cancelled || activeWorkspaceId() !== workspaceId) return;
-
-      if (partner) {
-        const catalog = await fetchIftinCatalog().catch(() => null);
-        if (cancelled || activeWorkspaceId() !== workspaceId || !hasCatalog(catalog)) return;
-        for (const provider of providers) {
-          queryClient.setQueryData(
-            workspaceQueryKey(workspaceId, 'categories', provider.id),
-            mapCategories(catalog!, provider.id),
-          );
-          queryClient.setQueryData(
-            workspaceQueryKey(workspaceId, 'packages', provider.id),
-            mapPackages(catalog!, provider.id),
-          );
-        }
-        return;
-      }
-
-      await Promise.allSettled(
-        providers.flatMap((provider: Provider) => [
-          queryClient.prefetchQuery({
-            queryKey: workspaceQueryKey(workspaceId, 'categories', provider.id),
-            queryFn: async () => {
-              const { data, error } = await (supabase as any).rpc('get_active_categories', {
-                p_provider_id: provider.id,
-              });
-              if (error) throw error;
-              return data || [];
-            },
-            staleTime: 30 * 1000,
-          }),
-          queryClient.prefetchQuery({
-            queryKey: workspaceQueryKey(workspaceId, 'packages', provider.id),
-            queryFn: async () => {
-              const { data, error } = await (supabase as any).rpc('get_public_packages', {
-                p_provider_id: provider.id,
-              });
-              if (error) throw error;
-              return data || [];
-            },
-            staleTime: 30 * 1000,
-          }),
-        ]),
-      );
-    };
-
-    const timer = window.setTimeout(() => {
-      if ('requestIdleCallback' in window) {
-        (window as any).requestIdleCallback(() => void warm(), { timeout: 1200 });
-      } else {
-        void warm();
-      }
-    }, 150);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [workspaceId, providers, isReallyOnline, queryClient]);
-
-  const handleRefresh = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      // A real refresh: throw away the cached snapshots first, otherwise the
-      // queries just re-read the same stale localStorage payload.
-      purgeStorefrontStorage();
-      emitStorefront('banners-changed');
-      await queryClient.invalidateQueries();
-    } finally {
-      setIsRefreshing(false);
-      setPullDistance(0);
-    }
-  }, [queryClient]);
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (contentRef.current && contentRef.current.scrollTop === 0) {
-      startY.current = e.touches[0].clientY;
-      setIsPulling(true);
-    }
-  }, []);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isPulling || isRefreshing) return;
-    const currentY = e.touches[0].clientY;
-    const distance = Math.max(0, currentY - startY.current);
-    if (distance > 0 && contentRef.current?.scrollTop === 0) {
-      setPullDistance(Math.min(distance * 0.5, PULL_THRESHOLD + 20));
-    }
-  }, [isPulling, isRefreshing]);
-
-  const handleTouchEnd = useCallback(() => {
-    if (pullDistance >= PULL_THRESHOLD && !isRefreshing) {
-      handleRefresh();
-    } else {
-      setPullDistance(0);
-    }
-    setIsPulling(false);
-  }, [pullDistance, isRefreshing, handleRefresh]);
-
   const detectProvider = (phone: string): { id: string; name: string } | null => {
     if (phone.length < 2) return null;
     const prefix = phone.substring(0, 2);
@@ -276,6 +159,36 @@ const ProviderSelection = () => {
       setTimeout(() => setShowOfflineToast(false), 3000);
       return;
     }
+
+    // Navigation must win the tap. Warm only the destination provider in the
+    // background; never fan out requests for every provider during startup.
+    if (workspaceId) {
+      void queryClient.prefetchQuery({
+        queryKey: workspaceQueryKey(workspaceId, 'categories', providerId),
+        queryFn: async () => {
+          const cached = workspaceStorage
+            .getJson<any[]>('offline_categories', [], workspaceId)
+            .filter((row: any) => String(row?.provider_id) === String(providerId));
+          try {
+            const partner = await isApiPartnerTenant(workspaceId);
+            if (activeWorkspaceId() !== workspaceId) return cached;
+            if (partner) {
+              const catalog = await fetchIftinCatalog();
+              if (activeWorkspaceId() !== workspaceId) return cached;
+              return hasCatalog(catalog) ? mapCategories(catalog!, providerId) : cached;
+            }
+            const { data, error } = await (supabase as any).rpc('get_active_categories', {
+              p_provider_id: providerId,
+            });
+            return error || activeWorkspaceId() !== workspaceId ? cached : (data || []);
+          } catch {
+            return cached;
+          }
+        },
+        staleTime: 30 * 1000,
+      });
+    }
+
     navigate(`/categories/${providerId}`, { state: { providerName } });
   };
 
@@ -320,26 +233,13 @@ const ProviderSelection = () => {
       </div>
 
       {/* Scrollable Content */}
-      <div 
-        ref={contentRef}
+      <div
         className="flex-1 overflow-y-auto"
-        style={{ 
+        style={{
           paddingTop: 'calc(3.5rem + var(--effective-safe-area-top, 0px))',
-          paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' 
+          paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))'
         }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
       >
-        {/* Pull to refresh */}
-        <div 
-          className="flex items-center justify-center transition-all duration-200"
-          style={{ height: pullDistance > 0 ? `${pullDistance}px` : 0, opacity: pullDistance > 20 ? 1 : 0 }}
-        >
-          <RefreshCw className={`w-5 h-5 text-primary ${isRefreshing ? 'animate-spin' : ''}`} 
-            style={{ transform: `rotate(${pullDistance * 2}deg)` }}
-          />
-        </div>
 
         {/* Banner */}
         <div className="px-4 pt-5 pb-3">
@@ -364,7 +264,7 @@ const ProviderSelection = () => {
           <h2 className="text-base font-bold text-foreground">Dooro shirkada aa rabtid</h2>
           
           <div className="grid grid-cols-3 gap-3">
-            {providers.length === 0 && isFetchingProviders &&
+            {providers.length === 0 && (!workspaceId || isFetchingProviders) &&
               Array.from({ length: 3 }).map((_, index) => (
                 <div key={`provider-skeleton-${index}`} className="h-[92px] rounded-2xl bg-muted animate-pulse" />
               ))}
