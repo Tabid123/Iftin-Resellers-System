@@ -85,6 +85,20 @@ jobs:
         run: |
           node -e 'const p=require("./package.json"); if(!p.dependencies?.["@onesignal/capacitor-plugin"]) process.exit(1)'
 
+      - name: Verify lightweight tenant shell
+        run: |
+          set -e
+          if grep -Fq '@capacitor-community/admob' package.json bun.lock; then
+            echo "::error::AdMob must not be present in tenant apps"
+            exit 1
+          fi
+          if grep -Rqi 'capacitor-community-admob\|com.google.android.gms.ads.APPLICATION_ID' android; then
+            echo "::error::AdMob Android integration must not be present"
+            exit 1
+          fi
+          grep -Eq '"resizeOnFullScreen"[[:space:]]*:[[:space:]]*true' capacitor.config.json             || { echo "::error::Android keyboard fullscreen resize must be enabled"; exit 1; }
+          grep -Eq '"launchShowDuration"[[:space:]]*:[[:space:]]*0' capacitor.config.json             || { echo "::error::Tenant splash delay must be 0ms"; exit 1; }
+
       - name: Configure app identity for this tenant
         run: |
           APP_ID="${{ inputs.app_id }}"
