@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { useNotifications } from '@/hooks/useNotifications';
 import { showBannerAd, hideBannerAd } from '@/services/admob';
+import { BottomNavigation } from '@/components/BottomNavigation';
 
 const Notifications = () => {
   const navigate = useNavigate();
@@ -78,6 +79,8 @@ const Notifications = () => {
           </div>
         )}
       </div>
+
+      <BottomNavigation />
 
       {/* Bottom Navigation */}
     </div>
