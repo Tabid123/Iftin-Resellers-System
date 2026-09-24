@@ -3,7 +3,6 @@ import { useTenant } from "@/contexts/TenantContext";
 import { ResellerCodeGate } from "@/components/ResellerCodeGate";
 import { AlertCircle, Lock, MessageCircle, Wallet, WifiOff } from "lucide-react";
 import { normalizeSupportPhone } from "@/hooks/useSupportPhone";
-import najaxLogoSplash from "@/assets/najax-logo.jpeg";
 import { hideNativeSplash } from "@/lib/nativeSplash";
 
 
@@ -76,18 +75,18 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
     const tenant =
       state.status === "ready" || state.status === "suspended" ? state.tenant : null;
     const logo =
-      tenant?.logo_url ||
       apkIdentity.logo ||
+      tenant?.logo_url ||
       (import.meta.env.VITE_TENANT_LOGO_URL as string | undefined) ||
-      najaxLogoSplash;
+      "";
     const name =
-      tenant?.name ||
       apkIdentity.name ||
+      tenant?.name ||
       (import.meta.env.VITE_TENANT_NAME as string | undefined) ||
       "App";
     const splashColor =
-      tenant?.primary_color ||
       apkIdentity.color ||
+      tenant?.primary_color ||
       (import.meta.env.VITE_SPLASH_COLOR as string | undefined) ||
       undefined;
 
@@ -96,14 +95,16 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
         className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-primary"
         style={splashColor ? { backgroundColor: splashColor } : undefined}
       >
-        <img
-          src={logo}
-          alt={name}
-          className="h-36 w-36 rounded-2xl object-cover shadow-lg"
-          onError={(event) => {
-            event.currentTarget.src = najaxLogoSplash;
-          }}
-        />
+        {logo ? (
+          <img
+            src={logo}
+            alt={name}
+            className="h-36 w-36 rounded-2xl object-cover shadow-lg"
+            onError={(event) => {
+              event.currentTarget.style.display = "none";
+            }}
+          />
+        ) : null}
         <div className="mt-8 h-9 w-9 animate-spin rounded-full border-[3px] border-accent/30 border-t-accent" />
       </div>
     );
