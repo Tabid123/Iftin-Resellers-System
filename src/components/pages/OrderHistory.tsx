@@ -15,6 +15,7 @@ import { sellPriceFor } from '@/lib/resellerOverrides';
 import { fetchIftinIntentStatus, isIntentPending } from '@/lib/iftinIntent';
 import CachedImage from '@/components/CachedImage';
 import { useTenant } from '@/contexts/TenantContext';
+import { BottomNavigation } from '@/components/BottomNavigation';
 
 // Helper function to get invoice image - uses cached URL if available, otherwise generates on-demand
 const getInvoiceBlob = async (
@@ -557,6 +558,8 @@ const OrderHistory = () => {
             </div>
           </div>
         </div>}
+
+      <BottomNavigation />
 
       {/* Bottom Navigation */}
     </div>;
