@@ -3,7 +3,6 @@ import { useNavigate } from "@/lib/router-compat";
 import { ArrowLeft, MessageCircle, Phone, ChevronRight, LogOut, Star, Share2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { showBannerAd, hideBannerAd } from '@/services/admob';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,11 +25,6 @@ const Profile = () => {
   const tenant = tenantState.status === 'ready' || tenantState.status === 'suspended' ? tenantState.tenant : null;
   const brandName = tenant?.name || (import.meta.env.VITE_TENANT_NAME as string) || 'App';
   const shareUrl = typeof window !== 'undefined' ? window.location.origin : '';
-
-  useEffect(() => {
-    showBannerAd();
-    return () => { hideBannerAd(); };
-  }, []);
 
   const verifiedPhone = localStorage.getItem('verifiedPhone');
   const phoneNumber =
