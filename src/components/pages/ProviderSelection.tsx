@@ -18,8 +18,11 @@ import { Button } from '@/components/ui/button';
 import { localizeImage } from '@/lib/localImages';
 import { emitStorefront, purgeStorefrontStorage } from '@/lib/storefrontEvents';
 import { activeWorkspaceId, workspaceQueryKey, workspaceStorage } from '@/lib/workspaceKeys';
-import StorefrontAIChat from '@/components/StorefrontAIChat';
 import { BottomNavigation } from '@/components/BottomNavigation';
+
+const StorefrontAIChat = React.lazy(() =>
+  import('@/components/StorefrontAIChat').then((m) => ({ default: m.StorefrontAIChat })),
+);
 
 
 interface Provider {
@@ -451,7 +454,11 @@ const ProviderSelection = () => {
 
       <BottomNavigation />
 
-      <StorefrontAIChat open={showAI} onOpenChange={setShowAI} />
+      {showAI && (
+        <React.Suspense fallback={null}>
+          <StorefrontAIChat open={showAI} onOpenChange={setShowAI} />
+        </React.Suspense>
+      )}
 
     </div>
   );
