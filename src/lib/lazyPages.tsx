@@ -8,9 +8,9 @@ import PaymentSuccess from '@/components/pages/PaymentSuccess';
 import OfflineMode from '@/components/pages/OfflineMode';
 import Notifications from '@/components/pages/Notifications';
 import Profile from '@/components/pages/Profile';
+import OrderHistory from '@/components/pages/OrderHistory';
 
 const secondaryLoaders = {
-  OrderHistory: () => import('@/components/pages/OrderHistory'),
   PrivacyPolicy: () => import('@/components/pages/PrivacyPolicy'),
 } as const;
 
@@ -24,7 +24,7 @@ const pages = {
   OfflineMode,
   Notifications,
   Profile,
-  OrderHistory: React.lazy(secondaryLoaders.OrderHistory),
+  OrderHistory,
   PrivacyPolicy: React.lazy(secondaryLoaders.PrivacyPolicy),
   AdminLogin: React.lazy(() => import('@/components/pages/AdminLogin')),
   SimpleAdminDashboard: React.lazy(() => import('@/components/pages/SimpleAdminDashboard')),
@@ -51,12 +51,7 @@ export function prefetchPage(key: PageKey) {
 
 export function warmPages() {
   if (typeof window === 'undefined') return;
-  const warm = () => { void secondaryLoaders.OrderHistory(); };
-  if ('requestIdleCallback' in window) {
-    (window as any).requestIdleCallback(warm, { timeout: 2500 });
-  } else {
-    window.setTimeout(warm, 500);
-  }
+  // Customer navigation pages are already present. Nothing to warm here.
 }
 
 export function PageSuspense({ children }: { children: React.ReactNode }) {
