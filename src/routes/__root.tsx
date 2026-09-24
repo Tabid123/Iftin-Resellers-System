@@ -33,7 +33,6 @@ import { registerTenantChangeListener } from '@/integrations/supabase/client';
 import { initNativeBars } from '@/lib/nativeStatusBar';
 import { usePackagedOfflineBootstrap } from "@/hooks/usePackagedOfflineBootstrap";
 import { useOfflineCache } from "@/hooks/useOfflineCache";
-import { useGlobalImagePreloader } from "@/hooks/useGlobalImagePreloader";
 import { useEdgeToEdge } from "@/hooks/useEdgeToEdge";
 import { useKeyboardInsets } from "@/hooks/useKeyboardInsets";
 import { useAndroidBackButton } from "@/hooks/useAndroidBackButton";
@@ -170,7 +169,6 @@ function RootShell({ children }: { children: ReactNode }) {
 function AppContent() {
   usePackagedOfflineBootstrap();
   useOfflineCache();
-  useGlobalImagePreloader();
   useEdgeToEdge();
   useKeyboardInsets();
   useAutoOnlineRedirect();
