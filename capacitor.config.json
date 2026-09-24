@@ -19,16 +19,17 @@
     },
     "Keyboard": {
       "resize": "body",
-      "resizeOnFullScreen": false
+      "resizeOnFullScreen": true
     },
     "SplashScreen": {
-      "launchShowDuration": 2000,
-      "launchAutoHide": false,
+      "launchShowDuration": 0,
+      "launchAutoHide": true,
       "backgroundColor": "#0F4C81",
       "showSpinner": false,
       "androidScaleType": "CENTER_CROP",
-      "splashFullScreen": true,
-      "splashImmersive": true
+      "splashFullScreen": false,
+      "splashImmersive": false,
+      "launchFadeOutDuration": 0
     },
     "StatusBar": {
       "style": "LIGHT",
@@ -39,7 +40,11 @@
       "style": "LIGHT"
     },
     "PushNotifications": {
-      "presentationOptions": ["badge", "sound", "alert"]
+      "presentationOptions": [
+        "badge",
+        "sound",
+        "alert"
+      ]
     }
   }
 }
