@@ -135,7 +135,10 @@ const CategorySelection = () => {
       return data;
     },
     enabled: !!provider && Boolean(workspaceId) && !provider?.includes('-'),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 15 * 1000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
     retry: 1,
     retryDelay: 250,
   });
