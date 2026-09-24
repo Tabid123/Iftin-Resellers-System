@@ -55,8 +55,9 @@ async function applyNow(hex: string) {
 
   try {
     const { StatusBar, Style } = await import('@capacitor/status-bar');
-    // Light backgrounds need dark icons; dark backgrounds need light icons.
-    await StatusBar.setStyle({ style: isLight(hex) ? Style.Dark : Style.Light });
+    // Tenant apps use the branded/dark status-bar surface. Keep clock, battery
+    // and signal icons white for reliable contrast on every page.
+    await StatusBar.setStyle({ style: Style.Light });
   } catch {
     /* plugin unavailable */
   }
