@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useLayoutEffect, useState } from "react";
-import { supabase } from '@/integrations/supabase/client';
-import { setTenantHeader } from '@/integrations/supabase/client';
+import { supabaseAllTenants, setTenantHeader } from '@/integrations/supabase/client';
 import { emitStorefront, purgeStorefrontStorage } from '@/lib/storefrontEvents';
 import { purgeNonActiveWorkspaceStorage } from '@/lib/workspaceKeys';
 import { tenantOfflineBootstrap } from '@/generated/tenantOfflineBootstrap';
@@ -426,10 +425,11 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
         return { kind: "transient" };
       }
       try {
-        // The slug lookup itself must never inherit a stale tenant header.
-        setTenantHeader(null);
+        // Resolve the slug through the unscoped public client. Never toggle the
+        // active tenant header just to perform this lookup: doing so used to
+        // clear every React Query cache twice (id -> null -> id).
         const res = (await Promise.race([
-          supabase.rpc("get_tenant_by_slug", { p_slug: slug }),
+          supabaseAllTenants.rpc("get_tenant_by_slug", { p_slug: slug }),
           new Promise((_, reject) =>
             setTimeout(() => reject(new Error("tenant-lookup-timeout")), LOOKUP_TIMEOUT_MS),
           ),
