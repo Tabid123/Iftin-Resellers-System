@@ -158,6 +158,10 @@ const snapshot = {
   featuredPackages: Array.isArray(featuredPackages) ? featuredPackages : [],
   popularPackages: [],
   banners: Array.isArray(banners) ? banners : [],
+  firstBannerUrl:
+    Array.isArray(banners) && banners.length > 0
+      ? String(banners[0]?.banner_image || '')
+      : '',
 };
 
 const assetsDir = path.resolve('public/offline-assets/tenant-bootstrap');
