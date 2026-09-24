@@ -18,6 +18,7 @@ import {
 import { useEffect } from 'react';
 import { useSupportPhone } from '@/hooks/useSupportPhone';
 import { useTenant } from '@/contexts/TenantContext';
+import { BottomNavigation } from '@/components/BottomNavigation';
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -218,6 +219,7 @@ const Profile = () => {
         </AlertDialog>
       </div>
 
+      <BottomNavigation />
     </div>
   );
 };
