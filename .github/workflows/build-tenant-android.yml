@@ -291,9 +291,8 @@ jobs:
           PY
 
       - name: Generate icons and splash from tenant logo
-        env:
-          LOGO_URL: ${{ env.TENANT_LOGO_URL }}
         run: |
+          LOGO_URL="${TENANT_LOGO_URL:-}"
           if [ -z "${LOGO_URL//[[:space:]]/}" ]; then
             echo "No tenant logo URL supplied; keeping the default Android artwork."
             exit 0
