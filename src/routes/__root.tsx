@@ -35,7 +35,6 @@ import { scheduleNativeSplashFallback } from '@/lib/nativeSplash';
 import { initNativeBars } from '@/lib/nativeStatusBar';
 import { usePackagedOfflineBootstrap } from "@/hooks/usePackagedOfflineBootstrap";
 import { useOfflineCache } from "@/hooks/useOfflineCache";
-import { useGlobalImagePreloader } from "@/hooks/useGlobalImagePreloader";
 import { useEdgeToEdge } from "@/hooks/useEdgeToEdge";
 import { useKeyboardInsets } from "@/hooks/useKeyboardInsets";
 import { useAndroidBackButton } from "@/hooks/useAndroidBackButton";
@@ -210,7 +209,6 @@ function RootShell({ children }: { children: ReactNode }) {
 function AppContent() {
   usePackagedOfflineBootstrap();
   useOfflineCache();
-  useGlobalImagePreloader();
   useEdgeToEdge();
   useKeyboardInsets();
   useAutoOnlineRedirect();
@@ -275,7 +273,14 @@ function RootComponent() {
   }, []);
 
   useEffect(() => { warmPages(); }, []);
-  useEffect(() => registerTenantChangeListener((prev, next) => { if (prev !== next) queryClient.clear(); }), [queryClient]);
+  useEffect(
+    () => registerTenantChangeListener((prev, next) => {
+      // null -> tenant is normal startup. Only clear when an established
+      // workspace is actually replaced/left.
+      if (prev && prev !== next) queryClient.clear();
+    }),
+    [queryClient],
+  );
 
   return (
     <QueryClientProvider client={queryClient}>
