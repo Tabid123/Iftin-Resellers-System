@@ -21,9 +21,10 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
   const state = useTenant();
 
   if (state.status === "loading") {
-    // Never show an intermediate spinner during launch. Tenant Android builds
-    // initialize from their packaged tenant snapshot before first paint.
-    return null;
+    // Keep the storefront shell interactive while the tenant row resolves.
+    // Tenant-owned queries remain disabled until a real workspace id exists,
+    // so no other tenant's data can render here.
+    return <>{children}</>;
   }
 
   if (state.status === "needs_code") {
