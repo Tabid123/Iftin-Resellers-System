@@ -10,7 +10,6 @@ import dataIcon from '@/assets/mobile-data-icon.png';
 import { formatPrice } from '@/lib/utils';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
 import { useToast } from '@/hooks/use-toast';
-import { showBannerAd, hideBannerAd } from '@/services/admob';
 import { logScreenView } from '@/services/firebase';
 import { useConnectivity } from '@/contexts/ConnectivityContext';
 import { useTenant } from '@/contexts/TenantContext';
@@ -93,13 +92,8 @@ const DataPackages = () => {
   };
   
 
-  // Show AdMob banner on mount, hide on unmount
   useEffect(() => {
-    showBannerAd();
     logScreenView('DataPackages');
-    return () => {
-      hideBannerAd();
-    };
   }, []);
 
   // Warm checkout data just like Iftin Internet does before purchase.
