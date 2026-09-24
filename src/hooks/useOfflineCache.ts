@@ -15,7 +15,6 @@ import {
   readCachedCatalog,
   type IftinCatalog,
 } from '@/lib/iftinCatalog';
-import { cacheImages } from '@/lib/imageCache';
 import { activeWorkspaceId, workspaceQueryKey, workspaceStorage } from '@/lib/workspaceKeys';
 
 /**
@@ -124,13 +123,6 @@ export const useOfflineCache = () => {
       workspaceStorage.setJson(CACHE_RESOURCES.paymentProviders, paymentProviders, id);
       workspaceStorage.setJson(CACHE_RESOURCES.popularPackages, popularPackages, id);
       workspaceStorage.set(CACHE_RESOURCES.timestamp, Date.now().toString(), id);
-
-      cacheImages([
-        ...providers.map((p: any) => p.provider_logo),
-        ...categories.map((c: any) => c.category_image),
-        ...paymentProviders.map((p: any) => p.provider_logo),
-        ...popularPackages.map((p: any) => p.provider_logo),
-      ]);
 
       return true;
     },
@@ -327,19 +319,6 @@ export const useOfflineCache = () => {
           }
         }
 
-        cacheImages([
-          ...providers.map((p: any) => p.provider_logo),
-          ...uniqueCategories.map((c: any) => c.category_image),
-          ...(paymentProvidersResult.status === 'fulfilled' && Array.isArray(paymentProvidersResult.value)
-            ? paymentProvidersResult.value.map((p: any) => p.provider_logo)
-            : []),
-          ...(bannersResult.status === 'fulfilled' && Array.isArray(bannersResult.value)
-            ? bannersResult.value
-                .filter((b: any) => b?.media_type !== 'video')
-                .map((b: any) => b.banner_image)
-            : []),
-        ]);
-
         workspaceStorage.set(CACHE_RESOURCES.timestamp, Date.now().toString(), id);
       } catch {
         // Keep the last known workspace cache visible.
@@ -409,11 +388,6 @@ export const useOfflineCache = () => {
       const banners = workspaceStorage.getJson<any[]>(CACHE_RESOURCES.banners, [], id);
       if (Array.isArray(banners) && banners.length) {
         queryClient.setQueryData(workspaceQueryKey(id, 'banners'), banners);
-        cacheImages(
-          banners
-            .filter((banner: any) => banner?.media_type !== 'video')
-            .map((banner: any) => banner.banner_image),
-        );
       }
     } catch {
       // Ignore malformed cache; the network refresh repairs it.
@@ -438,44 +412,32 @@ export const useOfflineCache = () => {
     if (!workspaceId || !isReallyOnline) return;
     if (cachedForRef.current === workspaceId) return;
     cachedForRef.current = workspaceId;
-    if (sourceRef.current === 'unknown' || isCacheStale(workspaceId)) {
-      void cacheData();
-    }
-  }, [workspaceId, isReallyOnline, cacheData, isCacheStale]);
+    if (!(sourceRef.current === 'unknown' || isCacheStale(workspaceId))) return;
 
-  // Resume safety: mark active storefront queries stale without doing a full
-  // providers/categories/packages crawl on every focus. Active screens refetch
-  // in the background while cached content stays instantly tappable.
-  useEffect(() => {
-    if (!workspaceId) return;
-    let lastRefreshAt = 0;
+    let cancelled = false;
+    let idleId: number | null = null;
 
-    const revalidateWhenVisible = () => {
-      if (document.visibilityState !== 'visible' || !isReallyOnline) return;
-      const now = Date.now();
-      if (now - lastRefreshAt < 10_000) return;
-      lastRefreshAt = now;
+    const timer = window.setTimeout(() => {
+      if (cancelled) return;
+      const run = () => {
+        if (!cancelled) void cacheData();
+      };
 
-      for (const resource of [
-        'providers',
-        'categories',
-        'packages',
-        'featuredPackages',
-        'popularPackages',
-        'paymentProviders',
-        'banners',
-      ]) {
-        void queryClient.invalidateQueries({ queryKey: workspaceQueryKey(workspaceId, resource) });
+      if ('requestIdleCallback' in window) {
+        idleId = (window as any).requestIdleCallback(run, { timeout: 3000 });
+      } else {
+        run();
+      }
+    }, 1500);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      if (idleId !== null && 'cancelIdleCallback' in window) {
+        (window as any).cancelIdleCallback(idleId);
       }
     };
-
-    document.addEventListener('visibilitychange', revalidateWhenVisible);
-    window.addEventListener('focus', revalidateWhenVisible);
-    return () => {
-      document.removeEventListener('visibilitychange', revalidateWhenVisible);
-      window.removeEventListener('focus', revalidateWhenVisible);
-    };
-  }, [workspaceId, isReallyOnline, queryClient]);
+  }, [workspaceId, isReallyOnline, cacheData, isCacheStale]);
 
   return {
     cacheData,
