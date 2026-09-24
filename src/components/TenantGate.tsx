@@ -1,8 +1,10 @@
 import React from "react";
 import { useTenant } from "@/contexts/TenantContext";
 import { ResellerCodeGate } from "@/components/ResellerCodeGate";
-import { AlertCircle, Loader2, Lock, MessageCircle, Wallet, WifiOff } from "lucide-react";
+import { AlertCircle, Lock, MessageCircle, Wallet, WifiOff } from "lucide-react";
 import { normalizeSupportPhone } from "@/hooks/useSupportPhone";
+import najaxLogoSplash from "@/assets/najax-logo.jpeg";
+import { hideNativeSplash } from "@/lib/nativeSplash";
 
 
 
@@ -17,14 +19,59 @@ interface Props {
  * - suspended → blocking banner
  * - ready / platform → render children
  */
+const WEB_SPLASH_MS = 1500;
+
 export const TenantGate: React.FC<Props> = ({ children }) => {
   const state = useTenant();
+  const [showStartupSplash, setShowStartupSplash] = React.useState(true);
 
-  if (state.status === "loading") {
+  React.useEffect(() => {
+    let cancelled = false;
+    let timer: number | undefined;
+
+    void hideNativeSplash().finally(() => {
+      if (cancelled) return;
+      timer = window.setTimeout(() => {
+        if (!cancelled) setShowStartupSplash(false);
+      }, WEB_SPLASH_MS);
+    });
+
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, []);
+
+  // Keep the real route mounted behind the splash so Providers + bottom nav
+  // finish rendering together. If tenant resolution is unusually slow, keep
+  // showing the branded splash instead of exposing a white gate screen.
+  if (showStartupSplash || state.status === "loading") {
+    const tenant =
+      state.status === "ready" || state.status === "suspended" ? state.tenant : null;
+    const logo =
+      tenant?.logo_url ||
+      (import.meta.env.VITE_TENANT_LOGO_URL as string | undefined) ||
+      najaxLogoSplash;
+    const name =
+      tenant?.name ||
+      (import.meta.env.VITE_TENANT_NAME as string | undefined) ||
+      "App";
+
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
+      <>
+        {children}
+        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-primary">
+          <img
+            src={logo}
+            alt={name}
+            className="h-36 w-36 rounded-2xl object-cover shadow-lg"
+            onError={(event) => {
+              event.currentTarget.src = najaxLogoSplash;
+            }}
+          />
+          <div className="mt-8 h-9 w-9 animate-spin rounded-full border-[3px] border-accent/30 border-t-accent" />
+        </div>
+      </>
     );
   }
 
