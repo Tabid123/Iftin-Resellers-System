@@ -57,20 +57,30 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
       (import.meta.env.VITE_TENANT_NAME as string | undefined) ||
       "App";
 
+    const splash = (
+      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-primary">
+        <img
+          src={logo}
+          alt={name}
+          className="h-36 w-36 rounded-2xl object-cover shadow-lg"
+          onError={(event) => {
+            event.currentTarget.src = najaxLogoSplash;
+          }}
+        />
+        <div className="mt-8 h-9 w-9 animate-spin rounded-full border-[3px] border-accent/30 border-t-accent" />
+      </div>
+    );
+
+    // During Capacitor SPA prerender there is no browser. Rendering the whole
+    // storefront behind the splash can activate client data hooks during the
+    // build and keep prerendering from finishing. In the real browser/WebView,
+    // children still mount behind the splash so home + nav are ready together.
+    if (typeof window === "undefined") return splash;
+
     return (
       <>
         {children}
-        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-primary">
-          <img
-            src={logo}
-            alt={name}
-            className="h-36 w-36 rounded-2xl object-cover shadow-lg"
-            onError={(event) => {
-              event.currentTarget.src = najaxLogoSplash;
-            }}
-          />
-          <div className="mt-8 h-9 w-9 animate-spin rounded-full border-[3px] border-accent/30 border-t-accent" />
-        </div>
+        {splash}
       </>
     );
   }
