@@ -102,23 +102,6 @@ const DataPackages = () => {
     };
   }, []);
 
-  // Realtime: packages & categories changes
-  useEffect(() => {
-    if (!workspaceId) return;
-    const filter = `tenant_id=eq.${workspaceId}`;
-    const channel = supabase
-      .channel(`packages-realtime-${workspaceId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'data_packages_config', filter }, () => {
-        queryClient.invalidateQueries({ queryKey: workspaceQueryKey(workspaceId, 'packages', provider) });
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'package_categories', filter }, () => {
-        queryClient.invalidateQueries({ queryKey: workspaceQueryKey(workspaceId, 'categories', provider) });
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [queryClient, provider, workspaceId]);
-
-
   const getCachedCategories = (): Category[] => {
     if (!workspaceId) return [];
     const allCategories = workspaceStorage.getJson<Category[]>('offline_categories', [], workspaceId);
