@@ -54,8 +54,12 @@ export function registerServiceWorker(): void {
 
   const register = () => {
     void navigator.serviceWorker
-      .register(SW_URL, { scope: "/" })
+      .register(SW_URL, { scope: "/", updateViaCache: "none" })
       .then((registration) => {
+        // Check the live worker every app/site start. The HTML itself is already
+        // network-first in sw.js, so a newly deployed bottom/color/UI can reach
+        // the APK without rebuilding it.
+        void registration.update().catch(() => {});
         const version = import.meta.env.VITE_BUILD_VERSION;
         if (!version) return;
         const worker =
