@@ -116,6 +116,7 @@ jobs:
           const slug = String(tenant.slug || process.env.TENANT_SLUG || '').trim().toLowerCase();
           const name = String(tenant.name || process.env.INPUT_APP_NAME || slug || 'App').trim();
           const logo = String(tenant.logo_url || process.env.INPUT_LOGO_URL || '').trim();
+          const firstBanner = String(snapshot.firstBannerUrl || '').trim();
 
           let color = String(tenant.primary_color || process.env.INPUT_SPLASH_COLOR || '#0F4C81').trim();
           if (!/^#[0-9A-Fa-f]{6}$/.test(color)) color = '#0F4C81';
@@ -127,6 +128,7 @@ jobs:
             ['APP_NAME', name],
             ['APP_ID', appId],
             ['TENANT_LOGO_URL', logo],
+            ['TENANT_FIRST_BANNER_URL', firstBanner],
             ['SPLASH_COLOR', color],
             ['VITE_TENANT_NAME', name],
             ['VITE_TENANT_LOGO_URL', logo],
@@ -136,6 +138,7 @@ jobs:
 
           console.log(`Resolved tenant identity: ${slug} -> ${name}`);
           console.log(`Resolved tenant logo: ${logo || '(none)'}`);
+          console.log(`Resolved first banner: ${firstBanner || '(none)'}`);
           console.log(`Resolved tenant color: ${color}`);
           NODE
 
@@ -149,6 +152,7 @@ jobs:
           const name = String(process.env.APP_NAME || '').trim();
           const logo = String(process.env.TENANT_LOGO_URL || '').trim();
           const color = String(process.env.SPLASH_COLOR || '#0F4C81').trim();
+          const firstBanner = String(process.env.TENANT_FIRST_BANNER_URL || '').trim();
 
           cfg.appId = process.env.APP_ID;
           cfg.appName = name;
@@ -162,6 +166,7 @@ jobs:
             apkColor: color,
           });
           if (logo) params.set('apkLogo', logo);
+          if (firstBanner) params.set('apkBanner', firstBanner);
 
           cfg.server = {
             url: `https://iftinagents.com/t/${slug}?${params.toString()}`,
