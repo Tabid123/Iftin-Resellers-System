@@ -115,12 +115,11 @@ const CategorySelection = () => {
       return data;
     },
     enabled: !!provider && Boolean(workspaceId) && !provider?.includes('-'),
-    staleTime: 15 * 1000,
+    staleTime: 30 * 1000,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
-    retry: 1,
-    retryDelay: 250,
+    retry: false,
   });
   const providerId = provider?.includes('-') ? provider : providerData?.id;
   
@@ -220,12 +219,13 @@ const CategorySelection = () => {
         return cachedCategories;
       }
     },
-    // Show cache immediately but still fetch fresh data
-    placeholderData: () => getCachedCategories(),
+    initialData: () => getCachedCategories(),
     enabled: !!providerId && Boolean(workspaceId),
-    staleTime: 5 * 60 * 1000,
-    retry: 1,
-    retryDelay: 250,
+    staleTime: 30 * 1000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    retry: false,
   });
 
   // Persist category artwork as data URLs the moment we know about it, so the
