@@ -124,13 +124,13 @@ const PaymentProviders = () => {
     queryKey: workspaceQueryKey(workspaceId, 'paymentProviders'),
     queryFn: async () => {
       if (!isReallyOnline) {
-        const cached = workspaceStorage.get('offline_payment_providers');
+        const cached = workspaceStorage.get('offline_payment_providers', workspaceId);
         return cached ? localizePayments(JSON.parse(cached)) : [];
       }
 
       const readCache = () => {
         try {
-          const cached = workspaceStorage.get('offline_payment_providers');
+          const cached = workspaceStorage.get('offline_payment_providers', workspaceId);
           const parsed = cached ? JSON.parse(cached) : [];
           return Array.isArray(parsed) ? localizePayments(parsed) : [];
         } catch {
@@ -152,6 +152,21 @@ const PaymentProviders = () => {
 
       const nameKey = (n: any) => String(n ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
+      const partner = workspaceId ? await isApiPartnerTenant(workspaceId) : false;
+
+      // Android/local tenants use exactly one fast source. They must never pay
+      // the cost of loading the Iftin API catalog just to render checkout.
+      if (!partner) {
+        const local = await fetchLocal();
+        if (local.length) {
+          workspaceStorage.set('offline_payment_providers', JSON.stringify(local), workspaceId);
+          return local;
+        }
+        return readCache();
+      }
+
+      // API-partner tenants still merge reseller-specific payment overrides
+      // over the shared Iftin catalog.
       const [local, catalog] = await Promise.all([fetchLocal(), fetchIftinCatalog()]);
       const fromIftin = hasCatalog(catalog) ? mapPaymentProviders(catalog!) : [];
 
@@ -176,7 +191,7 @@ const PaymentProviders = () => {
       }
 
       if (merged.length) {
-        workspaceStorage.set('offline_payment_providers', JSON.stringify(merged));
+        workspaceStorage.set('offline_payment_providers', JSON.stringify(merged), workspaceId);
         return merged;
       }
       return readCache();
@@ -185,10 +200,10 @@ const PaymentProviders = () => {
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
-    retry: 1,
+    retry: false,
     initialData: () => {
       try {
-        const cached = workspaceStorage.get('offline_payment_providers');
+        const cached = workspaceStorage.get('offline_payment_providers', workspaceId);
         return cached ? localizePayments(JSON.parse(cached)) : undefined;
       } catch {
         return undefined;
@@ -208,11 +223,11 @@ const PaymentProviders = () => {
   }, [paymentProviders]);
 
   const { data: deliveryInstructions = [] } = useQuery({
-    queryKey: ['deliveryInstructions', packageData?.categoryId, packageData?.providerId],
+    queryKey: workspaceQueryKey(workspaceId, 'deliveryInstructions', packageData?.categoryId, packageData?.providerId),
     queryFn: async () => {
       if (!packageData?.categoryId && !packageData?.providerId) return [];
       if (!isReallyOnline) {
-        const cached = workspaceStorage.get('offline_delivery_instructions');
+        const cached = workspaceStorage.get('offline_delivery_instructions', workspaceId);
         if (cached) {
           const allInstructions = JSON.parse(cached);
           return allInstructions.filter((inst: any) => inst.provider_id === packageData.providerId);
@@ -229,7 +244,7 @@ const PaymentProviders = () => {
     initialData: () => {
       try {
         if (!packageData?.providerId) return [];
-        const cached = workspaceStorage.get('offline_delivery_instructions');
+        const cached = workspaceStorage.get('offline_delivery_instructions', workspaceId);
         if (cached) {
           const allInstructions = JSON.parse(cached);
           return allInstructions.filter((inst: any) => inst.provider_id === packageData.providerId);
