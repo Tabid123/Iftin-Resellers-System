@@ -52,6 +52,22 @@ function readBannerCache(workspaceId: string | null): Banner[] {
     return snapshot.banners as Banner[];
   }
 
+  // Live-server tenant APKs do not execute the packaged bootstrap HTML. The
+  // build therefore passes the tenant's first public banner URL in the initial
+  // server URL so the home screen never begins as a white banner frame.
+  if (typeof window !== 'undefined') {
+    const initialBanner = new URLSearchParams(window.location.search).get('apkBanner');
+    if (initialBanner) {
+      return [{
+        id: 'apk-initial-banner',
+        banner_image: initialBanner,
+        alt_text: null,
+        display_order: 0,
+        media_type: 'image',
+      }];
+    }
+  }
+
   return [];
 }
 
