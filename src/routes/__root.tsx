@@ -29,7 +29,6 @@ import { TenantPwaMeta } from "@/components/TenantPwaMeta";
 import { ConnectivityProvider } from "@/contexts/ConnectivityContext";
 import { TenantGate } from "@/components/TenantGate";
 import { StatusBarColor } from "@/components/StatusBarColor";
-import { PersistentBottomNav } from "@/components/PersistentBottomNav";
 import { registerTenantChangeListener } from '@/integrations/supabase/client';
 import { initNativeBars } from '@/lib/nativeStatusBar';
 import { usePackagedOfflineBootstrap } from "@/hooks/usePackagedOfflineBootstrap";
@@ -229,7 +228,6 @@ function AppContent() {
         <main className="iftin-route-viewport">
           <Outlet />
         </main>
-        <PersistentBottomNav />
       </div>
 
       <AlertDialog open={showExitDialog} onOpenChange={handleCancelExit}>
