@@ -136,8 +136,10 @@ const ProviderSelection = () => {
     },
     placeholderData: getCachedProviders,
     // Xogta shirkadaha waa la kaydiyaa 2 daqiiqo; pull-to-refresh ayaa cusboonaysiiya.
-    staleTime: 2 * 60 * 1000,
-    refetchOnMount: false,
+    staleTime: 10 * 1000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
     retry: 1,
     retryDelay: 250,
   });
