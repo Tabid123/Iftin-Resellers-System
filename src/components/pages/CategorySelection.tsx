@@ -14,6 +14,7 @@ import { useSupportPhone } from '@/hooks/useSupportPhone';
 import { fetchIftinCatalog, hasCatalog, isApiPartnerTenant, mapCategories } from '@/lib/iftinCatalog';
 import { setCategoryIntent } from '@/lib/categoryIntent';
 import { activeWorkspaceId, workspaceQueryKey, workspaceStorage } from '@/lib/workspaceKeys';
+import { BottomNavigation } from '@/components/BottomNavigation';
 
 interface Category {
   id: string;
@@ -64,27 +65,6 @@ const CategorySelection = () => {
       hideBannerAd();
     };
   }, []);
-
-  // Realtime: categories changes, for this workspace only
-  useEffect(() => {
-    if (!workspaceId) return;
-    const channel = supabase
-      .channel(`categories-realtime-${workspaceId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'package_categories',
-          filter: `tenant_id=eq.${workspaceId}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: workspaceQueryKey(workspaceId, 'categories') });
-        },
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [queryClient, workspaceId]);
 
   // Read offline state and phone numbers from navigation
   const isOffline = location.state?.isOffline || false;
@@ -412,6 +392,8 @@ const CategorySelection = () => {
           </Button>
         </div>
       )}
+
+      <BottomNavigation />
 
       {/* Bottom Navigation - Fixed */}
     </div>;
