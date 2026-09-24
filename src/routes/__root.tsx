@@ -42,7 +42,6 @@ import { useStorefrontRealtime } from "@/hooks/useStorefrontRealtime";
 import { onStorefront } from "@/lib/storefrontEvents";
 import { useQueryClient } from "@tanstack/react-query";
 import appCss from "../styles.css?url";
-import mobileStabilityCss from "../mobile-stability.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { registerServiceWorker } from "@/lib/registerServiceWorker";
 
@@ -83,41 +82,6 @@ const chunkRecoveryScript = `
     });
   })();
 `;
-
-// Keep the storefront shell independent from Android's transient system-bar
-// visibility changes. Some devices expose the gesture/navigation bar on every
-// tap and keep the smaller visual viewport long enough to pass a debounce. The
-// shell height must therefore never follow resize events; only a real device
-// rotation is allowed to establish a new baseline.
-const stableShellHeightScript = `
-  (() => {
-    var isNative = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function'
-      ? window.Capacitor.isNativePlatform()
-      : window.Capacitor && window.Capacitor.isNative);
-    var read = function () {
-      var h = (window.visualViewport && window.visualViewport.height)
-        || window.innerHeight || document.documentElement.clientHeight || 0;
-      return Math.max(1, Math.round(h));
-    };
-    var set = function (h) {
-      document.documentElement.style.setProperty('--iftin-shell-height', h + 'px');
-    };
-
-    if (!isNative) {
-      // Mobile browsers (Safari/Chrome) grow the viewport when the URL bar
-      // collapses. A frozen pixel height would leave a blank strip under the
-      // app, so in the browser the shell simply follows the live viewport.
-      document.documentElement.style.setProperty('--iftin-shell-height', '100dvh');
-      return;
-    }
-
-    set(read());
-    window.addEventListener('orientationchange', function () {
-      window.setTimeout(function () { set(read()); }, 350);
-    }, { passive: true });
-  })();
-`;
-
 
 function NotFoundComponent() {
   return (
@@ -177,7 +141,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "stylesheet", href: mobileStabilityCss },
       { rel: "icon", href: "/favicon.png", type: "image/png" },
       { rel: "manifest", href: "/manifest.json" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
@@ -194,7 +157,6 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
-        <script dangerouslySetInnerHTML={{ __html: stableShellHeightScript }} />
         <script dangerouslySetInnerHTML={{ __html: chunkRecoveryScript }} />
       </head>
       <body>
@@ -224,11 +186,7 @@ function AppContent() {
     <>
       <TenantPwaMeta />
       <StatusBarColor />
-      <div className="iftin-app-shell">
-        <main className="iftin-route-viewport">
-          <Outlet />
-        </main>
-      </div>
+      <Outlet />
 
       <AlertDialog open={showExitDialog} onOpenChange={handleCancelExit}>
         <AlertDialogContent>
