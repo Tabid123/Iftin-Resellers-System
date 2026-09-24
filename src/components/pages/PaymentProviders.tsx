@@ -153,27 +153,33 @@ const PaymentProviders = () => {
 
       const nameKey = (n: any) => String(n ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
-      const [local, catalog] = await Promise.all([fetchLocal(), fetchIftinCatalog()]);
-      const fromIftin = hasCatalog(catalog) ? mapPaymentProviders(catalog!) : [];
+      const [local, partner] = await Promise.all([
+        fetchLocal(),
+        workspaceId ? isApiPartnerTenant(workspaceId) : Promise.resolve(false),
+      ]);
 
-      let merged: any[] = [];
-      if (fromIftin.length) {
-        const localByName = new Map(local.map((p: any) => [nameKey(p.provider_name), p]));
-        merged = fromIftin.map((p: any) => {
-          const own = localByName.get(nameKey(p.provider_name));
-          if (!own) return p;
-          localByName.delete(nameKey(p.provider_name));
-          return {
-            ...p,
-            payment_number: own.payment_number || p.payment_number,
-            prefix_code: own.prefix_code || p.prefix_code,
-            ussd_code_template: own.ussd_code_template || p.ussd_code_template,
-            is_waafipay: own.is_waafipay ?? p.is_waafipay,
-          };
-        });
-        merged = [...merged, ...Array.from(localByName.values())];
-      } else {
-        merged = local;
+      // Normal tenant apps should never wait for the shared Iftin catalog just
+      // to open checkout. Only API-partner tenants need that second source.
+      let merged: any[] = local;
+      if (partner) {
+        const catalog = await fetchIftinCatalog();
+        const fromIftin = hasCatalog(catalog) ? mapPaymentProviders(catalog!) : [];
+        if (fromIftin.length) {
+          const localByName = new Map(local.map((p: any) => [nameKey(p.provider_name), p]));
+          merged = fromIftin.map((p: any) => {
+            const own = localByName.get(nameKey(p.provider_name));
+            if (!own) return p;
+            localByName.delete(nameKey(p.provider_name));
+            return {
+              ...p,
+              payment_number: own.payment_number || p.payment_number,
+              prefix_code: own.prefix_code || p.prefix_code,
+              ussd_code_template: own.ussd_code_template || p.ussd_code_template,
+              is_waafipay: own.is_waafipay ?? p.is_waafipay,
+            };
+          });
+          merged = [...merged, ...Array.from(localByName.values())];
+        }
       }
 
       if (merged.length) {
@@ -185,7 +191,7 @@ const PaymentProviders = () => {
     staleTime: 30000,
     refetchOnMount: true,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: false,
     initialData: () => {
       try {
         const cached = workspaceStorage.get('offline_payment_providers');
