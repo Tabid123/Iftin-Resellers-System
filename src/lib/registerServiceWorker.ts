@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core';
+
 // Registers the offline service worker (public/sw.js).
 //
 // Registration is refused in dev and in every Lovable preview/iframe context so
@@ -19,6 +21,16 @@ function isPreviewHost(hostname: string): boolean {
   );
 }
 
+async function clearAppCaches() {
+  try {
+    if (!('caches' in window)) return;
+    const keys = await caches.keys();
+    await Promise.all(keys.map((key) => caches.delete(key)));
+  } catch {
+    /* ignore */
+  }
+}
+
 async function unregisterAppWorker() {
   try {
     const registrations = await navigator.serviceWorker.getRegistrations();
@@ -38,6 +50,15 @@ async function unregisterAppWorker() {
 
 export function registerServiceWorker(): void {
   if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+
+  // Tenant APKs load the live website. A service worker inside Android can pin
+  // an older JS/CSS shell, which is why website UI/color/bottom-nav changes may
+  // not appear in the APK. Native uses normal HTTP/WebView caching only.
+  if (Capacitor.isNativePlatform()) {
+    void unregisterAppWorker();
+    void clearAppCaches();
+    return;
+  }
 
   const isIframe = window.self !== window.top;
   const killSwitch = new URLSearchParams(window.location.search).get("sw") === "off";
