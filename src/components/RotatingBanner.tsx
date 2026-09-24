@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import CachedImage from '@/components/CachedImage';
 import { useTenant } from '@/contexts/TenantContext';
 import { onStorefront } from '@/lib/storefrontEvents';
 import { activeWorkspaceId, workspaceQueryKey, workspaceStorage } from '@/lib/workspaceKeys';
 import { useQueryClient } from '@tanstack/react-query';
+import { tenantOfflineBootstrap } from '@/generated/tenantOfflineBootstrap';
 
 /** Decode every banner up front so rotating to the next one never pops in. */
 function preloadBanners(list: { banner_image: string; media_type?: string }[]) {
@@ -36,8 +37,22 @@ const BANNER_AT_RESOURCE = 'offline_banners_at';
 
 function readBannerCache(workspaceId: string | null): Banner[] {
   if (!workspaceId) return [];
+
   const parsed = workspaceStorage.getJson<Banner[]>(BANNER_RESOURCE, [], workspaceId);
-  return Array.isArray(parsed) ? parsed : [];
+  if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+
+  // Fresh tenant APKs already contain a tenant-scoped banner snapshot. Use it
+  // on the first paint instead of showing an empty/white banner frame.
+  const snapshot = tenantOfflineBootstrap as any;
+  if (
+    snapshot?.tenant?.id === workspaceId &&
+    Array.isArray(snapshot?.banners) &&
+    snapshot.banners.length > 0
+  ) {
+    return snapshot.banners as Banner[];
+  }
+
+  return [];
 }
 
 const RotatingBanner = () => {
@@ -162,7 +177,7 @@ const RotatingBanner = () => {
     } catch {}
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!workspaceId) {
       setBanners([]);
       setIsLoading(true);
