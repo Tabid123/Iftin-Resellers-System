@@ -1,23 +1,15 @@
 package com.iftin.agents;
 
-import android.os.Bundle;
-
 import com.getcapacitor.BridgeActivity;
 
 /**
- * Keep the native shell intentionally thin. The customer UI remains web-driven,
- * while Android only owns platform behavior that WebView cannot reliably infer.
+ * Keep WebView inset ownership in one place.
+ *
+ * Capacitor 8 SystemBars inset handling is disabled in capacitor.config.json,
+ * and @capawesome/capacitor-android-edge-to-edge-support owns Android WebView
+ * insets. Do not attach another WindowInsets listener here or manually mutate
+ * WebView margins, because that duplicates native inset handling and can make
+ * the bottom navigation jump when Android system bars change visibility.
  */
 public class MainActivity extends BridgeActivity {
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-
-        // Android WebView requires a user gesture for media by default. Tenant
-        // voice prompts are part of the app experience and must behave the same
-        // way as they do in the browser preview.
-        if (bridge != null && bridge.getWebView() != null) {
-            bridge.getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false);
-        }
-    }
 }

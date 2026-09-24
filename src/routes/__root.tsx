@@ -29,10 +29,13 @@ import { TenantPwaMeta } from "@/components/TenantPwaMeta";
 import { ConnectivityProvider } from "@/contexts/ConnectivityContext";
 import { TenantGate } from "@/components/TenantGate";
 import { StatusBarColor } from "@/components/StatusBarColor";
+import { PersistentBottomNav } from "@/components/PersistentBottomNav";
 import { registerTenantChangeListener } from '@/integrations/supabase/client';
+import { scheduleNativeSplashFallback } from '@/lib/nativeSplash';
 import { initNativeBars } from '@/lib/nativeStatusBar';
 import { usePackagedOfflineBootstrap } from "@/hooks/usePackagedOfflineBootstrap";
 import { useOfflineCache } from "@/hooks/useOfflineCache";
+import { useGlobalImagePreloader } from "@/hooks/useGlobalImagePreloader";
 import { useEdgeToEdge } from "@/hooks/useEdgeToEdge";
 import { useKeyboardInsets } from "@/hooks/useKeyboardInsets";
 import { useAndroidBackButton } from "@/hooks/useAndroidBackButton";
@@ -41,6 +44,7 @@ import { useStorefrontRealtime } from "@/hooks/useStorefrontRealtime";
 import { onStorefront } from "@/lib/storefrontEvents";
 import { useQueryClient } from "@tanstack/react-query";
 import appCss from "../styles.css?url";
+import mobileStabilityCss from "../mobile-stability.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { registerServiceWorker } from "@/lib/registerServiceWorker";
 
@@ -81,6 +85,41 @@ const chunkRecoveryScript = `
     });
   })();
 `;
+
+// Keep the storefront shell independent from Android's transient system-bar
+// visibility changes. Some devices expose the gesture/navigation bar on every
+// tap and keep the smaller visual viewport long enough to pass a debounce. The
+// shell height must therefore never follow resize events; only a real device
+// rotation is allowed to establish a new baseline.
+const stableShellHeightScript = `
+  (() => {
+    var isNative = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function'
+      ? window.Capacitor.isNativePlatform()
+      : window.Capacitor && window.Capacitor.isNative);
+    var read = function () {
+      var h = (window.visualViewport && window.visualViewport.height)
+        || window.innerHeight || document.documentElement.clientHeight || 0;
+      return Math.max(1, Math.round(h));
+    };
+    var set = function (h) {
+      document.documentElement.style.setProperty('--iftin-shell-height', h + 'px');
+    };
+
+    if (!isNative) {
+      // Mobile browsers (Safari/Chrome) grow the viewport when the URL bar
+      // collapses. A frozen pixel height would leave a blank strip under the
+      // app, so in the browser the shell simply follows the live viewport.
+      document.documentElement.style.setProperty('--iftin-shell-height', '100dvh');
+      return;
+    }
+
+    set(read());
+    window.addEventListener('orientationchange', function () {
+      window.setTimeout(function () { set(read()); }, 350);
+    }, { passive: true });
+  })();
+`;
+
 
 function NotFoundComponent() {
   return (
@@ -140,6 +179,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "stylesheet", href: appCss },
+      { rel: "stylesheet", href: mobileStabilityCss },
       { rel: "icon", href: "/favicon.png", type: "image/png" },
       { rel: "manifest", href: "/manifest.json" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
@@ -156,6 +196,7 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        <script dangerouslySetInnerHTML={{ __html: stableShellHeightScript }} />
         <script dangerouslySetInnerHTML={{ __html: chunkRecoveryScript }} />
       </head>
       <body>
@@ -169,6 +210,7 @@ function RootShell({ children }: { children: ReactNode }) {
 function AppContent() {
   usePackagedOfflineBootstrap();
   useOfflineCache();
+  useGlobalImagePreloader();
   useEdgeToEdge();
   useKeyboardInsets();
   useAutoOnlineRedirect();
@@ -178,13 +220,19 @@ function AppContent() {
   useEffect(() => onStorefront("tenant-config-changed", () => appQueryClient.invalidateQueries()), [appQueryClient]);
   const { showExitDialog, handleExitApp, handleCancelExit } = useAndroidBackButton();
 
+  useEffect(() => { scheduleNativeSplashFallback(); }, []);
   useEffect(() => initNativeBars(), []);
 
   return (
     <>
       <TenantPwaMeta />
       <StatusBarColor />
-      <Outlet />
+      <div className="iftin-app-shell">
+        <main className="iftin-route-viewport">
+          <Outlet />
+        </main>
+        <PersistentBottomNav />
+      </div>
 
       <AlertDialog open={showExitDialog} onOpenChange={handleCancelExit}>
         <AlertDialogContent>
@@ -217,9 +265,6 @@ function RootComponent() {
 
   useEffect(() => {
     try {
-      // Old builds stored remote artwork as one large base64 JSON object.
-      // Removing it is cheap; parsing/stringifying it on mobile was not.
-      localStorage.removeItem("img_cache_v1");
       const version = String(import.meta.env.VITE_BUILD_VERSION ?? "dev");
       localStorage.setItem("app_cache_version", version);
       if (localStorage.getItem(OFFLINE_CACHE_SCHEMA_KEY) === OFFLINE_CACHE_SCHEMA_VERSION) return;
@@ -230,17 +275,7 @@ function RootComponent() {
   }, []);
 
   useEffect(() => { warmPages(); }, []);
-  useEffect(
-    () =>
-      registerTenantChangeListener((prev, next) => {
-        // null -> tenant is normal startup, not a workspace switch.
-        // Clearing here made the first bottom-nav tap compete with a full cache
-        // rebuild. Clear only when an established tenant is actually replaced
-        // or when tenant mode is intentionally left.
-        if (prev && prev !== next) queryClient.clear();
-      }),
-    [queryClient],
-  );
+  useEffect(() => registerTenantChangeListener((prev, next) => { if (prev !== next) queryClient.clear(); }), [queryClient]);
 
   return (
     <QueryClientProvider client={queryClient}>

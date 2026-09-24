@@ -18,7 +18,7 @@ import amtelLogo from '@/assets/providers/amtel-logo.png';
 import { supabase } from '@/integrations/supabase/client';
 import { workspaceQueryKey, workspaceStorage } from '@/lib/workspaceKeys';
 import { useTenant } from '@/contexts/TenantContext';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useConnectivity } from '@/contexts/ConnectivityContext';
 import { buildPaymentUssd, fetchIftinCatalog, hasCatalog, isApiPartnerTenant, isOrderingBlocked, mapPaymentProviders } from '@/lib/iftinCatalog';
 import {
@@ -87,6 +87,7 @@ const PaymentProviders = () => {
   const navigate = useNavigate();
   const { isReallyOnline } = useConnectivity();
   const { queueOrder } = useOfflineSync();
+  const queryClient = useQueryClient();
   const paymentTenantState = useTenant();
   const workspaceId = (paymentTenantState as any).tenant?.id ?? null;
   const { provider } = useParams<{ provider: string }>();
@@ -124,13 +125,13 @@ const PaymentProviders = () => {
     queryKey: workspaceQueryKey(workspaceId, 'paymentProviders'),
     queryFn: async () => {
       if (!isReallyOnline) {
-        const cached = workspaceStorage.get('offline_payment_providers', workspaceId);
+        const cached = workspaceStorage.get('offline_payment_providers');
         return cached ? localizePayments(JSON.parse(cached)) : [];
       }
 
       const readCache = () => {
         try {
-          const cached = workspaceStorage.get('offline_payment_providers', workspaceId);
+          const cached = workspaceStorage.get('offline_payment_providers');
           const parsed = cached ? JSON.parse(cached) : [];
           return Array.isArray(parsed) ? localizePayments(parsed) : [];
         } catch {
@@ -152,21 +153,6 @@ const PaymentProviders = () => {
 
       const nameKey = (n: any) => String(n ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
-      const partner = workspaceId ? await isApiPartnerTenant(workspaceId) : false;
-
-      // Android/local tenants use exactly one fast source. They must never pay
-      // the cost of loading the Iftin API catalog just to render checkout.
-      if (!partner) {
-        const local = await fetchLocal();
-        if (local.length) {
-          workspaceStorage.set('offline_payment_providers', JSON.stringify(local), workspaceId);
-          return local;
-        }
-        return readCache();
-      }
-
-      // API-partner tenants still merge reseller-specific payment overrides
-      // over the shared Iftin catalog.
       const [local, catalog] = await Promise.all([fetchLocal(), fetchIftinCatalog()]);
       const fromIftin = hasCatalog(catalog) ? mapPaymentProviders(catalog!) : [];
 
@@ -191,19 +177,18 @@ const PaymentProviders = () => {
       }
 
       if (merged.length) {
-        workspaceStorage.set('offline_payment_providers', JSON.stringify(merged), workspaceId);
+        workspaceStorage.set('offline_payment_providers', JSON.stringify(merged));
         return merged;
       }
       return readCache();
     },
-    staleTime: 10 * 1000,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
-    retry: false,
+    staleTime: 30000,
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
+    retry: 1,
     initialData: () => {
       try {
-        const cached = workspaceStorage.get('offline_payment_providers', workspaceId);
+        const cached = workspaceStorage.get('offline_payment_providers');
         return cached ? localizePayments(JSON.parse(cached)) : undefined;
       } catch {
         return undefined;
@@ -222,12 +207,22 @@ const PaymentProviders = () => {
     return [...paymentProviders].sort((a: any, b: any) => rank(a?.provider_name) - rank(b?.provider_name));
   }, [paymentProviders]);
 
+  useEffect(() => {
+    const channel = supabase
+      .channel('payment-providers-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_providers_config' }, () => {
+        queryClient.invalidateQueries({ queryKey: workspaceQueryKey(workspaceId, 'paymentProviders') });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
+
   const { data: deliveryInstructions = [] } = useQuery({
-    queryKey: workspaceQueryKey(workspaceId, 'deliveryInstructions', packageData?.categoryId, packageData?.providerId),
+    queryKey: ['deliveryInstructions', packageData?.categoryId, packageData?.providerId],
     queryFn: async () => {
       if (!packageData?.categoryId && !packageData?.providerId) return [];
       if (!isReallyOnline) {
-        const cached = workspaceStorage.get('offline_delivery_instructions', workspaceId);
+        const cached = workspaceStorage.get('offline_delivery_instructions');
         if (cached) {
           const allInstructions = JSON.parse(cached);
           return allInstructions.filter((inst: any) => inst.provider_id === packageData.providerId);
@@ -244,7 +239,7 @@ const PaymentProviders = () => {
     initialData: () => {
       try {
         if (!packageData?.providerId) return [];
-        const cached = workspaceStorage.get('offline_delivery_instructions', workspaceId);
+        const cached = workspaceStorage.get('offline_delivery_instructions');
         if (cached) {
           const allInstructions = JSON.parse(cached);
           return allInstructions.filter((inst: any) => inst.provider_id === packageData.providerId);

@@ -3,6 +3,7 @@ import { useNavigate } from "@/lib/router-compat";
 import { ArrowLeft, MessageCircle, Phone, ChevronRight, LogOut, Star, Share2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { showBannerAd, hideBannerAd } from '@/services/admob';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,9 +15,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { useEffect } from 'react';
 import { useSupportPhone } from '@/hooks/useSupportPhone';
 import { useTenant } from '@/contexts/TenantContext';
-import { BottomNavigation } from '@/components/BottomNavigation';
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -26,6 +27,10 @@ const Profile = () => {
   const brandName = tenant?.name || (import.meta.env.VITE_TENANT_NAME as string) || 'App';
   const shareUrl = typeof window !== 'undefined' ? window.location.origin : '';
 
+  useEffect(() => {
+    showBannerAd();
+    return () => { hideBannerAd(); };
+  }, []);
 
   const verifiedPhone = localStorage.getItem('verifiedPhone');
   const phoneNumber =
@@ -213,7 +218,6 @@ const Profile = () => {
         </AlertDialog>
       </div>
 
-      <BottomNavigation />
     </div>
   );
 };

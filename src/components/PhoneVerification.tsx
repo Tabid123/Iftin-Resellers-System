@@ -14,7 +14,6 @@ import somtelLogo from '@/assets/providers/somtel-logo.jpg';
 import somnetLogo from '@/assets/providers/somnet-logo.png';
 import amtelLogo from '@/assets/providers/amtel-logo.png';
 import somlinkLogo from '@/assets/providers/somlink-logo.png';
-import { playAudioPrompt, primeAudioPrompts } from '@/lib/audioPrompts';
 
 interface PhoneVerificationProps {
   isOpen: boolean;
@@ -43,11 +42,6 @@ const PhoneVerification = ({ isOpen, onClose, onSuccess, paymentProvider, packag
   const [canResend, setCanResend] = useState(true);
   const [generatedCode, setGeneratedCode] = useState('');
   const { toast } = useToast();
-
-  useEffect(() => {
-    if (!isOpen) return;
-    primeAudioPrompts();
-  }, [isOpen]);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -91,7 +85,6 @@ const PhoneVerification = ({ isOpen, onClose, onSuccess, paymentProvider, packag
 
       setGeneratedCode(code);
       setIsCodeSent(true);
-      void playAudioPrompt('otp');
       setCanResend(false);
       setResendTimer(60);
       localStorage.setItem('verificationCode', code);
@@ -115,7 +108,6 @@ const PhoneVerification = ({ isOpen, onClose, onSuccess, paymentProvider, packag
       if (error) throw error;
 
       setGeneratedCode(code);
-      void playAudioPrompt('otp');
       localStorage.setItem('verificationCode', code);
       setCanResend(false);
       setResendTimer(60);
@@ -196,7 +188,6 @@ const PhoneVerification = ({ isOpen, onClose, onSuccess, paymentProvider, packag
                   inputMode="numeric"
                   pattern="[0-9]*"
                   autoComplete="tel-national"
-                  onFocus={() => { void playAudioPrompt('phone'); }}
                   placeholder="61 xxx xxxx"
                   value={phoneNumber}
                   onChange={handlePhoneNumberChange}

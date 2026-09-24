@@ -6,14 +6,17 @@ import DataPackages from '@/components/pages/DataPackages';
 import PaymentProviders from '@/components/pages/PaymentProviders';
 import PaymentSuccess from '@/components/pages/PaymentSuccess';
 import OfflineMode from '@/components/pages/OfflineMode';
+import OrderHistory from '@/components/pages/OrderHistory';
 import Notifications from '@/components/pages/Notifications';
 import Profile from '@/components/pages/Profile';
-import OrderHistory from '@/components/pages/OrderHistory';
+import PrivacyPolicy from '@/components/pages/PrivacyPolicy';
 
-const secondaryLoaders = {
-  PrivacyPolicy: () => import('@/components/pages/PrivacyPolicy'),
-} as const;
-
+/**
+ * Customer pages stay in memory so route changes never flash a blank screen.
+ * Admin / platform consoles are split out: they pull in charts, PDF and
+ * spreadsheet libraries that a customer phone should never have to download
+ * or parse just to open the storefront.
+ */
 const pages = {
   Index,
   ProviderSelection,
@@ -22,10 +25,13 @@ const pages = {
   PaymentProviders,
   PaymentSuccess,
   OfflineMode,
+  OrderHistory,
   Notifications,
   Profile,
-  OrderHistory,
-  PrivacyPolicy: React.lazy(secondaryLoaders.PrivacyPolicy),
+  PrivacyPolicy,
+} satisfies Record<string, React.ComponentType<any>>;
+
+const adminPages = {
   AdminLogin: React.lazy(() => import('@/components/pages/AdminLogin')),
   SimpleAdminDashboard: React.lazy(() => import('@/components/pages/SimpleAdminDashboard')),
   SimpleAdminDetail: React.lazy(() => import('@/components/pages/SimpleAdminDetailWithProviderOrdering')),
@@ -38,22 +44,19 @@ const pages = {
   AppsPage: React.lazy(() => import('@/components/pages/platform/AppsPage')),
 } satisfies Record<string, React.ComponentType<any>>;
 
-export type PageKey = keyof typeof pages;
+const allPages = { ...pages, ...adminPages };
+
+export type PageKey = keyof typeof allPages;
 
 export function lazyPage(key: PageKey): React.ComponentType<any> {
-  return pages[key];
+  return allPages[key];
 }
 
-export function prefetchPage(key: PageKey) {
-  const loader = (secondaryLoaders as Partial<Record<PageKey, () => Promise<unknown>>>)[key];
-  if (loader) void loader();
-}
+export function prefetchPage(_key: PageKey) {}
 
-export function warmPages() {
-  if (typeof window === 'undefined') return;
-  // Customer navigation pages are already present. Nothing to warm here.
-}
+export function warmPages() {}
 
+/** Customer pages render synchronously; admin chunks stream in behind this. */
 export function PageSuspense({ children }: { children: React.ReactNode }) {
   return <React.Suspense fallback={null}>{children}</React.Suspense>;
 }

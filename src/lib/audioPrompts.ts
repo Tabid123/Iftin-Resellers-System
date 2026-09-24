@@ -1,4 +1,3 @@
-import { Capacitor } from '@capacitor/core';
 export type AudioPromptKind = 'phone' | 'otp' | 'offline';
 
 const PRODUCTION_AUDIO_ORIGIN = 'https://iftinagents.com';
@@ -7,12 +6,6 @@ const DIRECT_AUDIO_SOURCES: Record<AudioPromptKind, string> = {
   phone: 'https://iftinagents.com/__l5e/assets-v1/035ae08a-83c5-483c-a7a7-fc834544cf83/phone-number-prompt.wav',
   otp: 'https://iftinagents.com/__l5e/assets-v1/bd53b427-602d-4cdb-9102-ac6c3d065c12/otp-code-prompt.wav',
   offline: 'https://iftinagents.com/__l5e/assets-v1/d208b555-c658-4bb2-9ad9-fb3aeac0e72f/offline-mode-prompt.wav',
-};
-
-const LOCAL_AUDIO_SOURCES: Record<AudioPromptKind, string> = {
-  phone: '/audio/phone.wav',
-  otp: '/audio/otp.wav',
-  offline: '/audio/offline.wav',
 };
 
 const audioPool: Partial<Record<AudioPromptKind, HTMLAudioElement>> = {};
@@ -32,10 +25,8 @@ function isNativeLocalOrigin() {
 }
 
 function primarySource(kind: AudioPromptKind) {
-  if (Capacitor.isNativePlatform() || isNativeLocalOrigin()) {
-    return LOCAL_AUDIO_SOURCES[kind];
-  }
-  return `/api/public/audio-prompt?kind=${kind}`;
+  const path = `/api/public/audio-prompt?kind=${kind}`;
+  return isNativeLocalOrigin() ? `${PRODUCTION_AUDIO_ORIGIN}${path}` : path;
 }
 
 function configureAudio(audio: HTMLAudioElement, src: string) {

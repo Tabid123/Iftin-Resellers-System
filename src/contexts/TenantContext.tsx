@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useLayoutEffect, useState } from "react";
-import { supabaseAllTenants, setTenantHeader } from '@/integrations/supabase/client';
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { supabase } from '@/integrations/supabase/client';
+import { setTenantHeader } from '@/integrations/supabase/client';
 import { emitStorefront, purgeStorefrontStorage } from '@/lib/storefrontEvents';
 import { purgeNonActiveWorkspaceStorage } from '@/lib/workspaceKeys';
-import { tenantOfflineBootstrap } from '@/generated/tenantOfflineBootstrap';
 import {
   isNativeApp,
   buildTenantSlug,
@@ -24,7 +24,6 @@ export interface Tenant {
   trial_ends_at: string | null;
   current_period_end: string | null;
   support_phone?: string | null;
-  delivery_mode?: "api_partner" | "android_device" | null;
   suspension_reason?: string | null;
   suspended_at?: string | null;
   suspension_kind?: "trial_expired" | "expired" | "manual" | null;
@@ -233,16 +232,6 @@ function applyBranding(tenant: Tenant | null) {
 
 const TENANT_CACHE_PREFIX = "najax.tenant_cache.";
 
-function cacheDeliveryMode(tenant: Tenant | null) {
-  if (!tenant?.id || !tenant.delivery_mode) return;
-  try {
-    localStorage.setItem(
-      'najax.tenant_delivery_mode',
-      JSON.stringify({ id: tenant.id, mode: tenant.delivery_mode }),
-    );
-  } catch {}
-}
-
 function readCachedTenant(slug: string): Tenant | null {
   try {
     const raw = localStorage.getItem(TENANT_CACHE_PREFIX + slug);
@@ -332,49 +321,13 @@ function buildFallbackTenant(slug: string): Tenant | null {
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [state, setState] = useState<TenantState>(() => {
-    // Native tenant builds start from their packaged identity.
-    const snapshot = tenantOfflineBootstrap as any;
-    const packagedTenant = snapshot?.tenant as Tenant | undefined;
-    const bakedSlug = buildTenantSlug();
-    if (
-      typeof window !== "undefined" &&
-      bakedSlug &&
-      packagedTenant?.id &&
-      String(packagedTenant.slug || "").toLowerCase() === bakedSlug.toLowerCase()
-    ) {
-      return isTenantBlocked(packagedTenant)
-        ? { status: "suspended", tenant: packagedTenant, isPlatform: false }
-        : { status: "ready", tenant: packagedTenant, isPlatform: false };
-    }
-
-    // Web tenant routes should also avoid a blank first frame on repeat visits.
-    // Read only the tenant that matches the URL/subdomain; never reuse a saved
-    // tenant id as authority for another slug.
-    if (typeof window !== "undefined") {
-      const pathMatch = window.location.pathname.match(/^\/t\/([^/]+)(?=\/|$)/);
-      const hostParts = window.location.hostname.split(".");
-      const hostSlug =
-        hostParts.length >= 3 && !RESERVED.has(hostParts[0]) ? hostParts[0] : null;
-      const initialSlug = pathMatch?.[1] || hostSlug;
-      if (initialSlug) {
-        const cachedTenant = readCachedTenant(initialSlug);
-        if (cachedTenant && cachedTenant.slug === initialSlug) {
-          return isTenantBlocked(cachedTenant)
-            ? { status: "suspended", tenant: cachedTenant, isPlatform: false }
-            : { status: "ready", tenant: cachedTenant, isPlatform: false };
-        }
-      }
-    }
-
-    return {
-      status: "loading",
-      tenant: null,
-      isPlatform: false,
-    };
+  const [state, setState] = useState<TenantState>({
+    status: "loading",
+    tenant: null,
+    isPlatform: false,
   });
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     const { slug, isPlatform, needsCode } = resolveSlug();
 
     void registerDeepLinkTenantListener(() => window.location.reload());
@@ -403,9 +356,9 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
       return;
     }
 
-    // The slug lookup uses the unscoped client, so never clear the active
-    // header just to resolve startup identity. Clearing it used to trigger a
-    // full React Query cache reset during the first interaction.
+    // Clear any stale header before resolving the new tenant so the lookup
+    // itself isn't filtered by a wrong tenant.
+    setTenantHeader(null);
     purgeForeignContentCaches(slug);
 
     const cached = readCachedTenant(slug);
@@ -420,7 +373,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
       // a single frame can be rendered from them.
       purgeNonActiveWorkspaceStorage(cached.id);
       applyBranding(cached);
-      cacheDeliveryMode(cached);
       setState(
         isTenantBlocked(cached)
           ? { status: "suspended", tenant: cached, isPlatform: false }
@@ -429,7 +381,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
     } else if (buildFallback) {
       setTenantHeader(null);
       applyBranding(buildFallback);
-      cacheDeliveryMode(buildFallback);
       setState({ status: "ready", tenant: buildFallback, isPlatform: false });
     }
 
@@ -454,11 +405,10 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
         return { kind: "transient" };
       }
       try {
-        // Resolve the slug through the unscoped public client. Never toggle the
-        // active tenant header just to perform this lookup: doing so used to
-        // clear every React Query cache twice (id -> null -> id).
+        // The slug lookup itself must never inherit a stale tenant header.
+        setTenantHeader(null);
         const res = (await Promise.race([
-          supabaseAllTenants.rpc("get_tenant_by_slug", { p_slug: slug }),
+          supabase.rpc("get_tenant_by_slug", { p_slug: slug }),
           new Promise((_, reject) =>
             setTimeout(() => reject(new Error("tenant-lookup-timeout")), LOOKUP_TIMEOUT_MS),
           ),
@@ -513,7 +463,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
       setTenantHeader(tenant.id);
       purgeNonActiveWorkspaceStorage(tenant.id);
       applyBranding(tenant);
-      cacheDeliveryMode(tenant);
       writeCachedTenant(slug, tenant);
       if (changed && previous) {
         purgeStorefrontStorage();

@@ -10,10 +10,11 @@ import dataIcon from '@/assets/mobile-data-icon.png';
 import { formatPrice } from '@/lib/utils';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
 import { useToast } from '@/hooks/use-toast';
+import { showBannerAd, hideBannerAd } from '@/services/admob';
 import { logScreenView } from '@/services/firebase';
 import { useConnectivity } from '@/contexts/ConnectivityContext';
 import { useTenant } from '@/contexts/TenantContext';
-import { buildPaymentUssd, formatUssdAmount, fetchIftinCatalog, hasCatalog, isApiPartnerTenant, isOrderingBlocked, mapProviders, mapCategories, mapPackages, mapPaymentProviders } from '@/lib/iftinCatalog';
+import { buildPaymentUssd, formatUssdAmount, fetchIftinCatalog, hasCatalog, isApiPartnerTenant, isOrderingBlocked, mapProviders, mapCategories, mapPackages } from '@/lib/iftinCatalog';
 import UssdDiscoveryDialog, { type DiscoveryChoice } from '@/components/UssdDiscoveryDialog';
 import MaamuusFlow from '@/components/ussd/MaamuusFlow';
 
@@ -92,38 +93,31 @@ const DataPackages = () => {
   };
   
 
+  // Show AdMob banner on mount, hide on unmount
   useEffect(() => {
+    showBannerAd();
     logScreenView('DataPackages');
+    return () => {
+      hideBannerAd();
+    };
   }, []);
 
-  // Warm checkout data just like Iftin Internet does before purchase.
+  // Realtime: packages & categories changes
   useEffect(() => {
-    if (!workspaceId || isReallyOnline === false) return;
-    void queryClient.prefetchQuery({
-      queryKey: workspaceQueryKey(workspaceId, 'paymentProviders'),
-      queryFn: async () => {
-        const cached = workspaceStorage.getJson<any[]>('offline_payment_providers', [], workspaceId);
-        try {
-          const partner = await isApiPartnerTenant(workspaceId);
-          if (activeWorkspaceId() !== workspaceId) return cached;
-          if (partner) {
-            const catalog = await fetchIftinCatalog();
-            if (activeWorkspaceId() !== workspaceId) return cached;
-            if (hasCatalog(catalog)) return mapPaymentProviders(catalog!);
-            return cached;
-          }
-          const { data, error } = await (supabase as any).rpc('get_active_payment_providers');
-          if (error || activeWorkspaceId() !== workspaceId) return cached;
-          const fresh = (data as any[]) || [];
-          workspaceStorage.setJson('offline_payment_providers', fresh, workspaceId);
-          return fresh;
-        } catch {
-          return cached;
-        }
-      },
-      staleTime: 30 * 1000,
-    });
-  }, [workspaceId, isReallyOnline, queryClient]);
+    if (!workspaceId) return;
+    const filter = `tenant_id=eq.${workspaceId}`;
+    const channel = supabase
+      .channel(`packages-realtime-${workspaceId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'data_packages_config', filter }, () => {
+        queryClient.invalidateQueries({ queryKey: workspaceQueryKey(workspaceId, 'packages', provider) });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'package_categories', filter }, () => {
+        queryClient.invalidateQueries({ queryKey: workspaceQueryKey(workspaceId, 'categories', provider) });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient, provider, workspaceId]);
+
 
   const getCachedCategories = (): Category[] => {
     if (!workspaceId) return [];
@@ -156,12 +150,10 @@ const DataPackages = () => {
       return (data as any[]) || [];
     },
     enabled: !!provider && Boolean(workspaceId),
-    staleTime: 30 * 1000,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
-    retry: false,
-    initialData: getCachedCategories,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+    retryDelay: 250,
+    placeholderData: getCachedCategories,
   });
 
   // Get cached packages - self-contained, resolves provider UUID internally
@@ -262,12 +254,11 @@ const DataPackages = () => {
       return fresh;
     },
     enabled: !!provider,
-    staleTime: 30 * 1000,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
-    retry: false,
-    initialData: () => getCachedPackages(),
+    staleTime: 60 * 1000,
+    retry: 1,
+    retryDelay: 250,
+    // Show cache immediately but still fetch fresh data
+    placeholderData: () => getCachedPackages(),
   });
 
   const resolvedProviderId = (() => {
