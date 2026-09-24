@@ -181,9 +181,10 @@ const PaymentProviders = () => {
       }
       return readCache();
     },
-    staleTime: 30000,
-    refetchOnMount: true,
-    refetchOnWindowFocus: false,
+    staleTime: 10 * 1000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
     retry: 1,
     initialData: () => {
       try {
