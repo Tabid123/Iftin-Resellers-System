@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 // Registers the offline service worker (public/sw.js).
 //
 // Registration is refused in dev and in every Lovable preview/iframe context so
@@ -37,6 +38,7 @@ async function unregisterAppWorker() {
 }
 
 export function registerServiceWorker(): void {
+  if (Capacitor.isNativePlatform()) return;
   if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
 
   const isIframe = window.self !== window.top;
