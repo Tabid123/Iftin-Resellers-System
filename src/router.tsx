@@ -2,7 +2,6 @@ import { QueryClient, hashKey } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 import { getTenantId } from "./integrations/supabase/client";
-import "./mobile-stability.css";
 
 /**
  * The storefront cache used to be hydrated here, synchronously, from shared
