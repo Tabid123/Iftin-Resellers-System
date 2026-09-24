@@ -33,12 +33,6 @@
 
         </activity>
 
-        <!-- Required by the Google Mobile Ads SDK. Without it the app crashes
-             immediately on launch. -->
-        <meta-data
-            android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-5845806199436628~8041425865" />
-
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
