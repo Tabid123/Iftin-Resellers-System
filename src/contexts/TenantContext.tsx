@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useLayoutEffect, useState } from "react";
 import { supabase } from '@/integrations/supabase/client';
 import { setTenantHeader } from '@/integrations/supabase/client';
 import { emitStorefront, purgeStorefrontStorage } from '@/lib/storefrontEvents';
 import { purgeNonActiveWorkspaceStorage } from '@/lib/workspaceKeys';
+import { tenantOfflineBootstrap } from '@/generated/tenantOfflineBootstrap';
 import {
   isNativeApp,
   buildTenantSlug,
@@ -321,13 +322,33 @@ function buildFallbackTenant(slug: string): Tenant | null {
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [state, setState] = useState<TenantState>({
-    status: "loading",
-    tenant: null,
-    isPlatform: false,
+  const [state, setState] = useState<TenantState>(() => {
+    // A tenant Android build contains an authoritative public storefront
+    // snapshot generated before the web bundle is compiled. Use that identity
+    // for the very first render so the app opens like Iftin Internet instead of
+    // painting a tenant-resolution spinner first.
+    const snapshot = tenantOfflineBootstrap as any;
+    const packagedTenant = snapshot?.tenant as Tenant | undefined;
+    const bakedSlug = buildTenantSlug();
+    if (
+      typeof window !== "undefined" &&
+      bakedSlug &&
+      packagedTenant?.id &&
+      String(packagedTenant.slug || "").toLowerCase() === bakedSlug.toLowerCase()
+    ) {
+      return isTenantBlocked(packagedTenant)
+        ? { status: "suspended", tenant: packagedTenant, isPlatform: false }
+        : { status: "ready", tenant: packagedTenant, isPlatform: false };
+    }
+
+    return {
+      status: "loading",
+      tenant: null,
+      isPlatform: false,
+    };
   });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const { slug, isPlatform, needsCode } = resolveSlug();
 
     void registerDeepLinkTenantListener(() => window.location.reload());
