@@ -24,6 +24,7 @@ export interface Tenant {
   trial_ends_at: string | null;
   current_period_end: string | null;
   support_phone?: string | null;
+  delivery_mode?: "api_partner" | "android_device" | null;
   suspension_reason?: string | null;
   suspended_at?: string | null;
   suspension_kind?: "trial_expired" | "expired" | "manual" | null;
@@ -232,6 +233,16 @@ function applyBranding(tenant: Tenant | null) {
 
 const TENANT_CACHE_PREFIX = "najax.tenant_cache.";
 
+function cacheDeliveryMode(tenant: Tenant | null) {
+  if (!tenant?.id || !tenant.delivery_mode) return;
+  try {
+    localStorage.setItem(
+      'najax.tenant_delivery_mode',
+      JSON.stringify({ id: tenant.id, mode: tenant.delivery_mode }),
+    );
+  } catch {}
+}
+
 function readCachedTenant(slug: string): Tenant | null {
   try {
     const raw = localStorage.getItem(TENANT_CACHE_PREFIX + slug);
@@ -393,6 +404,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
       // a single frame can be rendered from them.
       purgeNonActiveWorkspaceStorage(cached.id);
       applyBranding(cached);
+      cacheDeliveryMode(cached);
       setState(
         isTenantBlocked(cached)
           ? { status: "suspended", tenant: cached, isPlatform: false }
@@ -401,6 +413,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
     } else if (buildFallback) {
       setTenantHeader(null);
       applyBranding(buildFallback);
+      cacheDeliveryMode(buildFallback);
       setState({ status: "ready", tenant: buildFallback, isPlatform: false });
     }
 
@@ -484,6 +497,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
       setTenantHeader(tenant.id);
       purgeNonActiveWorkspaceStorage(tenant.id);
       applyBranding(tenant);
+      cacheDeliveryMode(tenant);
       writeCachedTenant(slug, tenant);
       if (changed && previous) {
         purgeStorefrontStorage();
