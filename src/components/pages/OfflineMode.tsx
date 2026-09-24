@@ -17,6 +17,7 @@ import amtelLogo from '@/assets/providers/amtel-logo.png';
 import somlinkLogo from '@/assets/providers/somlink-logo.png';
 import CachedImage from '@/components/CachedImage';
 import PhoneNumberInput from '@/components/PhoneNumberInput';
+import { playAudioPrompt, primeAudioPrompts } from '@/lib/audioPrompts';
 
 
 // Full provider map for receiver phone (all providers supported)
@@ -71,6 +72,11 @@ const OfflineMode = () => {
   const [detectedSenderProvider, setDetectedSenderProvider] = useState<{ id: string; name: string; logo: string } | null>(null);
   const savedSenderPhone = localStorage.getItem('offlineSenderPhone') || '';
   const savedReceiverPhone = localStorage.getItem('offlineReceiverPhone') || '';
+
+  useEffect(() => {
+    primeAudioPrompts();
+    void playAudioPrompt('offline');
+  }, []);
 
   useEffect(() => {
     const currentSender = localStorage.getItem('offlineSenderPhone') || '';
