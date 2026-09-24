@@ -230,7 +230,17 @@ function RootComponent() {
   }, []);
 
   useEffect(() => { warmPages(); }, []);
-  useEffect(() => registerTenantChangeListener((prev, next) => { if (prev !== next) queryClient.clear(); }), [queryClient]);
+  useEffect(
+    () =>
+      registerTenantChangeListener((prev, next) => {
+        // null -> tenant is normal startup, not a workspace switch.
+        // Clearing here made the first bottom-nav tap compete with a full cache
+        // rebuild. Clear only when an established tenant is actually replaced
+        // or when tenant mode is intentionally left.
+        if (prev && prev !== next) queryClient.clear();
+      }),
+    [queryClient],
+  );
 
   return (
     <QueryClientProvider client={queryClient}>
