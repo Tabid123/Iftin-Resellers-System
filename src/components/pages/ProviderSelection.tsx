@@ -19,6 +19,7 @@ import { localizeImage } from '@/lib/localImages';
 import { emitStorefront, purgeStorefrontStorage } from '@/lib/storefrontEvents';
 import { activeWorkspaceId, workspaceQueryKey, workspaceStorage } from '@/lib/workspaceKeys';
 import StorefrontAIChat from '@/components/StorefrontAIChat';
+import { BottomNavigation } from '@/components/BottomNavigation';
 
 
 interface Provider {
@@ -58,26 +59,6 @@ const ProviderSelection = () => {
   }, []);
 
   const workspaceId = tenant?.id ?? null;
-
-  // Realtime: providers_config changes, bound to the active workspace only.
-  useEffect(() => {
-    if (!workspaceId) return;
-    const filter = `tenant_id=eq.${workspaceId}`;
-    const channel = supabase
-      .channel(`providers-realtime-${workspaceId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'providers_config', filter }, () => {
-        queryClient.invalidateQueries({ queryKey: workspaceQueryKey(workspaceId, 'providers') });
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'data_packages_config', filter }, () => {
-        queryClient.invalidateQueries({ queryKey: workspaceQueryKey(workspaceId, 'packages') });
-        queryClient.invalidateQueries({ queryKey: workspaceQueryKey(workspaceId, 'featuredPackages') });
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'package_categories', filter }, () => {
-        queryClient.invalidateQueries({ queryKey: workspaceQueryKey(workspaceId, 'categories') });
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [queryClient, workspaceId]);
 
   // Parsing + logo mapping is called on every render by React Query's
   // placeholderData, so memoize it against the raw cache string.
@@ -400,6 +381,8 @@ const ProviderSelection = () => {
           </a>
         </div>
       )}
+
+      <BottomNavigation />
 
       <StorefrontAIChat open={showAI} onOpenChange={setShowAI} />
 
