@@ -351,6 +351,17 @@ const ProviderSelection = () => {
         <div className="px-4 mt-6 mb-4">
           <PopularPackages />
         </div>
+
+        {/* Temporary APK update test button */}
+        <div className="px-4 mb-6 flex justify-center">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => toast({ title: 'Tijaabo v2', description: 'Isbeddelka web-ka wuu gaaray APK-ga ✓' })}
+          >
+            Tijaabo v2
+          </Button>
+        </div>
       </div>
 
       {/* Support FAB */}
