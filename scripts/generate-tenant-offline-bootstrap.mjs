@@ -148,6 +148,7 @@ const appSettings = Array.isArray(appSettingsRaw)
 const snapshot = {
   version: 1,
   generated_at: new Date().toISOString(),
+  tenantLogoUrl: String(tenantRow.logo_url || ''),
   tenant,
   providers: Array.isArray(providers) ? providers : [],
   categories,
