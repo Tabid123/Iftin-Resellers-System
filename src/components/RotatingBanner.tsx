@@ -56,7 +56,12 @@ function readBannerCache(workspaceId: string | null): Banner[] {
   // build therefore passes the tenant's first public banner URL in the initial
   // server URL so the home screen never begins as a white banner frame.
   if (typeof window !== 'undefined') {
-    const initialBanner = new URLSearchParams(window.location.search).get('apkBanner');
+    const params = new URLSearchParams(window.location.search);
+    const initialBanner =
+      params.get('apkBanner') ||
+      (() => {
+        try { return sessionStorage.getItem('iftin.apk.banner'); } catch { return null; }
+      })();
     if (initialBanner) {
       return [{
         id: 'apk-initial-banner',
