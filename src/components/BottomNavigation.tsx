@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect } from 'react';
 import { useNavigate, useLocation } from "@/lib/router-compat";
 import { useNotifications } from '@/hooks/useNotifications';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -52,13 +52,7 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
   const t = useTenant();
   const tenant = t.status === 'ready' || t.status === 'suspended' ? t.tenant : null;
 
-  const [pendingPath, setPendingPath] = useState<string | null>(null);
-  const pointerActivatedPathRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (pendingPath && normalizeStorefrontPath(location.pathname) === pendingPath) setPendingPath(null);
-  }, [location.pathname, pendingPath]);
-
-  const currentPath = pendingPath ?? normalizeStorefrontPath(location.pathname);
+  const currentPath = normalizeStorefrontPath(location.pathname);
   const isCatalogHome =
     currentPath === '/providers' ||
     currentPath.startsWith('/categories/') ||
@@ -70,36 +64,17 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
       if (path !== '/providers' || currentPath === '/providers') return;
     }
 
-    // Paint the selected tab immediately, then navigate synchronously.
-    // Avoid React startTransition here: on slower Android WebViews it can defer
-    // route work long enough to make the bottom bar feel unresponsive.
-    setPendingPath(path);
     navigate(path);
   };
 
   const handleNotificationsClick = () => {
     if (onNotificationsClick) {
-      setPendingPath('/notifications');
       onNotificationsClick();
       queueMicrotask(markAsSeen);
       return;
     }
     if (!isActive('/notifications')) go('/notifications');
     queueMicrotask(markAsSeen);
-  };
-
-  const activateOnPointerDown = (path: string, action: () => void, pointerType: string) => {
-    if (pointerType === 'mouse') return;
-    pointerActivatedPathRef.current = path;
-    action();
-  };
-
-  const activateOnClick = (path: string, action: () => void) => {
-    if (pointerActivatedPathRef.current === path) {
-      pointerActivatedPathRef.current = null;
-      return;
-    }
-    action();
   };
 
   const navItems = [
@@ -145,8 +120,7 @@ export function BottomNavigation({ onNotificationsClick, visible = true }: Botto
               <button
                 key={path}
                 type="button"
-                onPointerDown={(event) => activateOnPointerDown(path, onClick, event.pointerType)}
-                onClick={() => activateOnClick(path, onClick)}
+                onClick={onClick}
                 tabIndex={visible ? 0 : -1}
                 className="relative flex h-[68px] min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1.5 bg-transparent px-1 outline-none"
                 style={{
