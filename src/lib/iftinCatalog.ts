@@ -122,42 +122,77 @@ export async function resolveTenantId(): Promise<string | null> {
  */
 const MODE_CACHE_KEY = 'najax.tenant_delivery_mode';
 const modeMemo = new Map<string, boolean>();
+const modeInflight = new Map<string, Promise<boolean>>();
 
 function clearCatalogCache(tenantId?: string | null) {
   memo = null;
   workspaceStorage.remove(CATALOG_RESOURCE, tenantId);
 }
 
-export async function isApiPartnerTenant(tenantId: string): Promise<boolean> {
-  if (modeMemo.has(tenantId)) return modeMemo.get(tenantId)!;
-  let cached: boolean | null = null;
+function readCachedDeliveryMode(tenantId: string): boolean | null {
   try {
     const raw = localStorage.getItem(MODE_CACHE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as { id: string; mode: string };
-      if (parsed?.id === tenantId) cached = parsed.mode === 'api_partner';
-    }
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { id: string; mode: string };
+    if (parsed?.id !== tenantId) return null;
+    if (parsed.mode === 'api_partner') return true;
+    if (parsed.mode === 'android_device') return false;
   } catch { /* ignore */ }
+  return null;
+}
 
+function persistDeliveryMode(tenantId: string, isPartner: boolean) {
+  modeMemo.set(tenantId, isPartner);
   try {
-    const { data, error } = await supabase
-      .from('tenants')
-      .select('delivery_mode')
-      .eq('id', tenantId)
-      .maybeSingle();
-    if (error) return cached ?? true; // offline / transient → keep previous behaviour
-    const isPartner = (data as any)?.delivery_mode === 'api_partner';
-    modeMemo.set(tenantId, isPartner);
+    localStorage.setItem(
+      MODE_CACHE_KEY,
+      JSON.stringify({ id: tenantId, mode: isPartner ? 'api_partner' : 'android_device' }),
+    );
+  } catch { /* ignore */ }
+}
+
+async function refreshDeliveryMode(tenantId: string, fallback: boolean): Promise<boolean> {
+  const existing = modeInflight.get(tenantId);
+  if (existing) return existing;
+
+  const task = (async () => {
     try {
-      localStorage.setItem(
-        MODE_CACHE_KEY,
-        JSON.stringify({ id: tenantId, mode: isPartner ? 'api_partner' : 'android_device' }),
-      );
-    } catch { /* ignore */ }
-    return isPartner;
-  } catch {
-    return cached ?? true;
+      const { data, error } = await supabase
+        .from('tenants')
+        .select('delivery_mode')
+        .eq('id', tenantId)
+        .maybeSingle();
+      if (error || !(data as any)?.delivery_mode) return fallback;
+      const isPartner = (data as any).delivery_mode === 'api_partner';
+      persistDeliveryMode(tenantId, isPartner);
+      return isPartner;
+    } catch {
+      return fallback;
+    } finally {
+      modeInflight.delete(tenantId);
+    }
+  })();
+
+  modeInflight.set(tenantId, task);
+  return task;
+}
+
+export async function isApiPartnerTenant(tenantId: string): Promise<boolean> {
+  if (modeMemo.has(tenantId)) return modeMemo.get(tenantId)!;
+
+  const cached = readCachedDeliveryMode(tenantId);
+  if (cached !== null) {
+    // Page navigation must never wait on the tenant-mode lookup. Use the last
+    // authoritative value immediately and refresh it quietly once.
+    modeMemo.set(tenantId, cached);
+    void refreshDeliveryMode(tenantId, cached);
+    return cached;
   }
+
+  // Fresh browser/device with no mode cached: one request only, shared by every
+  // component mounting at the same time. On transient failure, local mode is
+  // the safe fallback; an API catalog cannot be fetched reliably while offline.
+  return refreshDeliveryMode(tenantId, false);
 }
 
 /** Fetches the catalog (5 min cache). Returns null when Iftin is not configured. */
