@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from "@/lib/router-compat";
 import RotatingBanner from '@/components/RotatingBanner';
@@ -208,6 +209,13 @@ const ProviderSelection = () => {
             {brandName}
           </h1>
           <div className="flex shrink-0 items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => toast.success('Tijaabo: APK-gu wuxuu wataa isbeddelkii ugu dambeeyay ✓')}
+              className="rounded-full bg-primary-foreground/15 px-2.5 py-1 text-xs font-bold text-primary-foreground active:scale-95"
+            >
+              Tijaabo
+            </button>
             <Button
               type="button"
               variant="ghost"
