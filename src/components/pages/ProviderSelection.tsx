@@ -1,4 +1,3 @@
-import { toast } from 'sonner';
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from "@/lib/router-compat";
 import RotatingBanner from '@/components/RotatingBanner';
