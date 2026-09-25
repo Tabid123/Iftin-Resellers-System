@@ -19,85 +19,84 @@ import { AdminPagination, ADMIN_PAGE_SIZE } from './AdminPagination';
 export const CustomersCustomView = ({ isSo }: { isSo: boolean }) => {
   const [phones, setPhones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
-  const [filteredTotal, setFilteredTotal] = useState(0);
-  const [summary, setSummary] = useState({ total: 0, newToday: 0, boughtToday: 0, inactive: 0, active: 0 });
+  const [summary, setSummary] = useState({ total: 0, new_today: 0, bought_today: 0, inactive: 0 });
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(0);
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await (supabase as any).rpc('get_admin_customers_page', {
-      p_limit: ADMIN_PAGE_SIZE,
-      p_offset: page * ADMIN_PAGE_SIZE,
-      p_search: search.trim() || null,
-      p_filter: filter,
-    });
-    if (error) {
-      console.error('[Customers] paginated load failed', error);
-      setPhones([]);
-      setFilteredTotal(0);
+    try {
+      const { data, error } = await (supabase as any).rpc('get_admin_customers_page', {
+        p_limit: ADMIN_PAGE_SIZE,
+        p_offset: page * ADMIN_PAGE_SIZE,
+        p_search: debouncedSearch || null,
+      });
+      if (error) throw error;
+      const payload = data || {};
+      setPhones(Array.isArray(payload.rows) ? payload.rows : []);
+      setSummary({
+        total: Number(payload.total || 0),
+        new_today: Number(payload.new_today || 0),
+        bought_today: Number(payload.bought_today || 0),
+        inactive: Number(payload.inactive || 0),
+      });
+    } catch (err) {
+      console.error('[Customers] load failed', err);
+      toast.error(isSo ? 'Macaamiisha lama soo dejin' : 'Failed to load customers');
+    } finally {
       setLoading(false);
-      return;
     }
-    const payload = data || {};
-    setPhones(Array.isArray(payload.rows) ? payload.rows : []);
-    setFilteredTotal(Number(payload.filtered_total ?? payload.total ?? 0));
-    setSummary({
-      total: Number(payload.total ?? 0),
-      newToday: Number(payload.new_today ?? 0),
-      boughtToday: Number(payload.bought_today ?? 0),
-      inactive: Number(payload.inactive ?? 0),
-      active: Number(payload.active ?? 0),
-    });
-    setLoading(false);
-  }, [filter, page, search]);
+  }, [page, debouncedSearch, isSo]);
 
   useEffect(() => { void loadData(); }, [loadData]);
-  useRealtimeRefresh(['verified_phones', 'orders', 'offline_registrations'], loadData, 800, { notify: true, lang: isSo ? 'so' : 'en' });
+  useRealtimeRefresh(['verified_phones', 'orders', 'offline_registrations'], loadData, 1200, { notify: true, lang: isSo ? 'so' : 'en' });
 
-  useEffect(() => { setPage(0); }, [filter, search]);
-
-  const deleteCustomer = async (id: string, phone: string) => {
-    if (!/^[0-9a-f-]{36}$/i.test(id)) {
-      toast.error(isSo ? 'Macmiilkan lama tirtiri karo' : 'This customer cannot be deleted');
+  const deleteCustomer = async (id: string | null, phone: string) => {
+    if (!id || !/^[0-9a-f-]{36}$/i.test(id)) {
+      toast.error(isSo ? 'Macmiilkan verified ma aha, sidaas darteed record verified ah lama tirtiri karo' : 'This is not a verified-customer record');
       return;
     }
     if (!confirm(isSo ? `Ma hubtaa inaad tirtirto ${phone}?` : `Delete ${phone}?`)) return;
     const { error } = await supabase.from('verified_phones').delete().eq('id', id);
     if (error) { toast.error('Error'); return; }
     toast.success(isSo ? 'Waa la tirtiray' : 'Deleted');
-    await loadData();
+    void loadData();
   };
 
   return (
     <div className="space-y-3">
       <StatCardsRow cards={[
         { label: isSo ? 'Wadarta' : 'Total', value: summary.total, color: 'bg-purple-500', icon: Users },
-        { label: isSo ? 'Cusub Maanta' : 'New Today', value: summary.newToday, color: 'bg-green-500', icon: UserPlus },
-        { label: isSo ? 'Maanta libsatay' : 'Bought Today', value: summary.boughtToday, color: 'bg-blue-500', icon: Package },
+        { label: isSo ? 'Cusub Maanta' : 'New Today', value: summary.new_today, color: 'bg-green-500', icon: UserPlus },
+        { label: isSo ? 'Maanta libsatay' : 'Bought Today', value: summary.bought_today, color: 'bg-blue-500', icon: Package },
         { label: isSo ? 'Aan libsan' : 'Never Bought', value: summary.inactive, color: 'bg-orange-500', icon: XCircle },
       ]} />
-      <FilterRow filters={[
-        { key: 'all', label: isSo ? 'Dhammaan' : 'All', count: summary.total },
-        { key: 'today', label: isSo ? 'Cusub' : 'New', count: summary.newToday },
-        { key: 'active', label: isSo ? 'Firfircoon' : 'Active', count: summary.active },
-        { key: 'purchasedToday', label: isSo ? 'Maanta' : 'Today', count: summary.boughtToday },
-        { key: 'inactive', label: isSo ? 'Aan Iibsan' : 'Inactive', count: summary.inactive },
-      ]} activeKey={filter} onSelect={setFilter} activeColor="bg-teal-500" />
+
       <SearchInput value={search} onChange={setSearch} placeholder={isSo ? 'Raadi lambarka...' : 'Search phone...'} />
-      {loading ? <LazyFallback /> : phones.length === 0 ? <EmptyState message={isSo ? 'Wax macaamiil ah lama helin' : 'No customers found'} /> : (
+
+      {loading ? <LazyFallback /> : phones.length === 0 ? (
+        <EmptyState message={isSo ? 'Wax macaamiil ah lama helin' : 'No customers found'} />
+      ) : (
         <div className="space-y-2">
           {phones.map((item, idx) => {
-            const rowId = item.id || `customer-${item.phone_number}`;
-            const isExpanded = expandedId === rowId;
+            const key = item.id || `customer-${item.phone_number}`;
+            const isExpanded = expandedId === key;
             const hasOrders = Number(item.order_count || 0) > 0;
             return (
-              <div key={rowId} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-purple-100/50 dark:border-purple-900/20 overflow-hidden">
-                <button onClick={() => setExpandedId(isExpanded ? null : rowId)} className="w-full px-3 py-2.5 flex items-center justify-between text-left active:bg-purple-50/50">
+              <div key={key} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-purple-100/50 dark:border-purple-900/20 overflow-hidden">
+                <button onClick={() => setExpandedId(isExpanded ? null : key)} className="w-full px-3 py-2.5 flex items-center justify-between text-left active:bg-purple-50/50">
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-purple-400 w-5">#{page * ADMIN_PAGE_SIZE + idx + 1}</span>
+                    <span className="text-[10px] font-bold text-purple-400 w-6">#{page * ADMIN_PAGE_SIZE + idx + 1}</span>
                     <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
                       <Phone className="w-4 h-4 text-purple-600" />
                     </div>
@@ -113,7 +112,7 @@ export const CustomersCustomView = ({ isSo }: { isSo: boolean }) => {
                   </div>
                 </button>
                 {isExpanded && (
-                  <InvoiceAccordionContent isSo={isSo} id={rowId} rows={[
+                  <InvoiceAccordionContent isSo={isSo} id={key} rows={[
                     { icon: Phone, label: isSo ? 'Lambarka' : 'Phone', value: `+252${item.phone_number}`, color: 'text-purple-500' },
                     { icon: Calendar, label: isSo ? 'Diiwaangelintu' : 'Registered', value: `${formatDate(item.created_at)} ${formatTime(item.created_at)}`, color: 'text-teal-500' },
                     ...(item.last_login_at ? [{ icon: Calendar, label: isSo ? 'Gelitiin Danbe' : 'Last Login', value: `${formatDate(item.last_login_at)} ${formatTime(item.last_login_at)}`, color: 'text-blue-500' }] : []),
@@ -126,7 +125,8 @@ export const CustomersCustomView = ({ isSo }: { isSo: boolean }) => {
           })}
         </div>
       )}
-      <AdminPagination page={page} total={filteredTotal} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
+
+      <AdminPagination page={page} total={summary.total} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
     </div>
   );
 };

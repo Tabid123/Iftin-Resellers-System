@@ -167,11 +167,12 @@ const SimpleAdminDashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const mogDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Mogadishu' }));
       mogDate.setHours(0, 0, 0, 0);
+      const todayISO = mogDate.toISOString();
 
       const useCustomDate = !!selectedDate;
       let customStartISO = '';
@@ -187,32 +188,31 @@ const SimpleAdminDashboard = () => {
 
       const periodStartISO = (() => {
         if (useCustomDate) return customStartISO;
-        const start = new Date(mogDate);
+        const startDate = new Date(mogDate);
         if (selectedPeriod === 'week') {
-          const day = start.getDay();
-          start.setDate(start.getDate() - (day === 0 ? 6 : day - 1));
+          const day = startDate.getDay();
+          startDate.setDate(startDate.getDate() - (day === 0 ? 6 : day - 1));
         } else if (selectedPeriod === 'month') {
-          start.setDate(1);
+          startDate.setDate(1);
         } else if (selectedPeriod === 'year') {
-          start.setMonth(0, 1);
+          startDate.setMonth(0, 1);
         }
-        return start.toISOString();
+        return startDate.toISOString();
       })();
       const periodEndISO = useCustomDate ? customEndISO : null;
 
       const tid = getTenantId();
       const scoped = (q: any) => (tid ? q.eq('tenant_id', tid) : q);
 
-      // Dashboard cards are aggregate RPCs. Only small device/config rows are downloaded.
-      const [countsRes, financeRes, devicesRes, balancesRes, providersRes] = await Promise.all([
-        (supabase as any).rpc('get_admin_dashboard_counts', {
+      // Only compact aggregate RPCs + small device/config tables are loaded.
+      const [summaryRes, deviceStatsRes, devicesRes, balancesRes, providersRes] = await Promise.all([
+        (supabase as any).rpc('get_admin_dashboard_summary', {
           p_start: periodStartISO,
           p_end: periodEndISO,
         }),
-        (supabase as any).rpc('get_admin_transactions_summary', {
-          p_start: periodStartISO,
-          p_end: periodEndISO,
-          p_provider_id: null,
+        (supabase as any).rpc('get_admin_device_period_stats', {
+          p_start: todayISO,
+          p_end: null,
         }),
         scoped(
           supabase
@@ -237,52 +237,52 @@ const SimpleAdminDashboard = () => {
         ),
       ]);
 
-      if (countsRes.error) throw countsRes.error;
-      if (financeRes.error) throw financeRes.error;
-      if (devicesRes.error) throw devicesRes.error;
-      if (balancesRes.error) throw balancesRes.error;
-      if (providersRes.error) throw providersRes.error;
+      const firstError = summaryRes.error || deviceStatsRes.error || devicesRes.error || balancesRes.error || providersRes.error;
+      if (firstError) throw firstError;
 
-      const counts = countsRes.data || {};
-      const finance = financeRes.data || {};
-      setStats({
-        todayOrderCount: Number(counts.order_count || 0),
-        todayFailed: Number(counts.failed || 0),
-        todayPending: Number(counts.pending || 0),
-        todayProfit: Number(finance.profit_usd || 0),
-        todayCost: Number(finance.cost || 0),
-        todaySales: Number(finance.revenue || 0),
-        todayDelivered: Number(finance.delivered_count || counts.delivered || 0),
-        failed: 0,
-        pending: 0,
-        delivered: 0,
-        devicesOnline: Number(counts.devices_online || 0),
-      });
-
+      const summary = summaryRes.data || {};
       const providerRates = providersRes.data || [];
       const deviceList = devicesRes.data || [];
       const balanceData = balancesRes.data || [];
+      const deviceStats = new Map<string, any>(
+        ((deviceStatsRes.data || []) as any[]).map((row) => [String(row.device_id), row]),
+      );
       const OFFLINE_THRESHOLD = 5 * 60 * 1000;
       const now = Date.now();
+      const devicesOnline = deviceList.filter(
+        (d) => d.last_ping_at && now - new Date(d.last_ping_at).getTime() < OFFLINE_THRESHOLD,
+      ).length;
+
+      setStats({
+        todayOrderCount: Number(summary.order_count || 0),
+        todayFailed: Number(summary.failed || 0),
+        todayPending: Number(summary.pending || 0),
+        todayProfit: Number(summary.profit || 0),
+        todayCost: Number(summary.cost || 0),
+        todaySales: Number(summary.sales || 0),
+        todayDelivered: Number(summary.delivered || 0),
+        failed: Number(summary.failed || 0),
+        pending: Number(summary.pending || 0),
+        delivered: Number(summary.delivered || 0),
+        devicesOnline,
+      });
 
       const findProviderLogo = (provName: string) => {
-        const match = providerRates.find(p => p.provider_name?.toLowerCase() === provName.toLowerCase());
+        const match = providerRates.find((p) => p.provider_name?.toLowerCase() === provName.toLowerCase());
         return match?.provider_logo || null;
       };
       const findProviderRate = (provName: string) => {
-        const match = providerRates.find(p => p.provider_name?.toLowerCase() === provName.toLowerCase());
+        const match = providerRates.find((p) => p.provider_name?.toLowerCase() === provName.toLowerCase());
         return Number(match?.evoucher_rate || 0);
       };
 
-      const cards: DeviceCardData[] = deviceList.map(d => {
-        const isOnline = d.last_ping_at ? (now - new Date(d.last_ping_at).getTime()) < OFFLINE_THRESHOLD : false;
-        const deviceBalances = balanceData.filter(b => b.device_id === d.id);
-        const sims: SimInfo[] = [];
+      const cards: DeviceCardData[] = deviceList.map((d) => {
+        const isOnline = d.last_ping_at ? now - new Date(d.last_ping_at).getTime() < OFFLINE_THRESHOLD : false;
+        const deviceBalances = balanceData.filter((b) => b.device_id === d.id);
         const sim1Provider = d.sim1_provider || d.provider_name || '';
-        const sim1Evc = deviceBalances.find(b => b.sim_slot === 1 && b.balance_type === 'evc_plus');
-        const sim1Ev = deviceBalances.find(b => b.sim_slot === 1 && b.balance_type === 'evoucher');
-
-        sims.push({
+        const sim1Evc = deviceBalances.find((b) => b.sim_slot === 1 && b.balance_type === 'evc_plus');
+        const sim1Ev = deviceBalances.find((b) => b.sim_slot === 1 && b.balance_type === 'evoucher');
+        const sims: SimInfo[] = [{
           sim_slot: 1,
           sim_number: d.sim_number || '',
           provider_name: sim1Provider,
@@ -290,11 +290,11 @@ const SimpleAdminDashboard = () => {
           evc_balance: Number(sim1Evc?.balance || 0),
           evoucher_balance: Number(sim1Ev?.balance || 0),
           evoucher_rate: findProviderRate(sim1Provider),
-        });
+        }];
 
         if (d.sim2_number && d.sim2_provider) {
-          const sim2Evc = deviceBalances.find(b => b.sim_slot === 2 && b.balance_type === 'evc_plus');
-          const sim2Ev = deviceBalances.find(b => b.sim_slot === 2 && b.balance_type === 'evoucher');
+          const sim2Evc = deviceBalances.find((b) => b.sim_slot === 2 && b.balance_type === 'evc_plus');
+          const sim2Ev = deviceBalances.find((b) => b.sim_slot === 2 && b.balance_type === 'evoucher');
           sims.push({
             sim_slot: 2,
             sim_number: d.sim2_number,
@@ -306,6 +306,7 @@ const SimpleAdminDashboard = () => {
           });
         }
 
+        const ds = deviceStats.get(String(d.device_id)) || {};
         return {
           device_name: d.device_name,
           device_id: d.device_id,
@@ -314,12 +315,12 @@ const SimpleAdminDashboard = () => {
           battery_level: d.battery_level,
           is_charging: d.is_charging || false,
           sims,
-          todayDelivered: 0,
-          todayFailed: 0,
-          todayCost: 0,
-          todayRevenue: 0,
-          todayProfit: 0,
-          todayOrders: 0,
+          todayDelivered: Number(ds.delivered || 0),
+          todayFailed: Number(ds.failed || 0),
+          todayCost: Number(ds.cost || 0),
+          todayRevenue: Number(ds.revenue || 0),
+          todayProfit: Number(ds.profit || 0),
+          todayOrders: Number(ds.orders || 0),
         };
       });
 
@@ -347,12 +348,16 @@ const SimpleAdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedDate, selectedPeriod, isPartner]);
 
-  const fetchDataCb = useCallback(() => { fetchData(); }, []);
-  useEffect(() => { fetchData(); }, [selectedPeriod, selectedDate]);
+  useEffect(() => { void fetchData(); }, [fetchData]);
 
-  useRealtimeRefresh(['orders', 'android_devices', 'sim_balances', 'delivery_queue', 'payment_receipts', 'device_alerts'], fetchDataCb, 800, { notify: notificationsEnabled, lang: isSo ? 'so' : 'en' });
+  useRealtimeRefresh(
+    ['orders', 'android_devices', 'sim_balances', 'delivery_queue', 'payment_receipts', 'device_alerts'],
+    fetchData,
+    1200,
+    { notify: notificationsEnabled, lang: isSo ? 'so' : 'en' },
+  );
 
   const periodLabel = selectedDate ? format(selectedDate, 'dd/MM') : selectedPeriod === 'today' ? 'Maanta' : selectedPeriod === 'week' ? 'Isbuucan' : selectedPeriod === 'month' ? 'Bisha' : 'Sanadka';
 
