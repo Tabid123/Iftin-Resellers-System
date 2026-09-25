@@ -89,7 +89,7 @@ export const BalanceManagement = () => {
   const loadData = async () => {
     setLoading(true);
     const [balRes, devRes] = await Promise.all([
-      supabase.from('sim_balances').select('*').eq('balance_type', 'evc_plus').order('last_updated', { ascending: false }),
+      supabase.from('sim_balances').select('id,balance,balance_type,last_updated,device_id,sim_slot').eq('balance_type', 'evc_plus').order('last_updated', { ascending: false }),
       supabase.from('android_devices').select('id, device_name, sim_number, sim1_provider, sim2_provider, sim2_number').is('archived_at', null),
     ]);
     
