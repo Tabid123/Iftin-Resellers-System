@@ -78,6 +78,8 @@ const SmsLogsViewer = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
+  const [page, setPage] = useState(0);
+  const [totalRows, setTotalRows] = useState(0);
 
   useEffect(() => {
     const fetchDevices = async () => {
@@ -118,8 +120,9 @@ const SmsLogsViewer = () => {
         query = query.gte('created_at', start.toISOString()).lte('created_at', endDate.toISOString());
       }
 
-      const { data, error } = await query;
+      const { data, error, count } = await query;
       if (error) throw error;
+      setTotalRows(count ?? 0);
       setLogs((data as SmsLog[]) || []);
     } catch (err) {
       console.error('Error fetching SMS logs:', err);
@@ -132,7 +135,9 @@ const SmsLogsViewer = () => {
     fetchLogs();
     setSelectedIds(new Set());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDevice, selectedTxType, selectedSmsType, dateRange?.from, dateRange?.to]);
+  }, [selectedDevice, selectedTxType, selectedSmsType, dateRange?.from, dateRange?.to, page]);
+
+  useEffect(() => { setPage(0); }, [selectedDevice, selectedTxType, selectedSmsType, dateRange?.from, dateRange?.to]);
 
   // Realtime subscription
   useEffect(() => {
@@ -143,7 +148,7 @@ const SmsLogsViewer = () => {
         if (selectedDevice !== 'all' && newLog.device_id !== selectedDevice) return;
         if (selectedTxType !== 'all' && newLog.tx_type !== selectedTxType) return;
         if (selectedSmsType !== 'all' && newLog.sms_type !== selectedSmsType) return;
-        setLogs(prev => [newLog, ...prev].slice(0, 500));
+        if (page === 0) setLogs(prev => [newLog, ...prev].slice(0, ADMIN_PAGE_SIZE));
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'sms_logs' }, (payload) => {
         const oldLog = payload.old as SmsLog;
@@ -152,7 +157,7 @@ const SmsLogsViewer = () => {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [selectedDevice, selectedTxType, selectedSmsType]);
+  }, [selectedDevice, selectedTxType, selectedSmsType, page]);
 
   const handleDeleteSelected = async () => {
     if (selectedIds.size === 0) return;
