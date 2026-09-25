@@ -56,7 +56,12 @@ const RESERVED = new Set(["admin", "www", "api", "app", "mail", "status"]);
  */
 function isTenantBlocked(tenant: Tenant): boolean {
   if (tenant.status === "suspended" || tenant.status === "cancelled") return true;
-  const endsAt = tenant.trial_ends_at ?? tenant.current_period_end;
+  // Active tenants are governed by their paid period only — an expired
+  // trial date must not block a tenant with a valid subscription.
+  const endsAt =
+    tenant.status === "active"
+      ? tenant.current_period_end
+      : (tenant.trial_ends_at ?? tenant.current_period_end);
   if (!endsAt) return false;
   const end = new Date(endsAt).getTime();
   return Number.isFinite(end) && end <= Date.now();
