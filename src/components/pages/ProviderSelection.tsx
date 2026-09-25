@@ -7,6 +7,7 @@ import { Phone, MessageCircle, WifiOff, X, Headphones, Bot } from 'lucide-react'
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
+import { toast as sonnerToast } from 'sonner';
 import { logScreenView } from '@/services/firebase';
 import { useConnectivity } from '@/contexts/ConnectivityContext';
 import najaxLogo from '@/assets/najax-logo.jpeg';
@@ -210,7 +211,7 @@ const ProviderSelection = () => {
           <div className="flex shrink-0 items-center gap-2.5">
             <button
               type="button"
-              onClick={() => toast.success('Tijaabo: APK-gu wuxuu wataa isbeddelkii ugu dambeeyay ✓')}
+              onClick={() => sonnerToast.success('Tijaabo: APK-gu wuxuu wataa isbeddelkii ugu dambeeyay ✓')}
               className="rounded-full bg-primary-foreground/15 px-2.5 py-1 text-xs font-bold text-primary-foreground active:scale-95"
             >
               Tijaabo
