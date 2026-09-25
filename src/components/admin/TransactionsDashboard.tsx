@@ -136,6 +136,8 @@ export function TransactionsDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
+  const [totalRows, setTotalRows] = useState(0);
+  const [serverStats, setServerStats] = useState({ revenue: 0, cost: 0, profitEvoucher: 0, profitUsd: 0, deliveredCount: 0 });
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -162,16 +164,25 @@ export function TransactionsDashboard() {
 
     let orderQuery = supabase
       .from('orders')
-      .select('id, customer_phone, sender_phone, receiver_phone, package_name, package_id, data_amount, selling_price, cost_price, status, delivery_status, created_at, provider_id, tenant_id')
+      .select('id, customer_phone, sender_phone, receiver_phone, package_name, package_id, data_amount, selling_price, cost_price, status, delivery_status, created_at, provider_id, tenant_id', { count: 'exact' })
       .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
-      .limit(2000);
+      .range(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE - 1);
 
     if (providerFilter !== 'all') orderQuery = orderQuery.eq('provider_id', providerFilter);
     if (start) orderQuery = orderQuery.gte('created_at', start);
     if (end) orderQuery = orderQuery.lt('created_at', end);
+    if (debouncedSearch) {
+      const q = debouncedSearch.replace(/[%(),]/g, '').trim();
+      if (q) {
+        orderQuery = orderQuery.or(`customer_phone.ilike.%${q}%,receiver_phone.ilike.%${q}%,sender_phone.ilike.%${q}%,package_name.ilike.%${q}%,id.ilike.${q}%`);
+      }
+    }
+    if (statusFilter === 'completed') orderQuery = orderQuery.eq('delivery_status', 'delivered');
+    else if (statusFilter === 'failed') orderQuery = orderQuery.or('delivery_status.eq.failed,delivery_status.eq.timeout,status.eq.failed');
+    else if (statusFilter === 'pending') orderQuery = orderQuery.not('delivery_status', 'in', '(delivered,failed,timeout)').neq('status', 'failed');
 
-    const [ordersResult, providersResult, packagesResult, instructionsResult, bundleRulesResult] = await Promise.all([
+    const [ordersResult, providersResult, packagesResult, instructionsResult, bundleRulesResult, summaryResult] = await Promise.all([
       orderQuery,
       supabase
         .from('providers_config')
@@ -191,14 +202,29 @@ export function TransactionsDashboard() {
         .select('source_package_id, target_package_id, delivery_count, is_active')
         .eq('tenant_id', tenantId)
         .eq('is_active', true),
+      (supabase as any).rpc('get_admin_transactions_summary', {
+        p_start: start ?? null,
+        p_end: end ?? null,
+        p_provider_id: providerFilter === 'all' ? null : providerFilter,
+      }),
     ]);
 
-    const firstError = ordersResult.error || providersResult.error || packagesResult.error || instructionsResult.error || bundleRulesResult.error;
+    const firstError = ordersResult.error || providersResult.error || packagesResult.error || instructionsResult.error || bundleRulesResult.error || summaryResult.error;
     if (firstError) {
       setError(firstError.message);
       setLoading(false);
       return;
     }
+
+    setTotalRows(ordersResult.count ?? 0);
+    const summary = summaryResult.data || {};
+    setServerStats({
+      revenue: Number(summary.revenue || 0),
+      cost: Number(summary.cost || 0),
+      profitEvoucher: Number(summary.profit_evoucher || 0),
+      profitUsd: Number(summary.profit_usd || 0),
+      deliveredCount: Number(summary.delivered_count || 0),
+    });
 
     const providerRows = (providersResult.data || []) as Provider[];
     const providerMap = new Map(providerRows.map((provider) => [provider.id, provider]));
@@ -245,7 +271,7 @@ export function TransactionsDashboard() {
     setProviders(providerRows);
     setTransactions(decorated);
     setLoading(false);
-  }, [tenantId, periodFilter, providerFilter]);
+  }, [tenantId, periodFilter, providerFilter, currentPage, debouncedSearch, statusFilter]);
 
   useEffect(() => {
     void loadData();
@@ -271,40 +297,12 @@ export function TransactionsDashboard() {
     setCurrentPage(0);
   }, [debouncedSearch, statusFilter, providerFilter, periodFilter]);
 
-  const filteredTransactions = useMemo(() => {
-    let rows = transactions;
-    if (statusFilter !== 'all') {
-      rows = rows.filter((row) => {
-        if (statusFilter === 'completed') return isDelivered(row);
-        if (statusFilter === 'failed') return row.delivery_status === 'failed' || row.delivery_status === 'timeout' || row.status === 'failed';
-        return !isDelivered(row) && row.delivery_status !== 'failed' && row.delivery_status !== 'timeout' && row.status !== 'failed';
-      });
-    }
+  const filteredTransactions = transactions;
 
-    if (debouncedSearch) {
-      const digits = debouncedSearch.replace(/\D/g, '');
-      const text = debouncedSearch.toLowerCase();
-      rows = rows.filter((row) =>
-        (digits && [row.customer_phone, row.receiver_phone, row.sender_phone].some((value) => String(value || '').includes(digits))) ||
-        row.package_name?.toLowerCase().includes(text) ||
-        row.id.toLowerCase().startsWith(text),
-      );
-    }
-    return rows;
-  }, [transactions, statusFilter, debouncedSearch]);
+  const stats = serverStats;
 
-  const deliveredTransactions = useMemo(() => transactions.filter(isDelivered), [transactions]);
-
-  const stats = useMemo(() => {
-    const revenue = deliveredTransactions.reduce((sum, row) => sum + row.selling_price, 0);
-    const cost = deliveredTransactions.reduce((sum, row) => sum + row.cost_price, 0);
-    const profitEvoucher = deliveredTransactions.reduce((sum, row) => sum + calculateRowEvProfit(row), 0);
-    const profitUsd = deliveredTransactions.reduce((sum, row) => sum + calculateRowProfit(row), 0);
-    return { revenue, cost, profitEvoucher, profitUsd, deliveredCount: deliveredTransactions.length };
-  }, [deliveredTransactions]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / PAGE_SIZE));
-  const pageRows = filteredTransactions.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
+  const pageRows = filteredTransactions;
 
   const getStatusColor = (row: Transaction) => {
     if (isDelivered(row)) return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
