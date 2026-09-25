@@ -75,8 +75,6 @@ export function BankTransactions({ isSo = true }: { isSo?: boolean }) {
   const [matchTx, setMatchTx] = useState<BankTx | null>(null);
   const [pendingCandidates, setPendingCandidates] = useState<PendingPayment[]>([]);
   const [matchSaving, setMatchSaving] = useState(false);
-  const [page, setPage] = useState(0);
-  const [totalRows, setTotalRows] = useState(0);
 
   const periodStart = useCallback((p: PeriodKey): string | null => {
     const now = new Date();
