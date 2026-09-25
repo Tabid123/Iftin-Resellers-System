@@ -85,7 +85,6 @@ const IntentAccordionItem: React.FC<{
           ]}
         />
       )}
-      <AdminPagination page={page} total={Number(data?.total ?? 0)} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
     </div>
   );
 };
@@ -227,6 +226,7 @@ const IftinDailyOrders: React.FC<{ isSo?: boolean }> = ({ isSo = true }) => {
           ))}
         </div>
       )}
+      <AdminPagination page={page} total={Number(data?.total ?? 0)} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
     </div>
   );
 };
