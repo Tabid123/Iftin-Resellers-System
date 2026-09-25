@@ -32,12 +32,24 @@ export type PartnerIntentSummary = {
   failed: number;
   awaiting_payment: number;
   expired_unpaid: number;
+  revenue: number;
+  cost: number;
+  profit: number;
 };
+
+export type PartnerReportAgg = { day?: string; name?: string; orders: number; sales: number; cost: number; profit: number };
 
 export type PartnerIntentsData = {
   unpaid_ttl_minutes: number;
   summary: PartnerIntentSummary;
   intents: PartnerIntent[];
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+  by_provider: PartnerReportAgg[];
+  by_day: PartnerReportAgg[];
+  by_provider_day: PartnerReportAgg[];
 };
 
 const UUID_RE = /^[0-9a-f-]{36}$/i;
@@ -52,23 +64,31 @@ function normalizeSummary(s: any): PartnerIntentSummary {
     failed: num(s?.failed),
     awaiting_payment: num(s?.awaiting_payment),
     expired_unpaid: num(s?.expired_unpaid),
+    revenue: num(s?.revenue),
+    cost: num(s?.cost),
+    profit: num(s?.profit),
   };
 }
 
 export const listPartnerIntents = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    (input: { tenantId: string; limit?: number; includeUnpaid?: boolean }) => input,
+    (input: { tenantId: string; limit?: number; offset?: number; includeUnpaid?: boolean; start?: string | null; end?: string | null }) => input,
   )
   .handler(async ({ data, context }): Promise<PartnerIntentsData> => {
     if (!UUID_RE.test(data.tenantId)) throw new Error('tenant_id sax ma aha');
     const { getTenantApiKey, iftinCall } = await import('./iftinPayments.server');
     const apiKey = await getTenantApiKey(data.tenantId, context.userId);
 
+    const limit = Math.min(Math.max(Number(data.limit ?? 50) || 50, 1), 100);
+    const offset = Math.max(Number(data.offset ?? 0) || 0, 0);
     const qs = new URLSearchParams({
-      limit: String(Math.min(Math.max(Number(data.limit ?? 100) || 100, 1), 200)),
+      limit: String(limit),
+      offset: String(offset),
     });
     if (data.includeUnpaid) qs.set('include_unpaid', '1');
+    if (data.start) qs.set('start', data.start);
+    if (data.end) qs.set('end', data.end);
 
     const { status, body } = await iftinCall(apiKey, `/partner-intent-status?${qs.toString()}`, {
       method: 'GET',
@@ -81,6 +101,13 @@ export const listPartnerIntents = createServerFn({ method: 'POST' })
       unpaid_ttl_minutes: num(body?.unpaid_ttl_minutes) || 60,
       summary: normalizeSummary(body?.summary),
       intents: Array.isArray(body?.intents) ? (body.intents as PartnerIntent[]) : [],
+      total: num(body?.total),
+      limit: num(body?.limit) || limit,
+      offset: num(body?.offset) || offset,
+      has_more: Boolean(body?.has_more),
+      by_provider: Array.isArray(body?.by_provider) ? body.by_provider : [],
+      by_day: Array.isArray(body?.by_day) ? body.by_day : [],
+      by_provider_day: Array.isArray(body?.by_provider_day) ? body.by_provider_day : [],
     };
   });
 

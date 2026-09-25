@@ -10,6 +10,7 @@ import {
   type PartnerIntent,
   type PartnerIntentsData,
 } from '@/lib/iftinIntents.functions';
+import { AdminPagination, ADMIN_PAGE_SIZE } from './simple/AdminPagination';
 
 const TZ = 'Africa/Mogadishu';
 const timeFmt = new Intl.DateTimeFormat('en-GB', {
@@ -84,6 +85,7 @@ const IntentAccordionItem: React.FC<{
           ]}
         />
       )}
+      <AdminPagination page={page} total={Number(data?.total ?? 0)} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
     </div>
   );
 };
@@ -96,6 +98,7 @@ const IftinDailyOrders: React.FC<{ isSo?: boolean }> = ({ isSo = true }) => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedDate, setSelectedDate] = useState<string>(() => todayKey());
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -103,32 +106,41 @@ const IftinDailyOrders: React.FC<{ isSo?: boolean }> = ({ isSo = true }) => {
     try {
       const tenantId = await resolveTenantId();
       if (!tenantId) throw new Error('Reseller-ka lama garanayo');
-      const res = await listPartnerIntents({ data: { tenantId, limit: 200, includeUnpaid: false } });
+      const start = new Date(`${selectedDate}T00:00:00+03:00`);
+      const end = new Date(start.getTime() + 86_400_000);
+      const res = await listPartnerIntents({
+        data: {
+          tenantId,
+          limit: ADMIN_PAGE_SIZE,
+          offset: page * ADMIN_PAGE_SIZE,
+          includeUnpaid: false,
+          start: start.toISOString(),
+          end: end.toISOString(),
+        },
+      });
       setData(res);
     } catch (e: any) {
       setError(e?.message ?? 'Dalabyada lama soo dejin');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, selectedDate]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
-    const t = setInterval(() => void load(true), 30_000);
+    const t = setInterval(() => void load(true), 120_000);
     return () => clearInterval(t);
   }, [load]);
 
   const dayOrders = useMemo(
-    () => (data?.intents ?? [])
-      .filter((i) => i.counts_as_order === true)
-      .filter((i) => dayKey(i.created_at) === selectedDate),
-    [data, selectedDate],
+    () => (data?.intents ?? []).filter((i) => i.counts_as_order === true),
+    [data],
   );
 
-  const delivered = dayOrders.filter((i) => i.result === 'delivered').length;
-  const delivering = dayOrders.filter((i) => i.result === 'delivering').length;
-  const failed = dayOrders.filter((i) => i.result === 'failed').length;
-  const revenue = dayOrders.reduce((s, i) => s + Number(i.amount ?? 0), 0);
+  const delivered = Number(data?.summary.delivered ?? 0);
+  const delivering = Number(data?.summary.delivering ?? 0);
+  const failed = Number(data?.summary.failed ?? 0);
+  const revenue = Number(data?.summary.revenue ?? 0);
 
   const rows = useMemo(() => {
     const q = search.replace(/\D/g, '');
@@ -145,6 +157,7 @@ const IftinDailyOrders: React.FC<{ isSo?: boolean }> = ({ isSo = true }) => {
     const d = new Date(`${selectedDate}T12:00:00Z`);
     d.setUTCDate(d.getUTCDate() + dir);
     setSelectedDate(d.toISOString().split('T')[0]);
+    setPage(0);
   };
   const isToday = selectedDate === todayKey();
 
@@ -159,7 +172,7 @@ const IftinDailyOrders: React.FC<{ isSo?: boolean }> = ({ isSo = true }) => {
           <input
             type="date"
             value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
+            onChange={(e) => { setSelectedDate(e.target.value); setPage(0); }}
             className="flex-1 bg-transparent text-sm font-medium outline-none"
           />
         </div>
@@ -167,14 +180,14 @@ const IftinDailyOrders: React.FC<{ isSo?: boolean }> = ({ isSo = true }) => {
           <ArrowLeft className="w-4 h-4" />
         </button>
         {!isToday && (
-          <button onClick={() => setSelectedDate(todayKey())} className="text-xs px-2 py-1.5 bg-purple-600 text-white rounded-lg font-medium">
+          <button onClick={() => { setSelectedDate(todayKey()); setPage(0); }} className="text-xs px-2 py-1.5 bg-purple-600 text-white rounded-lg font-medium">
             {isSo ? 'Maanta' : 'Today'}
           </button>
         )}
       </div>
 
       <StatCardsRow cards={[
-        { label: isSo ? 'Wadarta' : 'Total', value: dayOrders.length, icon: Package, color: 'bg-purple-500' },
+        { label: isSo ? 'Wadarta' : 'Total', value: Number(data?.summary.orders ?? data?.total ?? 0), icon: Package, color: 'bg-purple-500' },
         { label: isSo ? 'La diray' : 'Delivered', value: delivered, icon: CheckCircle, color: 'bg-green-500' },
         { label: isSo ? 'Sugaya' : 'Pending', value: delivering, icon: Clock, color: 'bg-yellow-500' },
         { label: isSo ? 'Guuldaraystay' : 'Failed', value: failed, icon: XCircle, color: 'bg-red-500' },
@@ -183,7 +196,7 @@ const IftinDailyOrders: React.FC<{ isSo?: boolean }> = ({ isSo = true }) => {
 
       <FilterRow
         filters={[
-          { key: 'all', label: isSo ? 'Dhammaan' : 'All', count: dayOrders.length },
+          { key: 'all', label: isSo ? 'Dhammaan' : 'All', count: Number(data?.summary.orders ?? data?.total ?? 0) },
           { key: 'delivering', label: isSo ? 'Sugaya' : 'Pending', count: delivering },
           { key: 'delivered', label: isSo ? 'La diray' : 'Delivered', count: delivered },
           { key: 'failed', label: isSo ? 'Guuldaraystay' : 'Failed', count: failed },
@@ -206,7 +219,7 @@ const IftinDailyOrders: React.FC<{ isSo?: boolean }> = ({ isSo = true }) => {
             <IntentAccordionItem
               key={item.intent_id}
               item={item}
-              idx={idx}
+              idx={page * ADMIN_PAGE_SIZE + idx}
               isSo={isSo}
               expandedId={expandedId}
               setExpandedId={setExpandedId}
