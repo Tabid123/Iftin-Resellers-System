@@ -56,8 +56,12 @@ export function registerServiceWorker(): void {
 
   const register = () => {
     void navigator.serviceWorker
-      .register(SW_URL, { scope: "/" })
+      .register(SW_URL, { scope: "/", updateViaCache: "none" })
       .then((registration) => {
+        // Force a lightweight update check on every full page load so users
+        // never need to clear browser cache to receive a newly deployed shell.
+        void registration.update().catch(() => {});
+
         const version = import.meta.env.VITE_BUILD_VERSION;
         if (!version) return;
         const worker =
