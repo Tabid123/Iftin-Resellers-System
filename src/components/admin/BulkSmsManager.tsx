@@ -67,6 +67,7 @@ export function BulkSmsManager() {
 
   const [audienceCount, setAudienceCount] = useState(0);
   const [phonesLoading, setPhonesLoading] = useState(false);
+  const currentDevice = devices.find(d => d.device_id === selectedDevice);
 
   const loadDevices = useCallback(async () => {
     const { data } = await supabase
