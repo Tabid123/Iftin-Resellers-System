@@ -6,6 +6,7 @@ import {
 } from './simple/shared';
 import { resolveTenantId } from '@/lib/iftinCatalog';
 import { listPartnerIntents, type PartnerIntent, type PartnerIntentsData } from '@/lib/iftinIntents.functions';
+import { AdminPagination, ADMIN_PAGE_SIZE } from './simple/AdminPagination';
 
 const TZ = 'Africa/Mogadishu';
 const timeFmt = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false });
@@ -36,6 +37,17 @@ const rangeLabel = (k: RangeKey, isSo: boolean) => {
   }
 };
 
+const rangeBounds = (range: RangeKey): { start?: string } => {
+  if (range === 'all') return {};
+  const now = new Date();
+  if (range === 'today') {
+    const key = todayKey();
+    return { start: new Date(`${key}T00:00:00+03:00`).toISOString() };
+  }
+  const days = range === '7d' ? 7 : 30;
+  return { start: new Date(now.getTime() - days * 86_400_000).toISOString() };
+};
+
 const withinRange = (iso: string | null | undefined, range: RangeKey) => {
   if (range === 'all') return true;
   if (!iso) return false;
@@ -52,6 +64,7 @@ const IftinTransactions: React.FC<{ isSo?: boolean }> = ({ isSo = true }) => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [range, setRange] = useState<RangeKey>('7d');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -59,36 +72,44 @@ const IftinTransactions: React.FC<{ isSo?: boolean }> = ({ isSo = true }) => {
     try {
       const tenantId = await resolveTenantId();
       if (!tenantId) throw new Error(isSo ? 'Reseller-ka lama garanayo' : 'Tenant not resolved');
-      const res = await listPartnerIntents({ data: { tenantId, limit: 200, includeUnpaid: false } });
+      const bounds = rangeBounds(range);
+      const res = await listPartnerIntents({
+        data: {
+          tenantId,
+          limit: ADMIN_PAGE_SIZE,
+          offset: page * ADMIN_PAGE_SIZE,
+          includeUnpaid: false,
+          start: bounds.start ?? null,
+        },
+      });
       setData(res);
     } catch (e: any) {
       setError(e?.message ?? (isSo ? 'Xogta lama soo dejin' : 'Failed to load'));
     } finally {
       setLoading(false);
     }
-  }, [isSo]);
+  }, [isSo, page, range]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
-    const t = setInterval(() => void load(true), 30_000);
+    const t = setInterval(() => void load(true), 120_000);
     return () => clearInterval(t);
   }, [load]);
 
+  useEffect(() => { setPage(0); }, [range, statusFilter, search]);
+
   const scoped = useMemo(
-    () => (data?.intents ?? []).filter((i) => i.counts_as_order === true && withinRange(i.created_at, range)),
-    [data, range],
+    () => (data?.intents ?? []).filter((i) => i.counts_as_order === true),
+    [data],
   );
 
-  const deliveredRows = useMemo(() => scoped.filter((i) => i.result === 'delivered'), [scoped]);
-  const delivered = deliveredRows.length;
-  const delivering = scoped.filter((i) => i.result === 'delivering').length;
-  const failed = scoped.filter((i) => i.result === 'failed').length;
+  const delivered = Number(data?.summary.delivered ?? 0);
+  const delivering = Number(data?.summary.delivering ?? 0);
+  const failed = Number(data?.summary.failed ?? 0);
 
-  // Iftin Internet accounting: revenue/cost/profit are realized only after delivery.
-  // `your_profit` comes from the Iftin API and is already the reseller's USD profit.
-  const sales = deliveredRows.reduce((s, i) => s + Number(i.amount ?? 0), 0);
-  const cost = deliveredRows.reduce((s, i) => s + Number(i.base_price ?? 0), 0);
-  const profit = deliveredRows.reduce((s, i) => s + Number(i.your_profit ?? 0), 0);
+  const sales = Number(data?.summary.revenue ?? 0);
+  const cost = Number(data?.summary.cost ?? 0);
+  const profit = Number(data?.summary.profit ?? 0);
 
   const rows = useMemo(() => {
     const q = search.replace(/\D/g, '');
@@ -108,7 +129,7 @@ const IftinTransactions: React.FC<{ isSo?: boolean }> = ({ isSo = true }) => {
           {RANGES.map((k) => (
             <button
               key={k}
-              onClick={() => setRange(k)}
+              onClick={() => { setRange(k); setPage(0); }}
               className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg font-medium border ${
                 range === k ? 'bg-purple-600 text-white border-purple-600' : 'bg-white dark:bg-gray-800'
               }`}
@@ -127,7 +148,7 @@ const IftinTransactions: React.FC<{ isSo?: boolean }> = ({ isSo = true }) => {
       </div>
 
       <StatCardsRow cards={[
-        { label: isSo ? 'Wadarta' : 'Transactions', value: scoped.length, icon: Package, color: 'bg-blue-500' },
+        { label: isSo ? 'Wadarta' : 'Transactions', value: Number(data?.summary.orders ?? data?.total ?? 0), icon: Package, color: 'bg-blue-500' },
         { label: isSo ? 'Iibka' : 'Sales', value: `$${sales.toFixed(2)}`, icon: DollarSign, color: 'bg-purple-500' },
         { label: isSo ? 'Kharash' : 'Cost', value: `$${cost.toFixed(2)}`, icon: DollarSign, color: 'bg-gray-600' },
         { label: isSo ? 'Faaiido' : 'Profit', value: `$${profit.toFixed(2)}`, icon: DollarSign, color: 'bg-emerald-500' },
@@ -135,7 +156,7 @@ const IftinTransactions: React.FC<{ isSo?: boolean }> = ({ isSo = true }) => {
 
       <FilterRow
         filters={[
-          { key: 'all', label: isSo ? 'Dhammaan' : 'All', count: scoped.length },
+          { key: 'all', label: isSo ? 'Dhammaan' : 'All', count: Number(data?.summary.orders ?? data?.total ?? 0) },
           { key: 'delivered', label: isSo ? 'La diray' : 'Delivered', count: delivered },
           { key: 'delivering', label: isSo ? 'Sugaya' : 'Pending', count: delivering },
           { key: 'failed', label: isSo ? 'Guuldaraystay' : 'Failed', count: failed },
@@ -164,7 +185,7 @@ const IftinTransactions: React.FC<{ isSo?: boolean }> = ({ isSo = true }) => {
                   className="w-full px-3 py-2.5 flex items-center justify-between text-left active:bg-purple-50/50 dark:active:bg-purple-950/20"
                 >
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span className="text-[10px] font-bold text-purple-400 w-5">#{idx + 1}</span>
+                    <span className="text-[10px] font-bold text-purple-400 w-5">#{page * ADMIN_PAGE_SIZE + idx + 1}</span>
                     <div className="min-w-0 flex-1">
                       <div className="font-bold text-sm text-gray-800 dark:text-white truncate">{item.package_name ?? '—'}</div>
                       <div className="text-[11px] text-gray-400 truncate">
@@ -204,8 +225,9 @@ const IftinTransactions: React.FC<{ isSo?: boolean }> = ({ isSo = true }) => {
         </div>
       )}
 
+      <AdminPagination page={page} total={Number(data?.total ?? 0)} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
       <div className="flex gap-2 text-[11px] text-muted-foreground">
-        <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" />{isSo ? 'Isku cusboonaysiin 30s' : 'Auto refresh 30s'}</span>
+        <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" />{isSo ? 'Safety refresh 120s' : 'Safety refresh 120s'}</span>
         <span className="inline-flex items-center gap-1"><XCircle className="w-3 h-3" />{isSo ? 'Kuwii aan la bixin lama tirinayo' : 'Unpaid excluded'}</span>
       </div>
     </div>
