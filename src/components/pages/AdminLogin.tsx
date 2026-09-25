@@ -46,8 +46,18 @@ const AdminLogin = () => {
       // Ignore invalid/blocked storage and keep the neutral fallback below.
     }
   }
-  const brandName = tenant?.name || 'Admin';
-  const brandLogo = tenant?.logo_url || najaxLogo;
+  const fallbackTenantName =
+    cachedTenantName ||
+    (import.meta.env.VITE_TENANT_NAME as string | undefined) ||
+    routeTenantSlug ||
+    'Iftin Agents';
+  const fallbackTenantLogo =
+    cachedTenantLogo ||
+    (import.meta.env.VITE_TENANT_LOGO_URL as string | undefined) ||
+    najaxLogo;
+
+  const brandName = tenant?.name || fallbackTenantName;
+  const brandLogo = tenant?.logo_url || fallbackTenantLogo;
   const primary = tenant?.primary_color || '#3D0066';
   const accent = tenant?.accent_color || '#C5F82A';
   const [email, setEmail] = useState('');
@@ -209,7 +219,17 @@ const AdminLogin = () => {
     }
   };
 
-  if (routeTenantSlug && !tenant) {
+  if (
+    routeTenantSlug &&
+    (
+      tenantState.status === 'loading' ||
+      tenantState.status === 'platform' ||
+      !tenant ||
+      tenant.slug.toLowerCase() !== routeTenantSlug.toLowerCase()
+    ) &&
+    tenantState.status !== 'not_found' &&
+    tenantState.status !== 'offline'
+  ) {
     const loadingLogo =
       cachedTenantLogo ||
       (import.meta.env.VITE_TENANT_LOGO_URL as string | undefined) ||
