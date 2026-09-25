@@ -32,6 +32,9 @@ export type PartnerIntentSummary = {
   failed: number;
   awaiting_payment: number;
   expired_unpaid: number;
+  revenue: number;
+  cost: number;
+  profit: number;
 };
 
 export type PartnerIntentsData = {
@@ -56,6 +59,9 @@ function normalizeSummary(s: any): PartnerIntentSummary {
     failed: num(s?.failed),
     awaiting_payment: num(s?.awaiting_payment),
     expired_unpaid: num(s?.expired_unpaid),
+    revenue: num(s?.revenue),
+    cost: num(s?.cost),
+    profit: num(s?.profit),
   };
 }
 
