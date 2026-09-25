@@ -2,7 +2,6 @@ import React from "react";
 import { useTenant } from "@/contexts/TenantContext";
 import { ResellerCodeGate } from "@/components/ResellerCodeGate";
 import { AlertCircle, Lock, MessageCircle, Wallet, WifiOff } from "lucide-react";
-import najaxLogoSplash from "@/assets/najax-logo.jpeg";
 import { normalizeSupportPhone } from "@/hooks/useSupportPhone";
 
 
@@ -24,63 +23,73 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
   const state = useTenant();
   const [showStartupSplash, setShowStartupSplash] = React.useState(true);
 
+  const routeTenantSlug =
+    typeof window !== "undefined"
+      ? window.location.pathname.match(/^\/t\/([^/]+)(?=\/|$)/)?.[1] ?? null
+      : null;
+
+  const tenant =
+    state.status === "ready" || state.status === "suspended" ? state.tenant : null;
+
+  let cachedLogo: string | null = null;
+  let cachedName: string | null = null;
+  if (!tenant && routeTenantSlug && typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(`najax.tenant_cache.${routeTenantSlug}`);
+      if (raw) {
+        const cached = JSON.parse(raw);
+        cachedLogo = cached?.logo_url || null;
+        cachedName = cached?.name || null;
+      }
+    } catch {
+      // Ignore invalid/blocked cache. Do not show a generic fallback splash.
+    }
+  }
+
+  const buildLogo = (import.meta.env.VITE_TENANT_LOGO_URL as string | undefined) || null;
+  const buildName = (import.meta.env.VITE_TENANT_NAME as string | undefined) || null;
+  const splashLogo = tenant?.logo_url || cachedLogo || buildLogo;
+  const splashName = tenant?.name || cachedName || buildName || routeTenantSlug || "";
+
+  const hasTenantIdentity = Boolean(
+    tenant ||
+    cachedName ||
+    cachedLogo ||
+    buildName ||
+    buildLogo
+  );
+
+  // Start the visible splash timer only after tenant branding is actually known.
+  // This prevents a generic placeholder splash from appearing first.
   React.useEffect(() => {
+    if (!hasTenantIdentity) return;
+    setShowStartupSplash(true);
     const timer = window.setTimeout(() => {
       setShowStartupSplash(false);
     }, WEB_SPLASH_MS);
-
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [hasTenantIdentity, splashLogo, splashName]);
 
-  if (state.status === "loading" || showStartupSplash) {
-    const tenant =
-      state.status === "ready" || state.status === "suspended" ? state.tenant : null;
+  // While the tenant is still unresolved, block child routes but render no
+  // generic logo/spinner. The first branded screen the user sees is the
+  // tenant-owned splash below.
+  if (state.status === "loading" && !hasTenantIdentity) {
+    return <div className="fixed inset-0 z-[9999] bg-primary" aria-hidden="true" />;
+  }
 
-    let cachedLogo: string | null = null;
-    let cachedName: string | null = null;
-    if (!tenant && typeof window !== "undefined") {
-      const match = window.location.pathname.match(/^\/t\/([^/]+)(?=\/|$)/);
-      const slug = match?.[1];
-      if (slug) {
-        try {
-          const raw = localStorage.getItem(`najax.tenant_cache.${slug}`);
-          if (raw) {
-            const cached = JSON.parse(raw);
-            cachedLogo = cached?.logo_url || null;
-            cachedName = cached?.name || null;
-          }
-        } catch {
-          // Ignore a corrupt/blocked cache and keep the neutral fallback.
-        }
-      }
-    }
-
-    const logo =
-      tenant?.logo_url ||
-      cachedLogo ||
-      (import.meta.env.VITE_TENANT_LOGO_URL as string | undefined) ||
-      najaxLogoSplash;
-
-    const name =
-      tenant?.name ||
-      cachedName ||
-      (import.meta.env.VITE_TENANT_NAME as string | undefined) ||
-      "App";
-
-    // IMPORTANT: do not render children behind this gate. While the tenant row
-    // is unresolved, child routes can temporarily render generic/admin UI such
-    // as "Admin Admin". The splash is the only visible/rendered route content
-    // until tenant resolution is complete.
+  if (hasTenantIdentity && (state.status === "loading" || showStartupSplash)) {
     return (
       <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-primary">
-        <img
-          src={logo}
-          alt={name}
-          className="h-36 w-36 rounded-2xl object-cover shadow-lg"
-          onError={(event) => {
-            event.currentTarget.src = najaxLogoSplash;
-          }}
-        />
+        {splashLogo ? (
+          <img
+            src={splashLogo}
+            alt={splashName}
+            className="h-36 w-36 rounded-2xl object-cover shadow-lg"
+            onError={(event) => {
+              event.currentTarget.style.display = "none";
+            }}
+          />
+        ) : null}
         <div className="mt-8 h-9 w-9 animate-spin rounded-full border-[3px] border-accent/30 border-t-accent" />
       </div>
     );
