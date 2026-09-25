@@ -231,6 +231,7 @@ export function TransactionsDashboard() {
       deliveredCount: Number(summary.delivered_count || 0),
     });
 
+    setTotalRows(ordersResult.count ?? 0);
     const providerRows = (providersResult.data || []) as Provider[];
     const providerMap = new Map(providerRows.map((provider) => [provider.id, provider]));
     const packageRows = (packagesResult.data || []) as PackageConfig[];
