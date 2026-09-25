@@ -37,6 +37,8 @@ export type PartnerIntentSummary = {
   profit: number;
 };
 
+export type PartnerReportAgg = { day?: string; name?: string; orders: number; sales: number; cost: number; profit: number };
+
 export type PartnerIntentsData = {
   unpaid_ttl_minutes: number;
   summary: PartnerIntentSummary;
@@ -45,6 +47,9 @@ export type PartnerIntentsData = {
   limit: number;
   offset: number;
   has_more: boolean;
+  by_provider: PartnerReportAgg[];
+  by_day: PartnerReportAgg[];
+  by_provider_day: PartnerReportAgg[];
 };
 
 const UUID_RE = /^[0-9a-f-]{36}$/i;
@@ -100,6 +105,9 @@ export const listPartnerIntents = createServerFn({ method: 'POST' })
       limit: num(body?.limit) || limit,
       offset: num(body?.offset) || offset,
       has_more: Boolean(body?.has_more),
+      by_provider: Array.isArray(body?.by_provider) ? body.by_provider : [],
+      by_day: Array.isArray(body?.by_day) ? body.by_day : [],
+      by_provider_day: Array.isArray(body?.by_provider_day) ? body.by_provider_day : [],
     };
   });
 
