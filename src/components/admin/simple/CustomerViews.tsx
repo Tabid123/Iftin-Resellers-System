@@ -13,71 +13,51 @@ import { Edit } from 'lucide-react';
 import { deleteTenantOfflineRegistration, saveTenantOfflineRegistration } from '@/lib/tenantOfflineRegistration';
 import { EditDeviceDialog } from '../EditDeviceDialog';
 import { DeleteDeviceDialog } from '../DeleteDeviceDialog';
+import { AdminPagination, ADMIN_PAGE_SIZE } from './AdminPagination';
 
 // ========== CUSTOMERS ==========
 export const CustomersCustomView = ({ isSo }: { isSo: boolean }) => {
   const [phones, setPhones] = useState<any[]>([]);
-  const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [filteredTotal, setFilteredTotal] = useState(0);
+  const [summary, setSummary] = useState({ total: 0, newToday: 0, boughtToday: 0, inactive: 0, active: 0 });
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [phonesRes, ordersRes, regsRes] = await Promise.all([
-      supabase.from('verified_phones').select('*').order('created_at', { ascending: false }),
-      supabase.from('orders').select('customer_phone, created_at, selling_price').order('created_at', { ascending: false }).limit(2000),
-      supabase.from('offline_registrations').select('sender_phone, created_at').order('created_at', { ascending: false }).limit(2000),
-    ]);
-
-    const orderRows = ordersRes.data || [];
-    // Macaamiisha: lambarada la xaqiijiyay, kuwa dalab sameeyay, iyo diiwaangelinta offline-ka.
-    const rows: any[] = (phonesRes.data || []).map(p => ({ ...p, __verified: true }));
-    const seen = new Set(rows.map(r => normalizePhone(r.phone_number)));
-
-    for (const o of orderRows) {
-      const norm = normalizePhone(o.customer_phone);
-      if (!norm || seen.has(norm)) continue;
-      seen.add(norm);
-      rows.push({ id: `ord-${norm}`, phone_number: norm, created_at: o.created_at, __verified: false, __source: 'order' });
+    const { data, error } = await (supabase as any).rpc('get_admin_customers_page', {
+      p_limit: ADMIN_PAGE_SIZE,
+      p_offset: page * ADMIN_PAGE_SIZE,
+      p_search: search.trim() || null,
+      p_filter: filter,
+    });
+    if (error) {
+      console.error('[Customers] paginated load failed', error);
+      setPhones([]);
+      setFilteredTotal(0);
+      setLoading(false);
+      return;
     }
-
-    for (const r of (regsRes.data || [])) {
-      const norm = normalizePhone(r.sender_phone);
-      if (!norm || seen.has(norm)) continue;
-      seen.add(norm);
-      rows.push({ id: `off-${norm}`, phone_number: norm, created_at: r.created_at, __verified: false, __source: 'offline' });
-    }
-
-    setPhones(rows);
-    setOrders(orderRows);
+    const payload = data || {};
+    setPhones(Array.isArray(payload.rows) ? payload.rows : []);
+    setFilteredTotal(Number(payload.filtered_total ?? payload.total ?? 0));
+    setSummary({
+      total: Number(payload.total ?? 0),
+      newToday: Number(payload.new_today ?? 0),
+      boughtToday: Number(payload.bought_today ?? 0),
+      inactive: Number(payload.inactive ?? 0),
+      active: Number(payload.active ?? 0),
+    });
     setLoading(false);
-  }, []);
+  }, [filter, page, search]);
 
-
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { void loadData(); }, [loadData]);
   useRealtimeRefresh(['verified_phones', 'orders', 'offline_registrations'], loadData, 800, { notify: true, lang: isSo ? 'so' : 'en' });
 
-  const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
-  const allBuyerPhones = new Set(orders.map(o => normalizePhone(o.customer_phone)));
-  const todayRegistered = phones.filter(p => new Date(p.created_at) >= startOfToday);
-  const activeCustomers = phones.filter(p => allBuyerPhones.has(normalizePhone(p.phone_number)));
-  const inactiveCustomers = phones.filter(p => !allBuyerPhones.has(normalizePhone(p.phone_number)));
-  const purchasedToday = phones.filter(p => {
-    const todayOrders = orders.filter(o => new Date(o.created_at) >= startOfToday);
-    return new Set(todayOrders.map(o => normalizePhone(o.customer_phone))).has(normalizePhone(p.phone_number));
-  });
-
-  const getFiltered = () => {
-    let filtered = phones;
-    if (filter === 'today') filtered = todayRegistered;
-    else if (filter === 'active') filtered = activeCustomers;
-    else if (filter === 'inactive') filtered = inactiveCustomers;
-    else if (filter === 'purchasedToday') filtered = purchasedToday;
-    if (search) filtered = filtered.filter(p => p.phone_number.includes(search));
-    return filtered;
-  };
+  useEffect(() => { setPage(0); }, [filter, search]);
 
   const deleteCustomer = async (id: string, phone: string) => {
     if (!/^[0-9a-f-]{36}$/i.test(id)) {
@@ -87,46 +67,37 @@ export const CustomersCustomView = ({ isSo }: { isSo: boolean }) => {
     if (!confirm(isSo ? `Ma hubtaa inaad tirtirto ${phone}?` : `Delete ${phone}?`)) return;
     const { error } = await supabase.from('verified_phones').delete().eq('id', id);
     if (error) { toast.error('Error'); return; }
-    setPhones(prev => prev.filter(p => p.id !== id));
     toast.success(isSo ? 'Waa la tirtiray' : 'Deleted');
+    await loadData();
   };
-
-  const getCustomerStats = (phone: string) => {
-    const norm = normalizePhone(phone);
-    const customerOrders = orders.filter(o => normalizePhone(o.customer_phone) === norm);
-    const totalSpent = customerOrders.reduce((s, o) => s + Number(o.selling_price || 0), 0);
-    return { orderCount: customerOrders.length, totalSpent };
-  };
-
-  const filteredCustomers = getFiltered();
 
   return (
     <div className="space-y-3">
       <StatCardsRow cards={[
-        { label: isSo ? 'Wadarta' : 'Total', value: phones.length, color: 'bg-purple-500', icon: Users },
-        { label: isSo ? 'Cusub Maanta' : 'New Today', value: todayRegistered.length, color: 'bg-green-500', icon: UserPlus },
-        { label: isSo ? 'Maanta libsatay' : 'Bought Today', value: purchasedToday.length, color: 'bg-blue-500', icon: Package },
-        { label: isSo ? 'Aan libsan' : 'Never Bought', value: inactiveCustomers.length, color: 'bg-orange-500', icon: XCircle },
+        { label: isSo ? 'Wadarta' : 'Total', value: summary.total, color: 'bg-purple-500', icon: Users },
+        { label: isSo ? 'Cusub Maanta' : 'New Today', value: summary.newToday, color: 'bg-green-500', icon: UserPlus },
+        { label: isSo ? 'Maanta libsatay' : 'Bought Today', value: summary.boughtToday, color: 'bg-blue-500', icon: Package },
+        { label: isSo ? 'Aan libsan' : 'Never Bought', value: summary.inactive, color: 'bg-orange-500', icon: XCircle },
       ]} />
       <FilterRow filters={[
-        { key: 'all', label: isSo ? 'Dhammaan' : 'All', count: phones.length },
-        { key: 'today', label: isSo ? 'Cusub' : 'New', count: todayRegistered.length },
-        { key: 'active', label: isSo ? 'Firfircoon' : 'Active', count: activeCustomers.length },
-        { key: 'purchasedToday', label: isSo ? 'Maanta' : 'Today', count: purchasedToday.length },
-        { key: 'inactive', label: isSo ? 'Aan Iibsan' : 'Inactive', count: inactiveCustomers.length },
+        { key: 'all', label: isSo ? 'Dhammaan' : 'All', count: summary.total },
+        { key: 'today', label: isSo ? 'Cusub' : 'New', count: summary.newToday },
+        { key: 'active', label: isSo ? 'Firfircoon' : 'Active', count: summary.active },
+        { key: 'purchasedToday', label: isSo ? 'Maanta' : 'Today', count: summary.boughtToday },
+        { key: 'inactive', label: isSo ? 'Aan Iibsan' : 'Inactive', count: summary.inactive },
       ]} activeKey={filter} onSelect={setFilter} activeColor="bg-teal-500" />
       <SearchInput value={search} onChange={setSearch} placeholder={isSo ? 'Raadi lambarka...' : 'Search phone...'} />
-      {loading ? <LazyFallback /> : filteredCustomers.length === 0 ? <EmptyState message={isSo ? 'Wax macaamiil ah lama helin' : 'No customers found'} /> : (
+      {loading ? <LazyFallback /> : phones.length === 0 ? <EmptyState message={isSo ? 'Wax macaamiil ah lama helin' : 'No customers found'} /> : (
         <div className="space-y-2">
-          {filteredCustomers.map((item, idx) => {
-            const isExpanded = expandedId === item.id;
-            const hasOrders = allBuyerPhones.has(normalizePhone(item.phone_number));
-            const isNewToday = new Date(item.created_at) >= startOfToday;
-            const stats = isExpanded ? getCustomerStats(item.phone_number) : null;
+          {phones.map((item, idx) => {
+            const rowId = item.id || `customer-${item.phone_number}`;
+            const isExpanded = expandedId === rowId;
+            const hasOrders = Number(item.order_count || 0) > 0;
             return (
-              <div key={item.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-purple-100/50 dark:border-purple-900/20 overflow-hidden">
-                <button onClick={() => setExpandedId(isExpanded ? null : item.id)} className="w-full px-3 py-2.5 flex items-center justify-between text-left active:bg-purple-50/50">
+              <div key={rowId} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-purple-100/50 dark:border-purple-900/20 overflow-hidden">
+                <button onClick={() => setExpandedId(isExpanded ? null : rowId)} className="w-full px-3 py-2.5 flex items-center justify-between text-left active:bg-purple-50/50">
                   <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-purple-400 w-5">#{page * ADMIN_PAGE_SIZE + idx + 1}</span>
                     <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
                       <Phone className="w-4 h-4 text-purple-600" />
                     </div>
@@ -136,27 +107,26 @@ export const CustomersCustomView = ({ isSo }: { isSo: boolean }) => {
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    {isNewToday && <span className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-bold">{isSo ? 'Cusub' : 'New'}</span>}
-                    {hasOrders ? <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-bold">{isSo ? 'Active' : 'Active'}</span> : <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full font-bold">Inactive</span>}
+                    {item.bought_today && <span className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-bold">{isSo ? 'Maanta' : 'Today'}</span>}
+                    {hasOrders ? <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-bold">Active</span> : <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full font-bold">Inactive</span>}
                     <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                   </div>
                 </button>
                 {isExpanded && (
-                  <InvoiceAccordionContent isSo={isSo} id={item.id} rows={[
+                  <InvoiceAccordionContent isSo={isSo} id={rowId} rows={[
                     { icon: Phone, label: isSo ? 'Lambarka' : 'Phone', value: `+252${item.phone_number}`, color: 'text-purple-500' },
                     { icon: Calendar, label: isSo ? 'Diiwaangelintu' : 'Registered', value: `${formatDate(item.created_at)} ${formatTime(item.created_at)}`, color: 'text-teal-500' },
                     ...(item.last_login_at ? [{ icon: Calendar, label: isSo ? 'Gelitiin Danbe' : 'Last Login', value: `${formatDate(item.last_login_at)} ${formatTime(item.last_login_at)}`, color: 'text-blue-500' }] : []),
-                    ...(stats ? [
-                      { icon: Package, label: isSo ? 'Dalabyada' : 'Orders', value: `${stats.orderCount}`, color: 'text-cyan-500' },
-                      { icon: DollarSign, label: isSo ? 'Ku bixiyay' : 'Total Spent', value: `$${stats.totalSpent.toFixed(2)}`, color: 'text-emerald-500' },
-                    ] : []),
-                  ]} actions={<ActionBtn onClick={() => deleteCustomer(item.id, item.phone_number)} icon={Trash2} label={isSo ? 'Tirtir' : 'Delete'} variant="danger" />} />
+                    { icon: Package, label: isSo ? 'Dalabyada' : 'Orders', value: String(item.order_count || 0), color: 'text-cyan-500' },
+                    { icon: DollarSign, label: isSo ? 'Ku bixiyay' : 'Total Spent', value: `$${Number(item.total_spent || 0).toFixed(2)}`, color: 'text-emerald-500' },
+                  ]} actions={item.id ? <ActionBtn onClick={() => deleteCustomer(item.id, item.phone_number)} icon={Trash2} label={isSo ? 'Tirtir' : 'Delete'} variant="danger" /> : undefined} />
                 )}
               </div>
             );
           })}
         </div>
       )}
+      <AdminPagination page={page} total={filteredTotal} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
     </div>
   );
 };
@@ -168,6 +138,9 @@ export const OfflineRegistrationsCustomView = ({ isSo }: { isSo: boolean }) => {
   const [filter, setFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [totalRows, setTotalRows] = useState(0);
+  const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0, today: 0 });
   const [showAdd, setShowAdd] = useState(false);
   const [newReg, setNewReg] = useState({ sender_phone: '', receiver_phone: '', provider_id: '', category_id: '', package_id: '' });
   const [providerList, setProviderList] = useState<any[]>([]);
@@ -186,34 +159,47 @@ export const OfflineRegistrationsCustomView = ({ isSo }: { isSo: boolean }) => {
     });
   }, []);
 
-  // Tenant-native only: registrations are stored and managed in this tenant's database.
+  // Tenant-native only: fetch one 50-row page; counts use HEAD queries with no row payload.
   const loadRegs = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+    const from = page * ADMIN_PAGE_SIZE;
+    const to = from + ADMIN_PAGE_SIZE - 1;
+
+    let query = supabase
       .from('offline_registrations')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) toast.error(isSo ? 'Liiska lama soo dejin' : 'Failed to load');
-    setRegs((data ?? []).map((r: any) => ({ ...r, __local: true })));
+      .select('id,sender_phone,receiver_phone,provider_id,provider_name,package_id,package_name,is_active,created_at,updated_at,tenant_id', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    if (filter === 'active') query = query.eq('is_active', true);
+    else if (filter === 'inactive') query = query.eq('is_active', false);
+    else if (filter === 'today') query = query.gte('created_at', startOfToday.toISOString());
+    if (search.trim()) query = query.or(`sender_phone.ilike.%${search.trim()}%,receiver_phone.ilike.%${search.trim()}%`);
+
+    const [pageRes, totalRes, activeRes, inactiveRes, todayRes] = await Promise.all([
+      query,
+      supabase.from('offline_registrations').select('id', { count: 'exact', head: true }),
+      supabase.from('offline_registrations').select('id', { count: 'exact', head: true }).eq('is_active', true),
+      supabase.from('offline_registrations').select('id', { count: 'exact', head: true }).eq('is_active', false),
+      supabase.from('offline_registrations').select('id', { count: 'exact', head: true }).gte('created_at', startOfToday.toISOString()),
+    ]);
+
+    if (pageRes.error) toast.error(isSo ? 'Liiska lama soo dejin' : 'Failed to load');
+    setRegs((pageRes.data ?? []).map((r: any) => ({ ...r, __local: true })));
+    setTotalRows(pageRes.count ?? 0);
+    setStats({
+      total: totalRes.count ?? 0,
+      active: activeRes.count ?? 0,
+      inactive: inactiveRes.count ?? 0,
+      today: todayRes.count ?? 0,
+    });
     setLoading(false);
-  }, [isSo]);
+  }, [filter, isSo, page, search]);
 
-  useEffect(() => { loadRegs(); }, [loadRegs]);
+  useEffect(() => { void loadRegs(); }, [loadRegs]);
   useRealtimeRefresh(['offline_registrations'], loadRegs, 800);
-
-  const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
-  const activeRegs = regs.filter(r => r.is_active).length;
-  const inactiveRegs = regs.filter(r => !r.is_active).length;
-  const todayRegs = regs.filter(r => new Date(r.created_at) >= startOfToday).length;
-
-  const getFiltered = () => {
-    let filtered = regs;
-    if (filter === 'active') filtered = filtered.filter(r => r.is_active);
-    else if (filter === 'inactive') filtered = filtered.filter(r => !r.is_active);
-    else if (filter === 'today') filtered = filtered.filter(r => new Date(r.created_at) >= startOfToday);
-    if (search) filtered = filtered.filter(r => r.sender_phone?.includes(search) || r.receiver_phone?.includes(search));
-    return filtered;
-  };
+  useEffect(() => { setPage(0); }, [filter, search]);
 
   const toggleStatus = async (id: string, _currentStatus: boolean) => {
     const row = regs.find((r) => r.id === id);
@@ -317,21 +303,21 @@ export const OfflineRegistrationsCustomView = ({ isSo }: { isSo: boolean }) => {
       (!newReg.category_id || String(pkg.category_id) === String(newReg.category_id)),
   );
 
-  const filteredRegs = getFiltered();
+  const filteredRegs = regs;
 
   return (
     <div className="space-y-3">
       <StatCardsRow cards={[
-        { label: 'Total', value: regs.length, color: 'bg-purple-500', icon: Users },
-        { label: 'Active', value: activeRegs, color: 'bg-green-500', icon: CheckCircle },
-        { label: 'Inactive', value: inactiveRegs, color: 'bg-amber-500', icon: XCircle },
-        { label: isSo ? 'Maanta' : 'Today', value: todayRegs, color: 'bg-sky-500', icon: UserPlus },
+        { label: 'Total', value: stats.total, color: 'bg-purple-500', icon: Users },
+        { label: 'Active', value: stats.active, color: 'bg-green-500', icon: CheckCircle },
+        { label: 'Inactive', value: stats.inactive, color: 'bg-amber-500', icon: XCircle },
+        { label: isSo ? 'Maanta' : 'Today', value: stats.today, color: 'bg-sky-500', icon: UserPlus },
       ]} />
       <FilterRow filters={[
-        { key: 'all', label: isSo ? 'Dhammaan' : 'All', count: regs.length },
-        { key: 'active', label: 'Active', count: activeRegs },
-        { key: 'inactive', label: 'Inactive', count: inactiveRegs },
-        { key: 'today', label: isSo ? 'Maanta' : 'Today', count: todayRegs },
+        { key: 'all', label: isSo ? 'Dhammaan' : 'All', count: stats.total },
+        { key: 'active', label: 'Active', count: stats.active },
+        { key: 'inactive', label: 'Inactive', count: stats.inactive },
+        { key: 'today', label: isSo ? 'Maanta' : 'Today', count: stats.today },
       ]} activeKey={filter} onSelect={setFilter} activeColor="bg-orange-500" />
       <SearchInput value={search} onChange={setSearch} placeholder={isSo ? 'Raadi sender ama receiver...' : 'Search...'} />
       <button onClick={() => setShowAdd(!showAdd)} className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 active:scale-[0.98]">
@@ -396,7 +382,7 @@ export const OfflineRegistrationsCustomView = ({ isSo }: { isSo: boolean }) => {
               <div key={item.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-purple-100/50 dark:border-purple-900/20 overflow-hidden">
                 <button onClick={() => setExpandedId(isExpanded ? null : item.id)} className="w-full px-3 py-2.5 flex items-center justify-between text-left active:bg-purple-50/50">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span className="text-[10px] font-bold text-purple-400 w-5">#{idx + 1}</span>
+                    <span className="text-[10px] font-bold text-purple-400 w-5">#{page * ADMIN_PAGE_SIZE + idx + 1}</span>
                     <div className="min-w-0">
                       <div className="font-semibold text-sm text-gray-800 dark:text-white">{formatPhone(item.sender_phone)}</div>
                       <div className="text-[11px] text-gray-400">→ {formatPhone(item.receiver_phone)}</div>
@@ -427,6 +413,7 @@ export const OfflineRegistrationsCustomView = ({ isSo }: { isSo: boolean }) => {
           })}
         </div>
       )}
+      <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
     </div>
   );
 };
@@ -439,28 +426,44 @@ export const DevicesCustomView = ({ isSo }: { isSo: boolean }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editDevice, setEditDevice] = useState<any>(null);
   const [deleteDevice, setDeleteDevice] = useState<any>(null);
+  const [page, setPage] = useState(0);
+  const [totalRows, setTotalRows] = useState(0);
 
   const loadDevices = useCallback(async () => {
-    const [devRes, balRes] = await Promise.all([
-      supabase.from('android_devices').select('*').is('archived_at', null).order('last_ping_at', { ascending: false }),
-      supabase.from('sim_balances').select('*'),
-    ]);
-    if (!devRes.error) setDevices(devRes.data || []);
+    const from = page * ADMIN_PAGE_SIZE;
+    const to = from + ADMIN_PAGE_SIZE - 1;
+    const devRes = await supabase
+      .from('android_devices')
+      .select('id,device_id,device_name,provider_name,sim1_provider,sim2_provider,sim_number,sim2_number,last_ping_at,is_active,battery_level,is_charging,is_primary_hormuud_sim,sim1_enabled,sim2_enabled,sim1_priority,sim2_priority,total_deliveries,failed_deliveries', { count: 'exact' })
+      .is('archived_at', null)
+      .order('last_ping_at', { ascending: false })
+      .range(from, to);
+
+    const rows = devRes.data || [];
+    const ids = rows.map((d: any) => d.id);
+    const balRes = ids.length
+      ? await supabase
+          .from('sim_balances')
+          .select('device_id,sim_slot,balance,balance_type,last_updated')
+          .in('device_id', ids)
+      : { data: [], error: null };
+
+    if (!devRes.error) {
+      setDevices(rows);
+      setTotalRows(devRes.count ?? 0);
+    }
     if (!balRes.error) setBalances(balRes.data || []);
     setLoading(false);
-  }, []);
-
+  }, [page]);
   useEffect(() => {
     void loadDevices();
     const refreshVisible = () => {
       if (document.visibilityState === 'visible') void loadDevices();
     };
-    const timer = window.setInterval(refreshVisible, 10_000);
     window.addEventListener('focus', refreshVisible);
     window.addEventListener('online', refreshVisible);
     document.addEventListener('visibilitychange', refreshVisible);
     return () => {
-      window.clearInterval(timer);
       window.removeEventListener('focus', refreshVisible);
       window.removeEventListener('online', refreshVisible);
       document.removeEventListener('visibilitychange', refreshVisible);
@@ -604,6 +607,8 @@ export const DevicesCustomView = ({ isSo }: { isSo: boolean }) => {
           })}
         </div>
       )}
+
+      <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
 
       {/* Edit Dialog */}
       {editDevice && (

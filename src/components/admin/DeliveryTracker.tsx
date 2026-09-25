@@ -11,6 +11,7 @@ import { Loader2, RefreshCw, Truck, CheckCircle2, XCircle, Clock, Phone, Zap, Ra
 import { toast } from '@/hooks/use-toast';
 import { format, formatDistanceToNow, subDays, startOfDay, endOfDay } from 'date-fns';
 import CachedImage from '@/components/CachedImage';
+import { AdminPagination, ADMIN_PAGE_SIZE } from './simple/AdminPagination';
 
 interface DeliveryItem {
   id: string;
@@ -74,6 +75,9 @@ export function DeliveryTracker() {
   const [cancelReason, setCancelReason] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [providerLogos, setProviderLogos] = useState<Record<string, string>>({});
+  const [page, setPage] = useState(0);
+  const [totalRows, setTotalRows] = useState(0);
+  const [serverStats, setServerStats] = useState({ total: 0, completed: 0, processing: 0, pending: 0, failed: 0, cancelled: 0 });
 
   // Providers are loaded separately: `orders.provider_id` has no FK to
   // providers_config, so a nested PostgREST embed fails the whole query.
@@ -99,17 +103,53 @@ export function DeliveryTracker() {
         case 'all': break;
       }
 
-      let query = supabase
-        .from('delivery_queue')
-        .select(`*, order:order_id (package_name, data_amount, customer_phone, sender_phone, delivery_notes, delivery_status, provider_id)`)
-        .order('created_at', { ascending: false });
+      const applyDates = (q: any) => {
+        let next = q;
+        if (dateFrom) next = next.gte('created_at', dateFrom.toISOString());
+        if (dateTo) next = next.lte('created_at', dateTo.toISOString());
+        return next;
+      };
 
-      if (dateFrom) query = query.gte('created_at', dateFrom.toISOString());
-      if (dateTo) query = query.lte('created_at', dateTo.toISOString());
+      const from = page * ADMIN_PAGE_SIZE;
+      const to = from + ADMIN_PAGE_SIZE - 1;
+      let query = applyDates(
+        supabase
+          .from('delivery_queue')
+          .select(
+            `id,order_id,provider_name,receiver_phone,ussd_code,package_code,status,attempts,error_message,created_at,last_attempt_at,completed_at,android_device_id,
+             order:order_id(package_name,data_amount,customer_phone,sender_phone,delivery_notes,delivery_status,provider_id)`,
+            { count: 'exact' },
+          )
+          .order('created_at', { ascending: false })
+          .range(from, to),
+      );
 
-      const { data, error } = await query.limit(100);
-      if (error) throw error;
-      setDeliveries(data as unknown as DeliveryItem[]);
+      const countFor = async (status?: string) => {
+        let q = applyDates(supabase.from('delivery_queue').select('id', { count: 'exact', head: true }));
+        if (status) q = q.eq('status', status);
+        const { count } = await q;
+        return count ?? 0;
+      };
+
+      const [pageRes, completed, processing, pending, failed, cancelled] = await Promise.all([
+        query,
+        countFor('completed'),
+        countFor('processing'),
+        countFor('pending'),
+        countFor('failed'),
+        countFor('cancelled'),
+      ]);
+      if (pageRes.error) throw pageRes.error;
+      setDeliveries((pageRes.data || []) as unknown as DeliveryItem[]);
+      setTotalRows(pageRes.count ?? 0);
+      setServerStats({
+        total: Math.max(0, (pageRes.count ?? 0) - cancelled),
+        completed,
+        processing,
+        pending,
+        failed,
+        cancelled,
+      });
     } catch (error: any) {
       console.error('Error loading deliveries:', error);
       toast({ title: isSo ? 'Xogta lama soo dejin' : 'Failed to load deliveries', description: error?.message, variant: 'destructive' });
@@ -117,8 +157,8 @@ export function DeliveryTracker() {
       setLoading(false);
     }
   };
-
-  useEffect(() => { loadDeliveries(); }, [dateFilter]);
+  useEffect(() => { void loadDeliveries(); }, [dateFilter, page]);
+  useEffect(() => { setPage(0); }, [dateFilter]);
 
   // Realtime
   useEffect(() => {
@@ -197,16 +237,7 @@ export function DeliveryTracker() {
     }
   };
 
-  const cancelledCount = deliveries.filter(d => d.status === 'cancelled').length;
-  const activeDel = deliveries.filter(d => d.status !== 'cancelled');
-  const stats = {
-    total: activeDel.length,
-    completed: activeDel.filter(d => d.status === 'completed').length,
-    processing: activeDel.filter(d => d.status === 'processing').length,
-    pending: activeDel.filter(d => d.status === 'pending').length,
-    failed: activeDel.filter(d => d.status === 'failed').length,
-    cancelled: cancelledCount,
-  };
+  const stats = serverStats;
 
   if (loading) {
     return <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-gray-400" /></div>;
@@ -522,6 +553,7 @@ export function DeliveryTracker() {
           </div>
         );
       })()}
+      <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
     </div>
   );
 }

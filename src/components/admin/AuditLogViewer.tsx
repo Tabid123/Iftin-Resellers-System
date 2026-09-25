@@ -11,6 +11,7 @@ import { Loader2, Search, History, Eye } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
+import { AdminPagination, ADMIN_PAGE_SIZE } from './simple/AdminPagination';
 
 interface AuditLog {
   id: string;
@@ -30,25 +31,32 @@ export function AuditLogViewer() {
   const [tableFilter, setTableFilter] = useState('all');
   const [actionFilter, setActionFilter] = useState('all');
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+  const [page, setPage] = useState(0);
 
-  const { data: logs, isLoading } = useQuery({
-    queryKey: ['audit-logs', tableFilter, actionFilter, search],
+  const { data: result, isLoading } = useQuery({
+    queryKey: ['audit-logs', tableFilter, actionFilter, search, page],
     queryFn: async () => {
+      const from = page * ADMIN_PAGE_SIZE;
+      const to = from + ADMIN_PAGE_SIZE - 1;
       let query = supabase
         .from('audit_logs')
-        .select('*')
+        .select('id,user_id,user_email,action,table_name,record_id,old_data,new_data,created_at', { count: 'exact' })
         .order('created_at', { ascending: false })
-        .limit(100);
+        .range(from, to);
 
       if (tableFilter !== 'all') query = query.eq('table_name', tableFilter);
       if (actionFilter !== 'all') query = query.eq('action', actionFilter);
       if (search) query = query.or(`record_id.ilike.%${search}%,user_email.ilike.%${search}%`);
 
-      const { data, error } = await query;
+      const { data, error, count } = await query;
       if (error) throw error;
-      return data as AuditLog[];
+      return { logs: (data || []) as AuditLog[], total: count ?? 0 };
     },
   });
+
+  const logs = result?.logs ?? [];
+  const totalRows = result?.total ?? 0;
+  React.useEffect(() => { setPage(0); }, [tableFilter, actionFilter, search]);
 
   const actionBadge = (action: string) => {
     switch (action) {
@@ -118,7 +126,7 @@ export function AuditLogViewer() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {logs?.map((log) => (
+                  {logs.map((log) => (
                     <TableRow key={log.id}>
                       <TableCell className="text-xs whitespace-nowrap">
                         {format(new Date(log.created_at), 'dd MMM HH:mm:ss')}
@@ -133,7 +141,7 @@ export function AuditLogViewer() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {(!logs || logs.length === 0) && (
+                  {logs.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                         {language === 'so' ? 'Wali beddel ma jiro' : 'No audit logs yet'}
@@ -144,6 +152,7 @@ export function AuditLogViewer() {
               </Table>
             </div>
           )}
+          <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={language === 'so'} />
         </CardContent>
       </Card>
 

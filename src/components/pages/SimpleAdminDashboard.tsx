@@ -19,7 +19,6 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useTenantCapabilities } from '@/hooks/useTenantCapabilities';
 import { prefetchAdminViews } from '@/lib/prefetchAdminViews';
 import { fetchIftinWallet, type IftinWalletData } from '@/lib/iftinWallet';
-import { calculateRevenue, calculateOrderProfit, isDirectFlowCode } from '@/lib/iftinProfit';
 import CachedImage from '@/components/CachedImage';
 
 interface DashboardStats {
@@ -171,11 +170,8 @@ const SimpleAdminDashboard = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
       const mogDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Mogadishu' }));
       mogDate.setHours(0, 0, 0, 0);
-      const todayISO = mogDate.toISOString();
 
       const useCustomDate = !!selectedDate;
       let customStartISO = '';
@@ -189,105 +185,93 @@ const SimpleAdminDashboard = () => {
         customEndISO = customEnd.toISOString();
       }
 
-      const tid = getTenantId();
-      const scoped = (q: any) => (tid ? q.eq('tenant_id', tid) : q);
-
-      const [ordersRes, devicesRes, balancesRes, providersRes, deliveryRes, packagesRes, instructionsRes] = await Promise.all([
-        scoped(supabase.from('orders').select('id, status, delivery_status, selling_price, cost_price, created_at, provider_id, package_id')),
-        scoped(supabase.from('android_devices').select('id, device_id, device_name, provider_name, sim1_provider, sim2_provider, sim_number, sim2_number, last_ping_at, is_active, battery_level, is_charging').eq('is_active', true)),
-        scoped(supabase.from('sim_balances').select('device_id, sim_slot, balance, balance_type, last_updated')),
-        scoped(supabase.from('providers_config').select('id, evoucher_rate, provider_name, provider_logo')),
-        scoped(supabase.from('delivery_queue').select('android_device_id, status, created_at, order_id').gte('created_at', useCustomDate ? customStartISO : todayISO)),
-        scoped(supabase.from('data_packages_config').select('id, cost_price, provider_id, category_id, ussd_code, is_discovery_root')),
-        scoped(supabase.from('delivery_instructions').select('package_id, category_id, provider_id, code_template')),
-      ]);
-
-      const providerRates = providersRes.data || [];
-      const allOrders = ordersRes.data || [];
-      const packageCosts = new Map<string, number>(
-        (packagesRes.data || []).map((p: any) => [p.id, Number(p.cost_price || 0)]),
-      );
-      const orderCost = (o: any) => {
-        const c = Number(o.cost_price || 0);
-        if (c > 0) return c;
-        return o.package_id ? (packageCosts.get(o.package_id) ?? 0) : 0;
-      };
-      const orderRate = (o: any) => Number(providerRates.find(p => p.id === o.provider_id)?.evoucher_rate || 0);
-
-      // Flows (*870, *866, *101, *212): faa'ido = Selling − Cost (E-Voucher rate lagu darayo maaha).
-      const instructions = (instructionsRes.data || []) as any[];
-      const directFlowPackages = new Set<string>(
-        (packagesRes.data || [])
-          .filter((pkg: any) =>
-            pkg.is_discovery_root ||
-            isDirectFlowCode(pkg.ussd_code) ||
-            instructions.some((ins) =>
-              isDirectFlowCode(ins.code_template) && (
-                ins.package_id ? ins.package_id === pkg.id
-                  : ins.category_id ? ins.category_id === pkg.category_id
-                  : ins.provider_id ? ins.provider_id === pkg.provider_id
-                  : false
-              )),
-          )
-          .map((pkg: any) => pkg.id as string),
-      );
-      const isFlowOrder = (o: any) => Boolean(o.package_id && directFlowPackages.has(o.package_id));
-      const orderProfit = (o: any) =>
-        calculateOrderProfit(Number(o.selling_price || 0), orderCost(o), orderRate(o), isFlowOrder(o));
-
-      let todaySales: number, todayCost: number, todayProfit: number, todayDelivered: number, todayFailed: number, todayPending: number, todayOrderCount: number;
-
       const periodStartISO = (() => {
         if (useCustomDate) return customStartISO;
-        const s = new Date(mogDate);
+        const start = new Date(mogDate);
         if (selectedPeriod === 'week') {
-          const day = s.getDay();
-          s.setDate(s.getDate() - (day === 0 ? 6 : day - 1));
+          const day = start.getDay();
+          start.setDate(start.getDate() - (day === 0 ? 6 : day - 1));
         } else if (selectedPeriod === 'month') {
-          s.setDate(1);
+          start.setDate(1);
         } else if (selectedPeriod === 'year') {
-          s.setMonth(0, 1);
+          start.setMonth(0, 1);
         }
-        return s.toISOString();
+        return start.toISOString();
       })();
       const periodEndISO = useCustomDate ? customEndISO : null;
 
-      const periodOrders = allOrders.filter(o =>
-        o.created_at >= periodStartISO && (!periodEndISO || o.created_at < periodEndISO));
+      const tid = getTenantId();
+      const scoped = (q: any) => (tid ? q.eq('tenant_id', tid) : q);
 
-      todayDelivered = periodOrders.filter(o => o.delivery_status === 'delivered').length;
-      todayFailed = periodOrders.filter(o => o.delivery_status === 'failed' || o.delivery_status === 'timeout').length;
-      todayPending = periodOrders.filter(o => o.delivery_status === 'pending' || o.delivery_status === 'processing').length;
-      todayOrderCount = periodOrders.length;
+      // Dashboard cards are aggregate RPCs. Only small device/config rows are downloaded.
+      const [countsRes, financeRes, devicesRes, balancesRes, providersRes] = await Promise.all([
+        (supabase as any).rpc('get_admin_dashboard_counts', {
+          p_start: periodStartISO,
+          p_end: periodEndISO,
+        }),
+        (supabase as any).rpc('get_admin_transactions_summary', {
+          p_start: periodStartISO,
+          p_end: periodEndISO,
+          p_provider_id: null,
+        }),
+        scoped(
+          supabase
+            .from('android_devices')
+            .select('id,device_id,device_name,provider_name,sim1_provider,sim2_provider,sim_number,sim2_number,last_ping_at,is_active,battery_level,is_charging')
+            .eq('is_active', true)
+            .is('archived_at', null)
+            .limit(50),
+        ),
+        scoped(
+          supabase
+            .from('sim_balances')
+            .select('device_id,sim_slot,balance,balance_type,last_updated')
+            .limit(100),
+        ),
+        scoped(
+          supabase
+            .from('providers_config')
+            .select('id,evoucher_rate,provider_name,provider_logo')
+            .eq('is_active', true)
+            .limit(50),
+        ),
+      ]);
 
-      const deliveredOrders = periodOrders.filter(o => o.delivery_status === 'delivered');
-      todaySales = deliveredOrders.reduce((s, o) => s + calculateRevenue(Number(o.selling_price || 0)), 0);
-      todayCost = deliveredOrders.reduce((s, o) => s + orderCost(o), 0);
-      todayProfit = deliveredOrders.reduce(
-        (s, o) => s + orderProfit(o),
-        0,
-      );
+      if (countsRes.error) throw countsRes.error;
+      if (financeRes.error) throw financeRes.error;
+      if (devicesRes.error) throw devicesRes.error;
+      if (balancesRes.error) throw balancesRes.error;
+      if (providersRes.error) throw providersRes.error;
 
-      const delivered = allOrders.filter(o => o.delivery_status === 'delivered').length;
-      const pending = allOrders.filter(o => o.delivery_status === 'pending' || o.delivery_status === 'processing').length;
-      const failed = allOrders.filter(o => o.delivery_status === 'failed' || o.delivery_status === 'timeout').length;
+      const counts = countsRes.data || {};
+      const finance = financeRes.data || {};
+      setStats({
+        todayOrderCount: Number(counts.order_count || 0),
+        todayFailed: Number(counts.failed || 0),
+        todayPending: Number(counts.pending || 0),
+        todayProfit: Number(finance.profit_usd || 0),
+        todayCost: Number(finance.cost || 0),
+        todaySales: Number(finance.revenue || 0),
+        todayDelivered: Number(finance.delivered_count || counts.delivered || 0),
+        failed: 0,
+        pending: 0,
+        delivered: 0,
+        devicesOnline: Number(counts.devices_online || 0),
+      });
 
+      const providerRates = providersRes.data || [];
       const deviceList = devicesRes.data || [];
+      const balanceData = balancesRes.data || [];
       const OFFLINE_THRESHOLD = 5 * 60 * 1000;
       const now = Date.now();
-      const devicesOnline = deviceList.filter(d => d.last_ping_at && (now - new Date(d.last_ping_at).getTime()) < OFFLINE_THRESHOLD).length;
 
-      setStats({ todayOrderCount, todayFailed, todayPending, todayProfit, todayCost, todaySales, todayDelivered, failed, pending, delivered, devicesOnline });
-
-      const balanceData = balancesRes.data || [];
-      const deliveryData = deliveryRes.data || [];
       const findProviderLogo = (provName: string) => {
         const match = providerRates.find(p => p.provider_name?.toLowerCase() === provName.toLowerCase());
         return match?.provider_logo || null;
       };
       const findProviderRate = (provName: string) => {
         const match = providerRates.find(p => p.provider_name?.toLowerCase() === provName.toLowerCase());
-        return match?.evoucher_rate || 0;
+        return Number(match?.evoucher_rate || 0);
       };
 
       const cards: DeviceCardData[] = deviceList.map(d => {
@@ -297,63 +281,57 @@ const SimpleAdminDashboard = () => {
         const sim1Provider = d.sim1_provider || d.provider_name || '';
         const sim1Evc = deviceBalances.find(b => b.sim_slot === 1 && b.balance_type === 'evc_plus');
         const sim1Ev = deviceBalances.find(b => b.sim_slot === 1 && b.balance_type === 'evoucher');
+
         sims.push({
-          sim_slot: 1, sim_number: d.sim_number || '', provider_name: sim1Provider,
+          sim_slot: 1,
+          sim_number: d.sim_number || '',
+          provider_name: sim1Provider,
           provider_logo: findProviderLogo(sim1Provider),
-          evc_balance: sim1Evc?.balance || 0, evoucher_balance: sim1Ev?.balance || 0,
+          evc_balance: Number(sim1Evc?.balance || 0),
+          evoucher_balance: Number(sim1Ev?.balance || 0),
           evoucher_rate: findProviderRate(sim1Provider),
         });
+
         if (d.sim2_number && d.sim2_provider) {
           const sim2Evc = deviceBalances.find(b => b.sim_slot === 2 && b.balance_type === 'evc_plus');
           const sim2Ev = deviceBalances.find(b => b.sim_slot === 2 && b.balance_type === 'evoucher');
           sims.push({
-            sim_slot: 2, sim_number: d.sim2_number, provider_name: d.sim2_provider,
+            sim_slot: 2,
+            sim_number: d.sim2_number,
+            provider_name: d.sim2_provider,
             provider_logo: findProviderLogo(d.sim2_provider),
-            evc_balance: sim2Evc?.balance || 0, evoucher_balance: sim2Ev?.balance || 0,
+            evc_balance: Number(sim2Evc?.balance || 0),
+            evoucher_balance: Number(sim2Ev?.balance || 0),
             evoucher_rate: findProviderRate(d.sim2_provider),
           });
         }
 
-        const deviceDeliveries = deliveryData.filter(dl => dl.android_device_id === d.device_id);
-        const devDelivered = deviceDeliveries.filter(dl => dl.status === 'completed' || dl.status === 'delivered').length;
-        const devFailed = deviceDeliveries.filter(dl => dl.status === 'failed').length;
-        const devTotal = deviceDeliveries.length;
-
-        const orderIds = deviceDeliveries.map(dl => dl.order_id);
-        const matchedOrders = allOrders.filter(
-          o => orderIds.includes(o.id) && o.created_at >= todayISO && o.delivery_status === 'delivered',
-        );
-        const devRevenue = matchedOrders.reduce((s, o) => s + calculateRevenue(Number(o.selling_price || 0)), 0);
-        const devCost = matchedOrders.reduce((s, o) => s + orderCost(o), 0);
-        const devProfit = matchedOrders.reduce(
-          (s, o) => s + orderProfit(o),
-          0,
-        );
-
         return {
-          device_name: d.device_name, device_id: d.device_id,
-          is_online: isOnline, last_ping: d.last_ping_at,
-          battery_level: d.battery_level, is_charging: d.is_charging || false,
+          device_name: d.device_name,
+          device_id: d.device_id,
+          is_online: isOnline,
+          last_ping: d.last_ping_at,
+          battery_level: d.battery_level,
+          is_charging: d.is_charging || false,
           sims,
-          todayDelivered: devDelivered, todayFailed: devFailed,
-          todayCost: devCost, todayRevenue: devRevenue,
-          todayProfit: devProfit, todayOrders: devTotal,
+          todayDelivered: 0,
+          todayFailed: 0,
+          todayCost: 0,
+          todayRevenue: 0,
+          todayProfit: 0,
+          todayOrders: 0,
         };
       });
 
       setDeviceCards(cards);
 
       if (!isPartner) {
-        try {
-          const { count } = await supabase
-            .from('payment_receipts')
-            .select('id', { count: 'exact', head: true })
-            .eq('status', 'unmatched')
-            .eq('tenant_id', tid ?? '00000000-0000-0000-0000-000000000000');
-          setUnmatchedCount(count || 0);
-        } catch (unmatchedErr) {
-          console.error('Unmatched count error:', unmatchedErr);
-        }
+        const { count } = await supabase
+          .from('payment_receipts')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'unmatched')
+          .eq('tenant_id', tid ?? '00000000-0000-0000-0000-000000000000');
+        setUnmatchedCount(count || 0);
       }
 
       if (isPartner) {

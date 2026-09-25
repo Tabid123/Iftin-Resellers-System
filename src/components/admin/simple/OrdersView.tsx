@@ -6,6 +6,7 @@ import { CheckCircle, XCircle, RotateCcw, Clock, ChevronDown } from 'lucide-reac
 import { toast } from 'sonner';
 import { ResendOrderPrompt } from './ResendOrderPrompt';
 import { calculateOrderProfit, effectiveOrderCost, isDirectFlowCode } from '@/lib/iftinProfit';
+import { AdminPagination, ADMIN_PAGE_SIZE } from './AdminPagination';
 
 interface DeliveryQueueItem {
   id: string;
@@ -69,27 +70,71 @@ export const OrdersView = ({ isSo }: { isSo: boolean }) => {
   const [filter, setFilter] = useState<'all' | 'pending' | 'delivered' | 'failed'>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [resendItem, setResendItem] = useState<any | null>(null);
+  const [page, setPage] = useState(0);
+  const [totalRows, setTotalRows] = useState(0);
+  const [summary, setSummary] = useState({ total: 0, pending: 0, delivered: 0, failed: 0 });
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
     try {
-      // Get today's orders with delivery queue info
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-
-      // Sug in tenant kasta uu arko dalabkiisa oo keliya (super admin-ku RLS wuu dhaafaa).
+      const todayIso = today.toISOString();
       const tid = getTenantId();
       const scoped = (q: any) => (tid ? q.eq('tenant_id', tid) : q);
+      const from = page * ADMIN_PAGE_SIZE;
+      const to = from + ADMIN_PAGE_SIZE - 1;
 
-      const [ordersRes, deliveryRes, providersRes, devicesRes, packagesRes, instructionsRes, bundleRulesRes] = await Promise.all([
-        scoped(supabase.from('orders').select('*').gte('created_at', today.toISOString()).order('created_at', { ascending: false }).limit(200)),
-        scoped(supabase.from('delivery_queue').select('order_id, ussd_code, provider_response, sim_slot, android_device_id, status').gte('created_at', today.toISOString())),
+      let ordersQuery = scoped(
+        supabase.from('orders').select(
+          'id,sender_phone,receiver_phone,customer_phone,package_name,data_amount,selling_price,cost_price,status,delivery_status,delivery_notes,created_at,delivered_at,provider_id,package_id,tenant_id',
+          { count: 'exact' },
+        )
+      ).gte('created_at', todayIso)
+       .order('created_at', { ascending: false })
+       .range(from, to);
+
+      if (filter === 'pending') ordersQuery = ordersQuery.in('delivery_status', ['pending', 'processing']);
+      else if (filter === 'delivered') ordersQuery = ordersQuery.eq('delivery_status', 'delivered');
+      else if (filter === 'failed') ordersQuery = ordersQuery.in('delivery_status', ['failed', 'timeout']);
+
+      if (search.trim()) {
+        const q = search.trim();
+        ordersQuery = ordersQuery.or(
+          `receiver_phone.ilike.%${q}%,sender_phone.ilike.%${q}%,customer_phone.ilike.%${q}%,package_name.ilike.%${q}%`
+        );
+      }
+
+      const [ordersRes, providersRes, devicesRes, packagesRes, instructionsRes, bundleRulesRes, totalRes, pendingRes, deliveredRes, failedRes] = await Promise.all([
+        ordersQuery,
         scoped(supabase.from('providers_config').select('id, provider_name, evoucher_rate')),
         scoped(supabase.from('android_devices').select('device_id, device_name, sim_number, sim2_number')),
         scoped(supabase.from('data_packages_config').select('id, selling_price, cost_price, provider_id, category_id, ussd_code, is_discovery_root')),
         scoped(supabase.from('delivery_instructions').select('package_id, category_id, provider_id, code_template')),
         scoped(supabase.from('package_delivery_rules').select('source_package_id, target_package_id, delivery_count, is_active').eq('is_active', true)),
+        scoped(supabase.from('orders').select('id', { count: 'exact', head: true }).gte('created_at', todayIso)),
+        scoped(supabase.from('orders').select('id', { count: 'exact', head: true }).gte('created_at', todayIso).in('delivery_status', ['pending', 'processing'])),
+        scoped(supabase.from('orders').select('id', { count: 'exact', head: true }).gte('created_at', todayIso).eq('delivery_status', 'delivered')),
+        scoped(supabase.from('orders').select('id', { count: 'exact', head: true }).gte('created_at', todayIso).in('delivery_status', ['failed', 'timeout'])),
       ]);
+
+      if (ordersRes.error) throw ordersRes.error;
+      setTotalRows(ordersRes.count ?? 0);
+      setSummary({
+        total: totalRes.count ?? 0,
+        pending: pendingRes.count ?? 0,
+        delivered: deliveredRes.count ?? 0,
+        failed: failedRes.count ?? 0,
+      });
+
+      const orderIds = (ordersRes.data || []).map((o: any) => o.id);
+      const deliveryRes = orderIds.length
+        ? await scoped(
+            supabase.from('delivery_queue')
+              .select('id,order_id,ussd_code,provider_response,sim_slot,android_device_id,status,created_at')
+              .in('order_id', orderIds)
+          )
+        : { data: [], error: null };
 
       const deliveries = (deliveryRes.data || []) as DeliveryQueueItem[];
       const providers = providersRes.data || [];
@@ -98,6 +143,7 @@ export const OrdersView = ({ isSo }: { isSo: boolean }) => {
       const instructions = instructionsRes.data || [];
       const packageMap = new Map(packages.map((p: any) => [p.id, p]));
       const bundleProfitBySource = new Map<string, number>();
+
       for (const rule of (bundleRulesRes.data || []) as any[]) {
         const target: any = packageMap.get(rule.target_package_id);
         if (!target) continue;
@@ -110,7 +156,6 @@ export const OrdersView = ({ isSo }: { isSo: boolean }) => {
       }
 
       const enriched: OrderDetail[] = (ordersRes.data || []).map((o: any) => {
-        // Get ALL delivery queue entries for this order (not just first)
         const orderDeliveries = deliveries.filter(d => d.order_id === o.id);
         const firstDq = orderDeliveries[0];
         const prov = providers.find(p => p.id === o.provider_id);
@@ -136,9 +181,7 @@ export const OrdersView = ({ isSo }: { isSo: boolean }) => {
           provider_name: prov?.provider_name || 'Unknown',
           evoucher_rate: prov?.evoucher_rate || 0,
           is_direct_flow: isDirectFlow,
-          bundle_profit: bundleProfitBySource.has(o.package_id)
-            ? bundleProfitBySource.get(o.package_id)!
-            : null,
+          bundle_profit: bundleProfitBySource.has(o.package_id) ? bundleProfitBySource.get(o.package_id)! : null,
           deliveries: orderDeliveries,
           device_name: dev?.device_name,
           sim_number: firstDq?.sim_slot === 2 ? dev?.sim2_number : dev?.sim_number,
@@ -151,22 +194,12 @@ export const OrdersView = ({ isSo }: { isSo: boolean }) => {
     } finally {
       setLoading(false);
     }
-  }, []);
-
+  }, [filter, page, search]);
   useEffect(() => { loadOrders(); }, [loadOrders]);
   useRealtimeRefresh(['orders', 'delivery_queue'], loadOrders, 800, { notify: true, lang: isSo ? 'so' : 'en' });
 
-  const filtered = orders.filter(o => {
-    if (filter === 'pending') return o.delivery_status === 'pending' || o.delivery_status === 'processing';
-    if (filter === 'delivered') return o.delivery_status === 'delivered';
-    if (filter === 'failed') return o.delivery_status === 'failed' || o.delivery_status === 'timeout';
-    return true;
-  }).filter(o => !search || 
-    o.receiver_phone?.includes(search) || 
-    o.sender_phone?.includes(search) || 
-    o.customer_phone?.includes(search) ||
-    o.package_name?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = orders;
+  useEffect(() => { setPage(0); }, [filter, search]);
 
   const markDelivered = async (id: string) => {
     await supabase.from('orders').update({ delivery_status: 'delivered', delivered_at: new Date().toISOString(), delivery_notes: 'Manually verified - OrdersView' }).eq('id', id);
@@ -182,16 +215,16 @@ export const OrdersView = ({ isSo }: { isSo: boolean }) => {
     loadOrders();
   };
 
-  const pendingCount = orders.filter(o => o.delivery_status === 'pending' || o.delivery_status === 'processing').length;
-  const deliveredCount = orders.filter(o => o.delivery_status === 'delivered').length;
-  const failedCount = orders.filter(o => o.delivery_status === 'failed' || o.delivery_status === 'timeout').length;
+  const pendingCount = summary.pending;
+  const deliveredCount = summary.delivered;
+  const failedCount = summary.failed;
 
   return (
     <div className="space-y-3">
       {/* Summary */}
       <div className="grid grid-cols-4 gap-2">
         <button onClick={() => setFilter('all')} className={`p-2 rounded-lg text-center text-[10px] font-bold border ${filter === 'all' ? 'bg-blue-500 text-white border-blue-500' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700'}`}>
-          <div className="text-lg">{orders.length}</div>
+          <div className="text-lg">{summary.total}</div>
           Wadarta
         </button>
         <button onClick={() => setFilter('pending')} className={`p-2 rounded-lg text-center text-[10px] font-bold border ${filter === 'pending' ? 'bg-yellow-500 text-white border-yellow-500' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700'}`}>
@@ -319,6 +352,8 @@ export const OrdersView = ({ isSo }: { isSo: boolean }) => {
           })}
         </div>
       )}
+
+      <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
 
       {resendItem && (
         <ResendOrderPrompt

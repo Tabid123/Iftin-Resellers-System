@@ -127,19 +127,26 @@ export function tenantOfflinePackages(
   );
 }
 
-export async function listTenantOfflineRegistrations(): Promise<TenantOfflineRegistration[]> {
+export async function listTenantOfflineRegistrations(options?: { page?: number; pageSize?: number }): Promise<{ rows: TenantOfflineRegistration[]; total: number }> {
   const tenantId = await resolveTenantNativeId();
   if (!tenantId) throw new Error('Tenant-ka lama aqoonsan');
 
-  const { data, error } = await supabase
+  const page = Math.max(0, Number(options?.page ?? 0) || 0);
+  const pageSize = Math.min(100, Math.max(1, Number(options?.pageSize ?? 50) || 50));
+  const from = page * pageSize;
+  const to = from + pageSize - 1;
+
+  const { data, error, count } = await supabase
     .from('offline_registrations')
     .select(
       'id, tenant_id, sender_phone, receiver_phone, provider_id, provider_name, package_id, package_name, is_active, created_at, updated_at',
+      { count: 'exact' },
     )
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .range(from, to);
 
   if (error) throw error;
-  return (data ?? []) as TenantOfflineRegistration[];
+  return { rows: (data ?? []) as TenantOfflineRegistration[], total: count ?? 0 };
 }
 
 export async function saveTenantOfflineRegistration(input: {

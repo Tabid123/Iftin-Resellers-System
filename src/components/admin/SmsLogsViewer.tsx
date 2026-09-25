@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { AdminPagination, ADMIN_PAGE_SIZE } from './simple/AdminPagination';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -92,11 +93,13 @@ const SmsLogsViewer = () => {
   const fetchLogs = async () => {
     setIsLoading(true);
     try {
+      const from = page * ADMIN_PAGE_SIZE;
+      const to = from + ADMIN_PAGE_SIZE - 1;
       let query = supabase
         .from('sms_logs')
-        .select('*')
+        .select('id,device_id,sim_slot,sim_number,sms_type,sms_sender,sms_body,amount,tx_type,tx_id,counterpart_phone,received_at,created_at,tenant_id', { count: 'exact' })
         .order('created_at', { ascending: false })
-        .limit(500);
+        .range(from, to);
 
       if (selectedDevice !== 'all') {
         query = query.eq('device_id', selectedDevice);
@@ -295,7 +298,7 @@ const SmsLogsViewer = () => {
               {dateRange?.from && (
                 <X
                   className="h-3 w-3 ml-auto shrink-0 hover:text-destructive"
-                  onClick={(e) => { e.stopPropagation(); setDateRange(undefined); }}
+                  onClick={(e) => { e.stopPropagation(); setDateRange(undefined); setPage(0); }}
                 />
               )}
             </Button>
@@ -508,7 +511,8 @@ const SmsLogsViewer = () => {
           ))}
         </div>
       )}
-    </div>
+      <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} />
+</div>
   );
 };
 

@@ -19,6 +19,7 @@ import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 import { deleteTenantOfflineRegistration, fetchTenantOfflineCatalog, listTenantOfflineRegistrations, resolveTenantNativeId, saveTenantOfflineRegistration, tenantOfflineCategories, tenantOfflinePackages, tenantOfflineProviders, type TenantOfflineCatalog, type TenantOfflineRegistration } from '@/lib/tenantOfflineRegistration';
 import { formatPrefixes, getAllowedPrefixes, matchesAllowedPrefix } from '@/lib/phonePrefixes';
+import { AdminPagination, ADMIN_PAGE_SIZE } from './simple/AdminPagination';
 
 
 const digits = (p?: string | null) => String(p ?? '').replace(/\D/g, '').slice(-9);
@@ -54,6 +55,8 @@ type Tab = 'all' | 'active' | 'inactive' | 'today';
 
 const IftinOfflineCustomers: React.FC = () => {
   const [rows, setRows] = useState<Row[]>([]);
+  const [page, setPage] = useState(0);
+  const [totalRows, setTotalRows] = useState(0);
   const pushedRef = useRef<Set<string>>(new Set());
 
 
@@ -87,14 +90,15 @@ const IftinOfflineCustomers: React.FC = () => {
       const tenantId = await resolveTenantNativeId();
       if (!tenantId) throw new Error('Tenant-ka lama aqoonsan');
 
-      const registrations = await listTenantOfflineRegistrations();
-      setRows(registrations.map((row) => ({ ...row, __local: true })));
+      const registrations = await listTenantOfflineRegistrations({ page, pageSize: ADMIN_PAGE_SIZE });
+      setRows(registrations.rows.map((row) => ({ ...row, __local: true })));
+      setTotalRows(registrations.total);
     } catch (e: any) {
       setError(e?.message ?? 'Liiska lama soo dejin');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { void fetchTenantOfflineCatalog().then(setCatalog); }, []);
@@ -355,6 +359,7 @@ const IftinOfflineCustomers: React.FC = () => {
               Weli macmiil offline lama diiwaan gelin.
             </div>
           ) : (<>
+            <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} />
             {/* Mobile: accordion cards */}
             <div className="sm:hidden space-y-2">
               {filtered.map((r, i) => {
@@ -498,6 +503,7 @@ const IftinOfflineCustomers: React.FC = () => {
                 </tbody>
               </table>
             </div>
+            <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} />
           </>)}
         </CardContent>
       </Card>

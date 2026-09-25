@@ -65,9 +65,8 @@ export function BulkSmsManager() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
 
-  // All unique phones for count display
-  const [allPhones, setAllPhones] = useState<string[]>([]);
-  const [phonesLoading, setPhonesLoading] = useState(true);
+  const [audienceCount, setAudienceCount] = useState(0);
+  const [phonesLoading, setPhonesLoading] = useState(false);
 
   const loadDevices = useCallback(async () => {
     const { data } = await supabase
@@ -82,32 +81,28 @@ export function BulkSmsManager() {
     setLoading(true);
     const { data } = await supabase
       .from('bulk_sms_campaigns')
-      .select('*')
+      .select('id,message,target_type,total_recipients,sent_count,failed_count,status,device_id,sim_slot,created_at,tenant_id')
       .order('created_at', { ascending: false })
       .limit(20);
     if (data) setCampaigns(data as Campaign[]);
     setLoading(false);
   }, []);
 
-  const loadAllPhones = useCallback(async () => {
+  const loadAudienceCount = useCallback(async () => {
+    if (targetType === 'manual') {
+      setAudienceCount(0);
+      return;
+    }
     setPhonesLoading(true);
-    const { data: orderPhones } = await supabase
-      .from('orders')
-      .select('customer_phone')
-      .limit(5000);
-    const { data: verifiedPhones } = await supabase
-      .from('verified_phones')
-      .select('phone_number')
-      .limit(5000);
-
-    const set = new Set<string>();
-    orderPhones?.forEach(o => set.add(o.customer_phone));
-    verifiedPhones?.forEach(v => set.add(v.phone_number));
-    setAllPhones(Array.from(set));
+    const { data, error } = await (supabase as any).rpc('bulk_sms_recipient_count', {
+      p_target_type: targetType,
+    });
+    if (!error) setAudienceCount(Number(data || 0));
     setPhonesLoading(false);
-  }, []);
+  }, [targetType]);
 
-  useEffect(() => { loadDevices(); loadCampaigns(); loadAllPhones(); }, [loadDevices, loadCampaigns, loadAllPhones]);
+  useEffect(() => { void loadDevices(); void loadCampaigns(); }, [loadDevices, loadCampaigns]);
+  useEffect(() => { void loadAudienceCount(); }, [loadAudienceCount]);
 
   // Realtime subscription for live campaign counter updates
   useEffect(() => {
@@ -134,23 +129,17 @@ export function BulkSmsManager() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  const getRecipientPhones = (): string[] => {
-    if (targetType === 'manual') {
-      return manualPhones
+  const getManualRecipientPhones = (): string[] =>
+    Array.from(new Set(
+      manualPhones
         .split(/[\n,;]+/)
         .map(p => p.trim())
-        .filter(p => p.length >= 6);
-    }
-    if (targetType === 'all') return allPhones;
-    return filterByProvider(allPhones, targetType);
-  };
+        .filter(p => p.length >= 6)
+    ));
 
-  // Compute current recipient count for display
   const recipientCount = targetType === 'manual'
-    ? manualPhones.split(/[\n,;]+/).map(p => p.trim()).filter(p => p.length >= 6).length
-    : targetType === 'all'
-      ? allPhones.length
-      : filterByProvider(allPhones, targetType).length;
+    ? getManualRecipientPhones().length
+    : audienceCount;
 
   const handleSend = async () => {
     if (!message.trim() || !selectedDevice) {
@@ -160,26 +149,43 @@ export function BulkSmsManager() {
 
     setSending(true);
     try {
-      const phones = getRecipientPhones();
-      if (phones.length === 0) {
-        toast({ title: 'No recipients', description: 'No matching phone numbers found', variant: 'destructive' });
-        setSending(false);
+      if (targetType !== 'manual') {
+        const { data, error } = await (supabase as any).rpc('create_bulk_sms_audience_campaign', {
+          p_message: message.trim(),
+          p_target_type: targetType,
+          p_device_id: selectedDevice,
+          p_sim_slot: parseInt(selectedSim),
+        });
+        if (error) throw error;
+        const total = Number(data?.total_recipients || 0);
+        if (total <= 0) throw new Error('No matching recipients found');
+
+        const device = devices.find(d => d.device_id === selectedDevice);
+        toast({
+          title: '📤 Campaign Created',
+          description: `${total} SMS queued for ${device?.device_name || selectedDevice} SIM${selectedSim}`,
+        });
+        setMessage('');
+        await loadCampaigns();
+        await loadAudienceCount();
         return;
       }
+
+      const phones = getManualRecipientPhones();
+      if (phones.length === 0) throw new Error('No recipients');
 
       const { data: campaign, error: campErr } = await supabase
         .from('bulk_sms_campaigns')
         .insert({
           message: message.trim(),
-          target_type: targetType === 'manual' ? 'manual' : targetType,
+          target_type: 'manual',
           device_id: selectedDevice,
           sim_slot: parseInt(selectedSim),
           total_recipients: phones.length,
           status: 'sending',
         })
-        .select()
+        .select('id')
         .single();
-
       if (campErr || !campaign) throw campErr;
 
       const batchSize = 500;
@@ -191,7 +197,8 @@ export function BulkSmsManager() {
           sim_slot: parseInt(selectedSim),
           status: 'pending',
         }));
-        await supabase.from('bulk_sms_queue').insert(batch);
+        const { error } = await supabase.from('bulk_sms_queue').insert(batch);
+        if (error) throw error;
       }
 
       const device = devices.find(d => d.device_id === selectedDevice);
@@ -199,17 +206,15 @@ export function BulkSmsManager() {
         title: '📤 Campaign Created',
         description: `${phones.length} SMS queued for ${device?.device_name || selectedDevice} SIM${selectedSim}`,
       });
-
       setMessage('');
       setManualPhones('');
-      loadCampaigns();
-    } catch (err: any) {
-      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+      await loadCampaigns();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error?.message || 'Failed to create campaign', variant: 'destructive' });
+    } finally {
+      setSending(false);
     }
-    setSending(false);
   };
-
-  const currentDevice = devices.find(d => d.device_id === selectedDevice);
 
   return (
     <div className="space-y-4">

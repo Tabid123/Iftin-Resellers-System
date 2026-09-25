@@ -12,6 +12,7 @@ import {
 import { FileText, Lock, Unlock } from 'lucide-react';
 import { validateUssdTemplate } from '@/lib/ussdValidator';
 import CachedImage from '@/components/CachedImage';
+import { AdminPagination, ADMIN_PAGE_SIZE } from './AdminPagination';
 import { findPriceConflicts, parseSecretPrices, secretPricesOf } from '@/lib/secretPrices';
 import { calculateUsdProfit } from '@/lib/iftinProfit';
 
@@ -149,31 +150,64 @@ export const PackagesCustomView = ({ isSo }: { isSo: boolean }) => {
   const [providerFilter, setProviderFilter] = useState<string>('all');
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [totalRows, setTotalRows] = useState(0);
+  const [activeTotal, setActiveTotal] = useState(0);
   const [newPkg, setNewPkg] = useState({ package_name: '', data_amount: '', selling_price: '', secret_prices: '', cost_price: '', validity_days: '30', provider_id: '', category_id: '', ussd_code: '', connection_type_label: 'Data' });
 
   const loadPackages = useCallback(async () => {
-    const [pkgRes, provRes, catRes, rulesRes] = await Promise.all([
-      supabase.from('data_packages_config').select('*').order('display_order').limit(500),
-      supabase.from('providers_config').select('id, provider_name, provider_logo, evoucher_rate').order('display_order'),
-      supabase.from('package_categories').select('*').order('display_order'),
-      supabase.from('package_delivery_rules').select('source_package_id, target_package_id, delivery_count').eq('is_active', true),
+    setLoading(true);
+    const from = page * ADMIN_PAGE_SIZE;
+    const to = from + ADMIN_PAGE_SIZE - 1;
+
+    let pkgQuery = supabase
+      .from('data_packages_config')
+      .select('id,package_name,data_amount,selling_price,secret_prices,cost_price,validity_days,provider_id,category_id,ussd_code,connection_type_label,is_active,display_order,hide_cost_price,is_discovery_root', { count: 'exact' })
+      .order('display_order')
+      .range(from, to);
+    if (providerFilter !== 'all') pkgQuery = pkgQuery.eq('provider_id', providerFilter);
+    if (search.trim()) {
+      const q = search.trim().replace(/[%(),]/g, '');
+      pkgQuery = pkgQuery.or(`package_name.ilike.%${q}%,data_amount.ilike.%${q}%`);
+    }
+
+    let activeCountQuery = supabase.from('data_packages_config').select('id', { count: 'exact', head: true }).eq('is_active', true);
+    if (providerFilter !== 'all') activeCountQuery = activeCountQuery.eq('provider_id', providerFilter);
+    if (search.trim()) {
+      const q = search.trim().replace(/[%(),]/g, '');
+      activeCountQuery = activeCountQuery.or(`package_name.ilike.%${q}%,data_amount.ilike.%${q}%`);
+    }
+
+    const [pkgRes, provRes, catRes, rulesRes, activeRes] = await Promise.all([
+      pkgQuery,
+      supabase.from('providers_config').select('id,provider_name,provider_logo,evoucher_rate').order('display_order'),
+      supabase.from('package_categories').select('id,provider_id,category_name,category_image,display_order').order('display_order'),
+      supabase.from('package_delivery_rules').select('source_package_id,target_package_id,delivery_count').eq('is_active', true),
+      activeCountQuery,
     ]);
+
     const pkgs = pkgRes.data || [];
-    // Kharashka dhabta ah ee xirmo isku xiran: wadarta (kharashka target-ka × tirada dirida).
-    const pkgCost = new Map<string, number>(pkgs.map((p: any) => [p.id, Number(p.cost_price || 0)]));
+    const targetIds = Array.from(new Set((rulesRes.data || []).map((r: any) => r.target_package_id).filter(Boolean)));
+    const { data: targetPackages } = targetIds.length
+      ? await supabase.from('data_packages_config').select('id,cost_price').in('id', targetIds)
+      : { data: [] as any[] };
+    const pkgCost = new Map<string, number>((targetPackages || []).map((p: any) => [p.id, Number(p.cost_price || 0)]));
     const ruleCost = new Map<string, number>();
     for (const r of (rulesRes.data || []) as any[]) {
       const per = (pkgCost.get(r.target_package_id) ?? 0) * Number(r.delivery_count || 1);
-      ruleCost.set(r.source_package_id, (ruleCost.get(r.source_package_id) ?? 0) + per);
+      ruleCost.set(r.source_package_id, (ruleCost.get(r.source_package_id) || 0) + per);
     }
+
     setRuleCosts(ruleCost);
     setPackages(pkgs);
+    setTotalRows(pkgRes.count ?? 0);
+    setActiveTotal(activeRes.count ?? 0);
     setProviders(provRes.data || []);
     setCategories(catRes.data || []);
     setLoading(false);
-  }, []);
-
-  useEffect(() => { loadPackages(); }, [loadPackages]);
+  }, [page, providerFilter, search]);
+  useEffect(() => { void loadPackages(); }, [loadPackages]);
+  useEffect(() => { setPage(0); }, [providerFilter, search]);
   useRealtimeRefresh(['data_packages_config', 'providers_config', 'package_categories'], loadPackages, 800, { notify: true, lang: isSo ? 'so' : 'en' });
 
   const togglePackage = async (id: string, currentStatus: boolean) => {
@@ -272,9 +306,9 @@ Save anyway?`;
     setShowAdd(true); setExpandedId(null);
   };
 
-  const providerFiltered = providerFilter === 'all' ? packages : packages.filter(p => p.provider_id === providerFilter);
-  const activeCount = providerFiltered.filter(p => p.is_active).length;
-  const filtered = search ? providerFiltered.filter(p => p.package_name?.toLowerCase().includes(search.toLowerCase()) || p.data_amount?.includes(search)) : providerFiltered;
+  const providerFiltered = packages;
+  const activeCount = activeTotal;
+  const filtered = packages;
   const getProviderName = (id: string) => providers.find(p => p.id === id)?.provider_name || '—';
   const getProviderLogo = (id: string) => providers.find(p => p.id === id)?.provider_logo || '';
   const getProviderEvoucherRate = (id: string) => Number(providers.find(p => p.id === id)?.evoucher_rate || 0);
@@ -392,13 +426,13 @@ Save anyway?`;
   return (
     <div className="space-y-3">
       <StatCardsRow cards={[
-        { label: isSo ? 'Wadarta' : 'Total', value: providerFiltered.length, icon: Package, color: 'bg-purple-500' },
+        { label: isSo ? 'Wadarta' : 'Total', value: totalRows, icon: Package, color: 'bg-purple-500' },
         { label: 'Active', value: activeCount, icon: CheckCircle, color: 'bg-green-500' },
-        { label: 'Inactive', value: providerFiltered.length - activeCount, icon: XCircle, color: 'bg-red-500' },
+        { label: 'Inactive', value: Math.max(0, totalRows - activeCount), icon: XCircle, color: 'bg-red-500' },
       ]} />
       <ProviderFilterRow providers={providers} activeId={providerFilter} onSelect={setProviderFilter}
-        activeColor="bg-cyan-600" totalCount={packages.length} allLabel={isSo ? 'Dhammaan' : 'All'}
-        countFn={id => packages.filter(p => p.provider_id === id).length} />
+        activeColor="bg-cyan-600" totalCount={totalRows} allLabel={isSo ? 'Dhammaan' : 'All'}
+        countFn={id => providerFilter === id ? totalRows : 0} />
       <button onClick={() => { setShowAdd(!showAdd); setEditingId(null); setNewPkg({ package_name: '', data_amount: '', selling_price: '', secret_prices: '', cost_price: '', validity_days: '30', provider_id: '', category_id: '', ussd_code: '', connection_type_label: 'Data' }); }}
         className="w-full py-2.5 bg-gradient-to-r from-cyan-500 to-cyan-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 active:scale-[0.98]">
         <Plus className="w-4 h-4" /> {isSo ? 'Package Cusub Ku Dar' : 'Add New Package'}
@@ -448,6 +482,7 @@ Save anyway?`;
       {loading ? <LazyFallback /> : filtered.length === 0 ? <EmptyState message="No packages" /> : (
         <div className="space-y-3">{buildGroupedView()}</div>
       )}
+      <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
     </div>
   );
 };
