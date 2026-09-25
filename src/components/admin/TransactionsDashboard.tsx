@@ -145,7 +145,6 @@ export function TransactionsDashboard() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [periodFilter, setPeriodFilter] = useState('today');
   const [providerFilter, setProviderFilter] = useState('all');
-  const [totalRows, setTotalRows] = useState(0);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(searchQuery.trim()), 350);
