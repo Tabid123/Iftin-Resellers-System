@@ -612,7 +612,7 @@ class UssdDialerService : Service() {
                                     }
                                     "ussd_package_discoveries" -> {
                                         if (record?.optString("tenant_id") == tenantId &&
-                                            record.optString("status") == "pending") {
+                                            record?.optString("status") == "pending") {
                                             serviceScope.launch {
                                                 try { pollDiscoveryJobs() } catch (_: Exception) {}
                                             }
@@ -620,7 +620,7 @@ class UssdDialerService : Service() {
                                     }
                                     "bulk_sms_queue" -> {
                                         if (record?.optString("device_id") == deviceId &&
-                                            record.optString("status") == "pending") {
+                                            record?.optString("status") == "pending") {
                                             serviceScope.launch { processPendingBulkSms() }
                                         }
                                     }
