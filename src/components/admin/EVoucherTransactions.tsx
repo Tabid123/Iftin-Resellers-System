@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Loader2, RefreshCw, ArrowDownCircle, ArrowUpCircle, Wallet } from 'lucide-react';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
+import { AdminPagination, ADMIN_PAGE_SIZE } from './simple/AdminPagination';
 
 interface IncomeTransaction {
   id: string;
@@ -52,6 +53,9 @@ export function EVoucherTransactions() {
   const [incomeTransactions, setIncomeTransactions] = useState<IncomeTransaction[]>([]);
   const [outgoingTransactions, setOutgoingTransactions] = useState<OutgoingTransaction[]>([]);
   const [simBalances, setSimBalances] = useState<SimBalance[]>([]);
+  const [page, setPage] = useState(0);
+  const [incomeTotal, setIncomeTotal] = useState(0);
+  const [outgoingTotal, setOutgoingTotal] = useState(0);
 
   // Calculate date range
   const getDateRange = () => {
@@ -76,33 +80,23 @@ export function EVoucherTransactions() {
       const { from, to } = getDateRange();
       
       // Query for E-Voucher and JEEB SMS (both are e-voucher payments)
+      const fromRow = page * ADMIN_PAGE_SIZE;
+      const toRow = fromRow + ADMIN_PAGE_SIZE - 1;
       let query = supabase
         .from('payment_receipts')
-        .select('id, sender_phone, amount, receiver_sim, sms_body, status, created_at')
-        .order('created_at', { ascending: false });
+        .select('id,sender_phone,amount,receiver_sim,sms_body,status,created_at', { count: 'exact' })
+        .or('sms_body.ilike.%-E-Voucher-%,sms_body.ilike.%-JEEB-%,sms_body.ilike.%haragaaga%')
+        .order('created_at', { ascending: false })
+        .range(fromRow, toRow);
 
       if (from) query = query.gte('created_at', from.toISOString());
       if (to) query = query.lte('created_at', to.toISOString());
+      if (simFilter !== 'all') query = query.ilike('receiver_sim', simFilter);
 
-      const { data, error } = await query.limit(200);
-      
+      const { data, error, count } = await query;
       if (error) throw error;
-      
-      // Filter for E-Voucher or JEEB SMS (both are e-voucher type payments)
-      let filtered = (data || []).filter(t => 
-        t.sms_body?.includes('-E-Voucher-') || 
-        t.sms_body?.includes('-JEEB-') ||
-        t.sms_body?.toLowerCase().includes('haragaaga') // Somnet e-voucher format
-      );
-      
-      if (simFilter !== 'all') {
-        // Filter by receiver_sim (e.g., 'hormuud', 'somnet')
-        filtered = filtered.filter(t => 
-          t.receiver_sim?.toLowerCase() === simFilter.toLowerCase()
-        );
-      }
-      
-      setIncomeTransactions(filtered as unknown as IncomeTransaction[]);
+      setIncomeTotal(count ?? 0);
+      setIncomeTransactions((data || []) as unknown as IncomeTransaction[]);
     } catch (error) {
       console.error('Error loading income transactions:', error);
     }
@@ -115,7 +109,7 @@ export function EVoucherTransactions() {
       
       let query = supabase
         .from('delivery_queue')
-        .select(`
+.select(`
           id,
           receiver_phone,
           ussd_code,
@@ -124,14 +118,17 @@ export function EVoucherTransactions() {
           sim_slot,
           completed_at,
           order_id
-        `)
+        `, { count: 'exact' })
         .eq('status', 'completed')
-        .order('completed_at', { ascending: false });
+        .order('completed_at', { ascending: false })
+        .range(page * ADMIN_PAGE_SIZE, page * ADMIN_PAGE_SIZE + ADMIN_PAGE_SIZE - 1);
 
       if (from) query = query.gte('completed_at', from.toISOString());
       if (to) query = query.lte('completed_at', to.toISOString());
+      if (simFilter !== 'all') query = query.ilike('provider_name', simFilter);
 
-      const { data: deliveries, error } = await query.limit(200);
+      const { data: deliveries, error, count } = await query;
+      setOutgoingTotal(count ?? 0);
       
       if (error) throw error;
       
@@ -158,13 +155,6 @@ export function EVoucherTransactions() {
         ...d,
         cost_price: orderCostMap.get(d.order_id) || 0
       })) || [];
-
-      if (simFilter !== 'all') {
-        // Filter by provider_name (e.g., 'Hormuud', 'Somnet')
-        outgoing = outgoing.filter(t => 
-          t.provider_name?.toLowerCase() === simFilter.toLowerCase()
-        );
-      }
 
       setOutgoingTransactions(outgoing);
     } catch (error) {
