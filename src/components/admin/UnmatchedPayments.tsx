@@ -13,6 +13,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, AlertTriangle, UserX, Package, HelpCircle, Trash2 } from 'lucide-react';
 import { UnmatchedPaymentActions } from './UnmatchedPaymentActions';
+import { AdminPagination, ADMIN_PAGE_SIZE } from './simple/AdminPagination';
 
 type PeriodFilter = 'today' | 'week' | 'month' | 'year' | 'all';
 
@@ -117,59 +118,55 @@ const UnmatchedPayments = () => {
   const [period, setPeriod] = useState<PeriodFilter>('all');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
+  const [page, setPage] = useState(0);
+  const [totalRows, setTotalRows] = useState(0);
+
+  const fetchUnmatched = React.useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const start = getPeriodStart(period);
+      const from = page * ADMIN_PAGE_SIZE;
+      const to = from + ADMIN_PAGE_SIZE - 1;
+      let query = supabase
+        .from('payment_receipts')
+        .select('id,sender_phone,amount,receiver_sim,status,admin_notes,created_at', { count: 'exact' })
+        .eq('status', 'unmatched')
+        .order('created_at', { ascending: false })
+        .range(from, to);
+      if (start) query = query.gte('created_at', start.toISOString());
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+      setUnmatchedPayments(data || []);
+      setTotalRows(count ?? 0);
+    } catch (error) {
+      console.error('Error fetching unmatched payments:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [page, period]);
 
   useEffect(() => {
-    const fetchUnmatched = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('payment_receipts')
-          .select('*')
-          .eq('status', 'unmatched')
-          .order('created_at', { ascending: false });
-        if (error) throw error;
-        setUnmatchedPayments(data || []);
-      } catch (error) {
-        console.error('Error fetching unmatched payments:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchUnmatched();
+    void fetchUnmatched();
 
     const channel = supabase
       .channel('unmatched-payments-realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'payment_receipts' }, (payload) => {
-        const newRow = payload.new as any;
-        if (newRow.status === 'unmatched') setUnmatchedPayments((prev) => [newRow, ...prev]);
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'payment_receipts' }, (payload) => {
-        const updated = payload.new as any;
-        if (updated.status === 'unmatched') {
-          setUnmatchedPayments((prev) => {
-            const exists = prev.find((p) => p.id === updated.id);
-            if (exists) return prev.map((p) => (p.id === updated.id ? updated : p));
-            return [updated, ...prev];
-          });
-        } else {
-          setUnmatchedPayments((prev) => prev.filter((p) => p.id !== updated.id));
-        }
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'payment_receipts' }, (payload) => {
-        const old = payload.old as any;
-        setUnmatchedPayments((prev) => prev.filter((p) => p.id !== old.id));
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_receipts' }, () => {
+        void fetchUnmatched();
       })
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
-  }, []);
+  }, [fetchUnmatched]);
 
-  const filteredPayments = useMemo(() => {
-    const start = getPeriodStart(period);
-    if (!start) return unmatchedPayments;
-    return unmatchedPayments.filter((p) => new Date(p.created_at) >= start);
-  }, [unmatchedPayments, period]);
+  useEffect(() => {
+    setPage(0);
+    setSelectedIds(new Set());
+  }, [period]);
+
+  const filteredPayments = unmatchedPayments;
 
   const allSelected = filteredPayments.length > 0 && filteredPayments.every((p) => selectedIds.has(p.id));
   const someSelected = selectedIds.size > 0;
@@ -220,7 +217,7 @@ const UnmatchedPayments = () => {
     <Card>
       <CardHeader className="space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <CardTitle className="text-base">⚠️ Unmatched ({filteredPayments.length})</CardTitle>
+          <CardTitle className="text-base">⚠️ Unmatched ({totalRows})</CardTitle>
           {someSelected && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -365,6 +362,7 @@ const UnmatchedPayments = () => {
             <p>✅ Ma jiro lacag aan match noqon muddadan</p>
           </div>
         )}
+        <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} />
       </CardContent>
     </Card>
   );
