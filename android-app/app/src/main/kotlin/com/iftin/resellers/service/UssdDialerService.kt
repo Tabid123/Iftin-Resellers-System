@@ -604,7 +604,7 @@ class UssdDialerService : Service() {
                                 when (table) {
                                     "delivery_queue" -> {
                                         if (record?.optString("android_device_id") == deviceId &&
-                                            record.optString("status") == "pending") {
+                                            record?.optString("status") == "pending") {
                                             serviceScope.launch {
                                                 try { pollPendingOrders() } catch (_: Exception) {}
                                             }
