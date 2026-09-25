@@ -218,6 +218,8 @@ jobs:
           npx cap sync android
 
       - name: Verify fresh web bundle was packaged
+        env:
+          SPLASH_COLOR: ${{ inputs.splash_color }}
         run: |
           ASSETS=android/app/src/main/assets
           FAILED=0
