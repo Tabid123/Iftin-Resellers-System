@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from "@/lib/router-compat";
+import { useLocation as useTanStackLocation } from "@tanstack/react-router";
 import { supabase, setTenantHeader } from '@/integrations/supabase/client';
 import {
   decideWorkspace,
@@ -21,8 +22,30 @@ const EMERGENCY_PIN = '5516';
 
 const AdminLogin = () => {
   const navigate = useNavigate();
+  const rawLocation = useTanStackLocation();
   const tenantState = useTenant();
   const tenant = tenantState.status === 'ready' || tenantState.status === 'suspended' ? tenantState.tenant : null;
+
+  // Tenant admin URLs must never flash the generic "Admin Admin" screen while
+  // TenantContext is hydrating. Keep the tenant-branded splash visible until
+  // the matching tenant identity is ready.
+  const tenantRouteMatch = rawLocation.pathname.match(/^\/t\/([^/]+)\/dashboard\/login\/?$/);
+  const routeTenantSlug = tenantRouteMatch?.[1] ?? null;
+
+  let cachedTenantLogo: string | null = null;
+  let cachedTenantName: string | null = null;
+  if (routeTenantSlug && !tenant && typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(`najax.tenant_cache.${routeTenantSlug}`);
+      if (raw) {
+        const cached = JSON.parse(raw);
+        cachedTenantLogo = cached?.logo_url || null;
+        cachedTenantName = cached?.name || null;
+      }
+    } catch {
+      // Ignore invalid/blocked storage and keep the neutral fallback below.
+    }
+  }
   const brandName = tenant?.name || 'Admin';
   const brandLogo = tenant?.logo_url || najaxLogo;
   const primary = tenant?.primary_color || '#3D0066';
@@ -185,6 +208,31 @@ const AdminLogin = () => {
       setLoading(false);
     }
   };
+
+  if (routeTenantSlug && !tenant) {
+    const loadingLogo =
+      cachedTenantLogo ||
+      (import.meta.env.VITE_TENANT_LOGO_URL as string | undefined) ||
+      najaxLogo;
+    const loadingName =
+      cachedTenantName ||
+      (import.meta.env.VITE_TENANT_NAME as string | undefined) ||
+      routeTenantSlug;
+
+    return (
+      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-primary">
+        <img
+          src={loadingLogo}
+          alt={loadingName}
+          className="h-36 w-36 rounded-2xl object-cover shadow-lg"
+          onError={(event) => {
+            event.currentTarget.src = najaxLogo;
+          }}
+        />
+        <div className="mt-8 h-9 w-9 animate-spin rounded-full border-[3px] border-accent/30 border-t-accent" />
+      </div>
+    );
+  }
 
   return (
     <div
