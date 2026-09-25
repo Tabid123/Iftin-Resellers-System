@@ -138,6 +138,9 @@ export const OfflineRegistrationsCustomView = ({ isSo }: { isSo: boolean }) => {
   const [filter, setFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [totalRows, setTotalRows] = useState(0);
+  const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0, today: 0 });
   const [showAdd, setShowAdd] = useState(false);
   const [newReg, setNewReg] = useState({ sender_phone: '', receiver_phone: '', provider_id: '', category_id: '', package_id: '' });
   const [providerList, setProviderList] = useState<any[]>([]);
@@ -156,34 +159,47 @@ export const OfflineRegistrationsCustomView = ({ isSo }: { isSo: boolean }) => {
     });
   }, []);
 
-  // Tenant-native only: registrations are stored and managed in this tenant's database.
+  // Tenant-native only: fetch one 50-row page; counts use HEAD queries with no row payload.
   const loadRegs = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+    const from = page * ADMIN_PAGE_SIZE;
+    const to = from + ADMIN_PAGE_SIZE - 1;
+
+    let query = supabase
       .from('offline_registrations')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) toast.error(isSo ? 'Liiska lama soo dejin' : 'Failed to load');
-    setRegs((data ?? []).map((r: any) => ({ ...r, __local: true })));
+      .select('id,sender_phone,receiver_phone,provider_id,provider_name,package_id,package_name,is_active,created_at,updated_at,tenant_id', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    if (filter === 'active') query = query.eq('is_active', true);
+    else if (filter === 'inactive') query = query.eq('is_active', false);
+    else if (filter === 'today') query = query.gte('created_at', startOfToday.toISOString());
+    if (search.trim()) query = query.or(`sender_phone.ilike.%${search.trim()}%,receiver_phone.ilike.%${search.trim()}%`);
+
+    const [pageRes, totalRes, activeRes, inactiveRes, todayRes] = await Promise.all([
+      query,
+      supabase.from('offline_registrations').select('id', { count: 'exact', head: true }),
+      supabase.from('offline_registrations').select('id', { count: 'exact', head: true }).eq('is_active', true),
+      supabase.from('offline_registrations').select('id', { count: 'exact', head: true }).eq('is_active', false),
+      supabase.from('offline_registrations').select('id', { count: 'exact', head: true }).gte('created_at', startOfToday.toISOString()),
+    ]);
+
+    if (pageRes.error) toast.error(isSo ? 'Liiska lama soo dejin' : 'Failed to load');
+    setRegs((pageRes.data ?? []).map((r: any) => ({ ...r, __local: true })));
+    setTotalRows(pageRes.count ?? 0);
+    setStats({
+      total: totalRes.count ?? 0,
+      active: activeRes.count ?? 0,
+      inactive: inactiveRes.count ?? 0,
+      today: todayRes.count ?? 0,
+    });
     setLoading(false);
-  }, [isSo]);
+  }, [filter, isSo, page, search]);
 
-  useEffect(() => { loadRegs(); }, [loadRegs]);
+  useEffect(() => { void loadRegs(); }, [loadRegs]);
   useRealtimeRefresh(['offline_registrations'], loadRegs, 800);
-
-  const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
-  const activeRegs = regs.filter(r => r.is_active).length;
-  const inactiveRegs = regs.filter(r => !r.is_active).length;
-  const todayRegs = regs.filter(r => new Date(r.created_at) >= startOfToday).length;
-
-  const getFiltered = () => {
-    let filtered = regs;
-    if (filter === 'active') filtered = filtered.filter(r => r.is_active);
-    else if (filter === 'inactive') filtered = filtered.filter(r => !r.is_active);
-    else if (filter === 'today') filtered = filtered.filter(r => new Date(r.created_at) >= startOfToday);
-    if (search) filtered = filtered.filter(r => r.sender_phone?.includes(search) || r.receiver_phone?.includes(search));
-    return filtered;
-  };
+  useEffect(() => { setPage(0); }, [filter, search]);
 
   const toggleStatus = async (id: string, _currentStatus: boolean) => {
     const row = regs.find((r) => r.id === id);
@@ -287,21 +303,21 @@ export const OfflineRegistrationsCustomView = ({ isSo }: { isSo: boolean }) => {
       (!newReg.category_id || String(pkg.category_id) === String(newReg.category_id)),
   );
 
-  const filteredRegs = getFiltered();
+  const filteredRegs = regs;
 
   return (
     <div className="space-y-3">
       <StatCardsRow cards={[
-        { label: 'Total', value: regs.length, color: 'bg-purple-500', icon: Users },
-        { label: 'Active', value: activeRegs, color: 'bg-green-500', icon: CheckCircle },
-        { label: 'Inactive', value: inactiveRegs, color: 'bg-amber-500', icon: XCircle },
-        { label: isSo ? 'Maanta' : 'Today', value: todayRegs, color: 'bg-sky-500', icon: UserPlus },
+        { label: 'Total', value: stats.total, color: 'bg-purple-500', icon: Users },
+        { label: 'Active', value: stats.active, color: 'bg-green-500', icon: CheckCircle },
+        { label: 'Inactive', value: stats.inactive, color: 'bg-amber-500', icon: XCircle },
+        { label: isSo ? 'Maanta' : 'Today', value: stats.today, color: 'bg-sky-500', icon: UserPlus },
       ]} />
       <FilterRow filters={[
-        { key: 'all', label: isSo ? 'Dhammaan' : 'All', count: regs.length },
-        { key: 'active', label: 'Active', count: activeRegs },
-        { key: 'inactive', label: 'Inactive', count: inactiveRegs },
-        { key: 'today', label: isSo ? 'Maanta' : 'Today', count: todayRegs },
+        { key: 'all', label: isSo ? 'Dhammaan' : 'All', count: stats.total },
+        { key: 'active', label: 'Active', count: stats.active },
+        { key: 'inactive', label: 'Inactive', count: stats.inactive },
+        { key: 'today', label: isSo ? 'Maanta' : 'Today', count: stats.today },
       ]} activeKey={filter} onSelect={setFilter} activeColor="bg-orange-500" />
       <SearchInput value={search} onChange={setSearch} placeholder={isSo ? 'Raadi sender ama receiver...' : 'Search...'} />
       <button onClick={() => setShowAdd(!showAdd)} className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 active:scale-[0.98]">
@@ -366,7 +382,7 @@ export const OfflineRegistrationsCustomView = ({ isSo }: { isSo: boolean }) => {
               <div key={item.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-purple-100/50 dark:border-purple-900/20 overflow-hidden">
                 <button onClick={() => setExpandedId(isExpanded ? null : item.id)} className="w-full px-3 py-2.5 flex items-center justify-between text-left active:bg-purple-50/50">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span className="text-[10px] font-bold text-purple-400 w-5">#{idx + 1}</span>
+                    <span className="text-[10px] font-bold text-purple-400 w-5">#{page * ADMIN_PAGE_SIZE + idx + 1}</span>
                     <div className="min-w-0">
                       <div className="font-semibold text-sm text-gray-800 dark:text-white">{formatPhone(item.sender_phone)}</div>
                       <div className="text-[11px] text-gray-400">→ {formatPhone(item.receiver_phone)}</div>
@@ -397,6 +413,7 @@ export const OfflineRegistrationsCustomView = ({ isSo }: { isSo: boolean }) => {
           })}
         </div>
       )}
+      <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
     </div>
   );
 };
