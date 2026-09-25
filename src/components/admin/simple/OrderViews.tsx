@@ -12,6 +12,7 @@ import {
 import { ArrowLeft, Send } from 'lucide-react';
 import { ResendOrderPrompt } from './ResendOrderPrompt';
 import { effectiveOrderCost } from '@/lib/iftinProfit';
+import { AdminPagination, ADMIN_PAGE_SIZE } from './AdminPagination';
 
 const orderDisplayCost = (item: any) => effectiveOrderCost(item.cost_price, item.data_packages_config?.cost_price);
 
@@ -117,6 +118,8 @@ export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [totalRows, setTotalRows] = useState(0);
   const actions = useOrderActions(setOrders, isSo);
 
   const loadOrders = useCallback(async () => {
@@ -124,19 +127,26 @@ export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
     try {
       const date = new Date(selectedDate);
       const tid = getTenantId();
-      let dayQuery = supabase.from('orders').select('*')
+      const from = page * ADMIN_PAGE_SIZE;
+      const to = from + ADMIN_PAGE_SIZE - 1;
+      let dayQuery = supabase.from('orders').select(
+        'id,customer_phone,sender_phone,receiver_phone,package_id,provider_id,package_name,data_amount,selling_price,cost_price,status,delivery_status,delivery_notes,delivered_at,payment_source,created_at,tenant_id',
+        { count: 'exact' },
+      )
         .gte('created_at', startOfDay(date).toISOString()).lte('created_at', endOfDay(date).toISOString())
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(from, to);
       if (tid) dayQuery = dayQuery.eq('tenant_id', tid);
-      const { data, error } = await dayQuery;
+      const { data, error, count } = await dayQuery;
       if (error) throw error;
+      setTotalRows(count ?? 0);
       setOrders(await attachPackageCosts(data || []));
     } catch (err) {
       console.error('[DailyOrders] load failed', err);
       toast.error('Failed to load orders');
     }
     finally { setLoading(false); }
-  }, [selectedDate]);
+  }, [selectedDate, page]);
 
   useEffect(() => { loadOrders(); }, [loadOrders]);
   useRealtimeRefresh(['orders'], loadOrders, 800, { notify: true, lang: isSo ? 'so' : 'en' });
@@ -168,10 +178,10 @@ export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
         <button onClick={() => navigateDate(-1)} className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center"><ArrowLeft className="w-4 h-4" /></button>
         <div className="flex-1 flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg px-3 py-2 border">
           <Calendar className="w-4 h-4 text-gray-400" />
-          <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="flex-1 bg-transparent text-sm font-medium outline-none" />
+          <input type="date" value={selectedDate} onChange={e => { setSelectedDate(e.target.value); setPage(0); }} className="flex-1 bg-transparent text-sm font-medium outline-none" />
         </div>
         <button onClick={() => navigateDate(1)} className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center rotate-180"><ArrowLeft className="w-4 h-4" /></button>
-        {!isToday && <button onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])} className="text-xs px-2 py-1.5 bg-purple-600 text-white rounded-lg font-medium">{isSo ? 'Maanta' : 'Today'}</button>}
+        {!isToday && <button onClick={() => { setSelectedDate(new Date().toISOString().split('T')[0]); setPage(0); }} className="text-xs px-2 py-1.5 bg-purple-600 text-white rounded-lg font-medium">{isSo ? 'Maanta' : 'Today'}</button>}
       </div>
       <StatCardsRow cards={[
         { label: isSo ? 'Wadarta' : 'Total', value: orders.length, icon: Package, color: 'bg-purple-500' },
@@ -190,8 +200,9 @@ export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
       ]} activeKey={statusFilter} onSelect={setStatusFilter} />
       <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder={isSo ? 'Raadi...' : 'Search...'} />
       {loading ? <LazyFallback /> : filtered.length === 0 ? <EmptyState message={isSo ? 'Wax dalab ah lama helin' : 'No orders found'} /> : (
-        <div className="space-y-2">{filtered.map((item, idx) => <OrderAccordionItem key={item.id} item={item} idx={idx} expandedId={expandedId} setExpandedId={setExpandedId} isSo={isSo} actions={actions} onReload={loadOrders} />)}</div>
+        <div className="space-y-2">{filtered.map((item, idx) => <OrderAccordionItem key={item.id} item={item} idx={page * ADMIN_PAGE_SIZE + idx} expandedId={expandedId} setExpandedId={setExpandedId} isSo={isSo} actions={actions} onReload={loadOrders} />)}</div>
       )}
+      <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
     </div>
   );
 };
@@ -202,13 +213,20 @@ export const OrdersListView = ({ isSo, type }: { isSo: boolean; type: string }) 
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [totalRows, setTotalRows] = useState(0);
   const actions = useOrderActions(setOrders, isSo);
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const tid = getTenantId();
-    let query = supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(200);
+    const from = page * ADMIN_PAGE_SIZE;
+    const to = from + ADMIN_PAGE_SIZE - 1;
+    let query = supabase.from('orders').select(
+      'id,customer_phone,sender_phone,receiver_phone,package_id,provider_id,package_name,data_amount,selling_price,cost_price,status,delivery_status,delivery_notes,delivered_at,payment_source,created_at,tenant_id',
+      { count: 'exact' },
+    ).order('created_at', { ascending: false }).range(from, to);
     if (tid) query = query.eq('tenant_id', tid);
     switch (type) {
       case 'sales': query = query.gte('created_at', today.toISOString()).in('status', ['paid', 'completed']); break;
@@ -216,11 +234,12 @@ export const OrdersListView = ({ isSo, type }: { isSo: boolean; type: string }) 
       case 'pending': query = query.eq('delivery_status', 'pending').in('status', ['paid', 'completed']); break;
       case 'delivered': query = query.eq('delivery_status', 'delivered'); break;
     }
-    const { data, error } = await query;
+    const { data, error, count } = await query;
     if (error) console.error('[OrdersList] load failed', error);
+    setTotalRows(count ?? 0);
     setOrders(await attachPackageCosts(data || []));
     setLoading(false);
-  }, [type]);
+  }, [type, page]);
 
   useEffect(() => { loadOrders(); }, [loadOrders]);
   useRealtimeRefresh(['orders'], loadOrders, 800, { notify: true, lang: isSo ? 'so' : 'en' });
@@ -240,8 +259,9 @@ export const OrdersListView = ({ isSo, type }: { isSo: boolean; type: string }) 
       ]} />
       <SearchInput value={search} onChange={setSearch} placeholder={isSo ? 'Raadi lambarka ama package...' : 'Search phone or package...'} />
       {loading ? <LazyFallback /> : filtered.length === 0 ? <EmptyState message={isSo ? 'Wax dalab ah lama helin' : 'No orders found'} /> : (
-        <div className="space-y-2">{filtered.map((item, idx) => <OrderAccordionItem key={item.id} item={item} idx={idx} expandedId={expandedId} setExpandedId={setExpandedId} isSo={isSo} actions={actions} onReload={loadOrders} />)}</div>
+        <div className="space-y-2">{filtered.map((item, idx) => <OrderAccordionItem key={item.id} item={item} idx={page * ADMIN_PAGE_SIZE + idx} expandedId={expandedId} setExpandedId={setExpandedId} isSo={isSo} actions={actions} onReload={loadOrders} />)}</div>
       )}
+      <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
     </div>
   );
 };
