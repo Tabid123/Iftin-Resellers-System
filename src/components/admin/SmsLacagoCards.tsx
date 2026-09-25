@@ -47,7 +47,7 @@ const formatPhone = (phone: string) => {
   return phone;
 };
 
-const PAGE_SIZE = 30;
+const PAGE_SIZE = 50;
 
 export function SmsLacagoCards() {
   const { language } = useLanguage();
