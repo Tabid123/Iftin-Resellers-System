@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -56,7 +56,7 @@ export function AuditLogViewer() {
 
   const logs = result?.logs ?? [];
   const totalRows = result?.total ?? 0;
-  useEffect(() => { setPage(0); }, [tableFilter, actionFilter, search]);
+  React.useEffect(() => { setPage(0); }, [tableFilter, actionFilter, search]);
 
   const actionBadge = (action: string) => {
     switch (action) {

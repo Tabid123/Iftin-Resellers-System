@@ -25,8 +25,8 @@ const AdminLogin = () => {
   const tenant = tenantState.status === 'ready' || tenantState.status === 'suspended' ? tenantState.tenant : null;
   const brandName = tenant?.name || 'Admin';
   const brandLogo = tenant?.logo_url || najaxLogo;
-  const primary = tenant?.primary_color || 'hsl(var(--primary))';
-  const accent = tenant?.accent_color || 'hsl(var(--accent))';
+  const primary = tenant?.primary_color || '#3D0066';
+  const accent = tenant?.accent_color || '#C5F82A';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -195,7 +195,7 @@ const AdminLogin = () => {
     >
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-4">
-          {tenant?.logo_url && <div
+          <div
             className="w-20 h-20 mx-auto rounded-2xl overflow-hidden flex items-center justify-center"
             style={{ backgroundColor: tenant?.logo_url ? 'transparent' : primary }}
           >
@@ -203,9 +203,9 @@ const AdminLogin = () => {
               src={brandLogo}
               alt={`${brandName} Logo`}
               className="w-full h-full object-cover"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = 'hidden'; }}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = najaxLogo; }}
             />
-          </div>}
+          </div>
           <div className="flex items-center justify-center gap-2">
             <Shield className="h-6 w-6" style={{ color: primary }} />
             <CardTitle className="text-2xl">{brandName} Admin</CardTitle>
