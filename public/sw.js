@@ -6,6 +6,10 @@ const API_CACHE_PREFIX = 'iftin-api-';
 const IMAGE_CACHE_PREFIX = 'iftin-images-';
 
 const getCacheName = (prefix) => prefix + (CACHE_VERSION || 'default');
+const IS_NATIVE_CAPACITOR = self.location && (
+  self.location.hostname === 'localhost' ||
+  self.location.hostname === '127.0.0.1'
+);
 
 const STATIC_ASSETS = [
   '/',
@@ -56,6 +60,18 @@ const clearOldCaches = async () => {
 
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing service worker...');
+  if (IS_NATIVE_CAPACITOR) {
+    event.waitUntil(
+      caches.keys()
+        .then((names) => Promise.all(
+          names
+            .filter((name) => name.startsWith('iftin-'))
+            .map((name) => caches.delete(name))
+        ))
+        .then(() => self.skipWaiting())
+    );
+    return;
+  }
   event.waitUntil(
     precache().then(() => self.skipWaiting())
   );
@@ -73,6 +89,14 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Capacitor tenant APKs already boot from a packaged local web bundle and
+  // maintain their own tenant/offline caches. Intercepting every Supabase GET
+  // inside Android WebView caused duplicate Cache Storage writes and can make
+  // low-end devices appear frozen/ANR under admin traffic. Keep the service
+  // worker for normal browser/PWA use, but let native Capacitor requests pass
+  // straight through without service-worker caching.
+  if (IS_NATIVE_CAPACITOR) return;
+
   const { request } = event;
   const url = new URL(request.url);
 
