@@ -10,6 +10,7 @@ import { DollarSign, TrendingUp, CheckCircle, XCircle, Clock, Search, MessageSqu
 import { formatPrice } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { format } from 'date-fns';
+import { AdminPagination, ADMIN_PAGE_SIZE } from './simple/AdminPagination';
 
 type PeriodFilter = 'today' | 'week' | 'month' | 'year' | 'all';
 type StatusFilter = 'all' | 'delivered' | 'pending' | 'failed';
@@ -51,6 +52,9 @@ export const SMSOfflineOrdersDashboard = () => {
   const [providerFilter, setProviderFilter] = useState<ProviderFilter>('all');
   const [providers, setProviders] = useState<{id: string, provider_name: string}[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(0);
+  const [totalRows, setTotalRows] = useState(0);
+  const [serverStats, setServerStats] = useState({ totalOrders: 0, deliveredOrders: 0, pendingOrders: 0, failedOrders: 0, totalRevenue: 0, totalProfit: 0, successRate: '0' });
 
   useEffect(() => {
     loadSMSOfflineOrders();
@@ -108,6 +112,9 @@ export const SMSOfflineOrdersDashboard = () => {
     };
   }, []);
 
+  useEffect(() => { setPage(0); }, [periodFilter, statusFilter, providerFilter, searchQuery]);
+  useEffect(() => { loadSMSOfflineOrders(); }, [page, periodFilter, statusFilter, providerFilter, searchQuery]);
+
   const loadProviders = async () => {
     const { data } = await supabase
       .from('providers_config')
@@ -118,22 +125,64 @@ export const SMSOfflineOrdersDashboard = () => {
   };
 
   const loadSMSOfflineOrders = async () => {
+    setLoading(true);
     try {
-      // Fetch SMS Offline orders with their payment receipts
-      const { fetchAllRows } = await import('@/utils/fetchAllRows');
-      const data = await fetchAllRows(() =>
-        supabase
-          .from('orders')
-          .select(`
-            *,
-            data_packages_config(cost_price),
-            providers_config(provider_name, evoucher_rate),
-            payment_receipts(tx_id, sender_phone, matching_strategy, amount)
-          `)
-          .or('payment_source.eq.sms_offline,payment_source.is.null')
-          .order('created_at', { ascending: false })
-      );
-      setOrders(data || []);
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      let startDate: Date | null = null;
+      if (periodFilter === 'today') startDate = today;
+      else if (periodFilter === 'week') startDate = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+      else if (periodFilter === 'month') startDate = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+      else if (periodFilter === 'year') startDate = new Date(today.getTime() - 365 * 24 * 60 * 60 * 1000);
+
+      const from = page * ADMIN_PAGE_SIZE;
+      const to = from + ADMIN_PAGE_SIZE - 1;
+      let query = supabase
+        .from('orders')
+        .select(`
+          id,customer_phone,receiver_phone,package_name,data_amount,selling_price,status,delivery_status,created_at,delivered_at,provider_id,payment_source,
+          data_packages_config(cost_price),
+          providers_config(provider_name,evoucher_rate),
+          payment_receipts(tx_id,sender_phone,matching_strategy,amount)
+        `, { count: 'exact' })
+        .or('payment_source.eq.sms_offline,payment_source.is.null')
+        .order('created_at', { ascending: false })
+        .range(from, to);
+
+      if (startDate) query = query.gte('created_at', startDate.toISOString());
+      if (providerFilter !== 'all') query = query.eq('provider_id', providerFilter);
+      if (statusFilter === 'delivered') query = query.eq('delivery_status', 'delivered');
+      else if (statusFilter === 'failed') query = query.eq('delivery_status', 'failed');
+      else if (statusFilter === 'pending') query = query.in('delivery_status', ['pending', 'queued', 'processing']);
+      const q = searchQuery.trim().replace(/[%(),]/g, '');
+      if (q) query = query.or(`customer_phone.ilike.%${q}%,receiver_phone.ilike.%${q}%,package_name.ilike.%${q}%`);
+
+      const [pageRes, summaryRes] = await Promise.all([
+        query,
+        (supabase as any).rpc('get_admin_order_source_summary', {
+          p_sources: ['sms_offline', '__NULL__'],
+          p_start: startDate?.toISOString() ?? null,
+          p_provider_id: providerFilter === 'all' ? null : providerFilter,
+          p_status: statusFilter === 'all' ? null : statusFilter,
+          p_search: q || null,
+        }),
+      ]);
+      if (pageRes.error) throw pageRes.error;
+      if (summaryRes.error) throw summaryRes.error;
+      setOrders((pageRes.data || []) as unknown as SMSOfflineOrder[]);
+      setTotalRows(pageRes.count ?? 0);
+      const summary = summaryRes.data || {};
+      const total = Number(summary.total || 0);
+      const delivered = Number(summary.delivered || 0);
+      setServerStats({
+        totalOrders: total,
+        deliveredOrders: delivered,
+        pendingOrders: Number(summary.pending || 0),
+        failedOrders: Number(summary.failed || 0),
+        totalRevenue: Number(summary.revenue || 0),
+        totalProfit: Number(summary.profit || 0),
+        successRate: total > 0 ? ((delivered / total) * 100).toFixed(1) : '0',
+      });
     } catch (error) {
       console.error('Error loading SMS offline orders:', error);
     } finally {
@@ -141,83 +190,9 @@ export const SMSOfflineOrdersDashboard = () => {
     }
   };
 
-  // Filter by period
-  const periodFilteredOrders = useMemo(() => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const yearAgo = new Date(today.getTime() - 365 * 24 * 60 * 60 * 1000);
+  const filteredOrders = orders;
 
-    return orders.filter(order => {
-      const orderDate = new Date(order.created_at);
-      switch (periodFilter) {
-        case 'today': return orderDate >= today;
-        case 'week': return orderDate >= weekAgo;
-        case 'month': return orderDate >= monthAgo;
-        case 'year': return orderDate >= yearAgo;
-        default: return true;
-      }
-    });
-  }, [orders, periodFilter]);
-
-  // Filter by status
-  const statusFilteredOrders = useMemo(() => {
-    if (statusFilter === 'all') return periodFilteredOrders;
-    return periodFilteredOrders.filter(order => order.delivery_status === statusFilter);
-  }, [periodFilteredOrders, statusFilter]);
-
-  // Filter by provider
-  const providerFilteredOrders = useMemo(() => {
-    if (providerFilter === 'all') return statusFilteredOrders;
-    return statusFilteredOrders.filter(order => order.provider_id === providerFilter);
-  }, [statusFilteredOrders, providerFilter]);
-
-  // Filter by search
-  const filteredOrders = useMemo(() => {
-    if (!searchQuery) return providerFilteredOrders;
-    const query = searchQuery.toLowerCase();
-    return providerFilteredOrders.filter(order =>
-      order.customer_phone.includes(query) ||
-      order.receiver_phone.includes(query) ||
-      order.package_name.toLowerCase().includes(query) ||
-      order.payment_receipts?.some(r => r.tx_id?.toLowerCase().includes(query) || r.sender_phone.includes(query))
-    );
-  }, [providerFilteredOrders, searchQuery]);
-
-  // Calculate statistics
-  const stats = useMemo(() => {
-    const delivered = filteredOrders.filter(o => o.delivery_status === 'delivered');
-    const pending = filteredOrders.filter(o => 
-      o.delivery_status === 'pending' || 
-      o.delivery_status === 'queued' || 
-      o.delivery_status === 'processing'
-    );
-    const failed = filteredOrders.filter(o => o.delivery_status === 'failed');
-
-    const totalRevenue = delivered.reduce((sum, o) => sum + Number(o.selling_price), 0);
-    const totalProfit = delivered.reduce((sum, o) => {
-      const pkg = o.data_packages_config as any;
-      const provider = o.providers_config as any;
-      const sellingPrice = Number(o.selling_price);
-      const costPrice = Number(pkg?.cost_price || 0);
-      const evoucherRate = Number(provider?.evoucher_rate || 0);
-      const evoucherReceived = sellingPrice * (1 + evoucherRate);
-      return sum + (evoucherReceived - costPrice);
-    }, 0);
-
-    return {
-      totalOrders: filteredOrders.length,
-      deliveredOrders: delivered.length,
-      pendingOrders: pending.length,
-      failedOrders: failed.length,
-      totalRevenue,
-      totalProfit,
-      successRate: filteredOrders.length > 0 
-        ? ((delivered.length / filteredOrders.length) * 100).toFixed(1)
-        : '0'
-    };
-  }, [filteredOrders]);
+  const stats = serverStats;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -449,7 +424,7 @@ export const SMSOfflineOrdersDashboard = () => {
                   {language === 'so' ? 'SMS dalabyo la helin' : 'No SMS orders found'}
                 </div>
               ) : (
-                filteredOrders.slice(0, 50).map((order) => {
+                filteredOrders.map((order) => {
                   const receipt = order.payment_receipts?.[0];
                   return (
                     <div key={order.id} className="border rounded-lg p-3 bg-card text-xs space-y-1.5">
@@ -501,7 +476,7 @@ export const SMSOfflineOrdersDashboard = () => {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredOrders.slice(0, 50).map((order) => {
+                    filteredOrders.map((order) => {
                       const receipt = order.payment_receipts?.[0];
                       return (
                         <TableRow key={order.id}>
@@ -539,16 +514,10 @@ export const SMSOfflineOrdersDashboard = () => {
               </Table>
             </div>
           </>
-          {filteredOrders.length > 50 && (
-            <p className="text-sm text-muted-foreground text-center mt-4">
-              {language === 'so' 
-                ? `Muujinaya 50 ka mid ah ${filteredOrders.length}`
-                : `Showing 50 of ${filteredOrders.length}`}
-            </p>
-          )}
-        </CardContent>
+                  </CardContent>
       </Card>
-    </div>
+      <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={language === 'so'} />
+</div>
   );
 };
 
