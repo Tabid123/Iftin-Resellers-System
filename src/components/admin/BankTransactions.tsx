@@ -443,7 +443,6 @@ export function BankTransactions({ isSo = true }: { isSo?: boolean }) {
         </div>
       <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
       </Card>
-      <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
 
       {/* Credentials Dialog */}
       <Dialog open={credOpen} onOpenChange={setCredOpen}>
