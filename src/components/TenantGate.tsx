@@ -2,6 +2,7 @@ import React from "react";
 import { useTenant } from "@/contexts/TenantContext";
 import { ResellerCodeGate } from "@/components/ResellerCodeGate";
 import { AlertCircle, Lock, MessageCircle, Wallet, WifiOff } from "lucide-react";
+import najaxLogoSplash from "@/assets/najax-logo.jpeg";
 import { normalizeSupportPhone } from "@/hooks/useSupportPhone";
 
 
@@ -17,14 +18,72 @@ interface Props {
  * - suspended → blocking banner
  * - ready / platform → render children
  */
+const WEB_SPLASH_MS = 1500;
+
 export const TenantGate: React.FC<Props> = ({ children }) => {
   const state = useTenant();
+  const [showStartupSplash, setShowStartupSplash] = React.useState(true);
 
-  if (state.status === "loading") {
-    // Keep the storefront shell interactive while the tenant row resolves.
-    // Tenant-owned queries remain disabled until a real workspace id exists,
-    // so no other tenant's data can render here.
-    return <>{children}</>;
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setShowStartupSplash(false);
+    }, WEB_SPLASH_MS);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  if (state.status === "loading" || showStartupSplash) {
+    const tenant =
+      state.status === "ready" || state.status === "suspended" ? state.tenant : null;
+
+    let cachedLogo: string | null = null;
+    let cachedName: string | null = null;
+    if (!tenant && typeof window !== "undefined") {
+      const match = window.location.pathname.match(/^\/t\/([^/]+)(?=\/|$)/);
+      const slug = match?.[1];
+      if (slug) {
+        try {
+          const raw = localStorage.getItem(`najax.tenant_cache.${slug}`);
+          if (raw) {
+            const cached = JSON.parse(raw);
+            cachedLogo = cached?.logo_url || null;
+            cachedName = cached?.name || null;
+          }
+        } catch {
+          // Ignore a corrupt/blocked cache and keep the neutral fallback.
+        }
+      }
+    }
+
+    const logo =
+      tenant?.logo_url ||
+      cachedLogo ||
+      (import.meta.env.VITE_TENANT_LOGO_URL as string | undefined) ||
+      najaxLogoSplash;
+
+    const name =
+      tenant?.name ||
+      cachedName ||
+      (import.meta.env.VITE_TENANT_NAME as string | undefined) ||
+      "App";
+
+    // IMPORTANT: do not render children behind this gate. While the tenant row
+    // is unresolved, child routes can temporarily render generic/admin UI such
+    // as "Admin Admin". The splash is the only visible/rendered route content
+    // until tenant resolution is complete.
+    return (
+      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-primary">
+        <img
+          src={logo}
+          alt={name}
+          className="h-36 w-36 rounded-2xl object-cover shadow-lg"
+          onError={(event) => {
+            event.currentTarget.src = najaxLogoSplash;
+          }}
+        />
+        <div className="mt-8 h-9 w-9 animate-spin rounded-full border-[3px] border-accent/30 border-t-accent" />
+      </div>
+    );
   }
 
   if (state.status === "needs_code") {
