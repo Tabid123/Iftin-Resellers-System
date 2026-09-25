@@ -75,6 +75,8 @@ export function BankTransactions({ isSo = true }: { isSo?: boolean }) {
   const [matchTx, setMatchTx] = useState<BankTx | null>(null);
   const [pendingCandidates, setPendingCandidates] = useState<PendingPayment[]>([]);
   const [matchSaving, setMatchSaving] = useState(false);
+  const [page, setPage] = useState(0);
+  const [totalRows, setTotalRows] = useState(0);
 
   const periodStart = useCallback((p: PeriodKey): string | null => {
     const now = new Date();
@@ -108,6 +110,7 @@ export function BankTransactions({ isSo = true }: { isSo?: boolean }) {
       const ps = periodStart(period);
       const from = page * ADMIN_PAGE_SIZE;
       const to = from + ADMIN_PAGE_SIZE - 1;
+
       let q = supabase
         .from('bank_transactions')
         .select('id,tran_no,tran_date_time,customer_name,tran_amt,parsed_sender_phone,parsed_receiver_phone,match_status,match_notes,matched_payment_id,narration,dr_cr,currency_code,created_at', { count: 'exact' })
@@ -116,19 +119,20 @@ export function BankTransactions({ isSo = true }: { isSo?: boolean }) {
 
       if (ps) q = q.gte('created_at', ps);
       if (statusFilter !== 'all') q = q.eq('match_status', statusFilter);
-      const cleanedSearch = search.trim().replace(/[%(),]/g, '');
-      if (cleanedSearch) {
-        q = q.or(`tran_no.ilike.%${cleanedSearch}%,customer_name.ilike.%${cleanedSearch}%,parsed_sender_phone.ilike.%${cleanedSearch}%,parsed_receiver_phone.ilike.%${cleanedSearch}%,narration.ilike.%${cleanedSearch}%`);
+      if (search.trim()) {
+        const term = search.trim().replace(/[%(),]/g, '');
+        q = q.or(`tran_no.ilike.%${term}%,customer_name.ilike.%${term}%,parsed_sender_phone.ilike.%${term}%,parsed_receiver_phone.ilike.%${term}%,narration.ilike.%${term}%`);
       }
 
       const [pageRes, summaryRes] = await Promise.all([
         q,
-        (supabase as any).rpc('get_bank_transactions_summary', {
+        (supabase as any).rpc('get_admin_bank_transactions_summary', {
           p_start: ps,
           p_status: statusFilter === 'all' ? null : statusFilter,
-          p_search: cleanedSearch || null,
+          p_search: search.trim() || null,
         }),
       ]);
+
       if (pageRes.error) throw pageRes.error;
       if (summaryRes.error) throw summaryRes.error;
 
@@ -148,10 +152,13 @@ export function BankTransactions({ isSo = true }: { isSo?: boolean }) {
       setLoading(false);
     }
   }, [period, statusFilter, search, page, periodStart, toast, isSo]);
-
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [period, statusFilter, search]);
 
   useEffect(() => { setPage(0); }, [period, statusFilter, search]);
 
@@ -434,6 +441,7 @@ export function BankTransactions({ isSo = true }: { isSo?: boolean }) {
             </TableBody>
           </Table>
         </div>
+      <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
       </Card>
       <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
 
