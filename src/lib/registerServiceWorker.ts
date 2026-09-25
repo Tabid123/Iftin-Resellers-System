@@ -54,6 +54,13 @@ export function registerServiceWorker(): void {
     return;
   }
 
+  let controllerReloaded = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (controllerReloaded) return;
+    controllerReloaded = true;
+    window.location.reload();
+  });
+
   const register = () => {
     void navigator.serviceWorker
       .register(SW_URL, { scope: "/", updateViaCache: "none" })
