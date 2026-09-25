@@ -168,6 +168,30 @@ body {
     overflow: hidden !important;
   }
 
+  /* Login/OTP pages are not inside the storefront route scroller. While the
+   * Android keyboard is open, let the document become vertically scrollable so
+   * the focused field can be moved above the IME instead of being covered. */
+  html.iftin-keyboard-open,
+  html.iftin-keyboard-open body,
+  html.iftin-keyboard-open body > #root {
+    height: auto !important;
+    min-height: 100dvh !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: contain !important;
+  }
+
+  html.iftin-keyboard-open body > #root {
+    padding-bottom: calc(var(--iftin-keyboard-inset) + 32px) !important;
+  }
+
+  html.iftin-keyboard-open input:focus,
+  html.iftin-keyboard-open textarea:focus,
+  html.iftin-keyboard-open [contenteditable="true"]:focus {
+    scroll-margin-top: 28px !important;
+    scroll-margin-bottom: calc(var(--iftin-keyboard-inset) + 32px) !important;
+  }
+
   .min-h-screen.bg-background.flex.flex-col > .fixed.top-0.left-0.right-0.z-50 > .grid.h-14 {
     height: 56px !important;
     min-height: 56px !important;
