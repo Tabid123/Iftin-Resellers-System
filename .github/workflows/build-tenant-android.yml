@@ -113,11 +113,16 @@ jobs:
             cfg.plugins.StatusBar.backgroundColor = color;
             cfg.plugins.NavigationBar.backgroundColor = color;
 
-            // Tenant APKs boot from the packaged Capacitor web bundle.
-            // This keeps cold/offline startup fast and independent of network.
-            // Tenant identity is baked through VITE_TENANT_SLUG and live business
-            // data still refreshes directly from Supabase after startup.
-            delete cfg.server;
+            // Tenant APKs boot from the packaged Capacitor web bundle for
+            // offline safety, then the app may navigate the WebView to the live
+            // tenant route when connectivity is available. allowNavigation keeps
+            // that live route inside the Capacitor shell while preserving native
+            // plugins; no server.url is used, so cold/offline startup stays local.
+            cfg.server = {
+              ...(cfg.server || {}),
+              allowNavigation: ["iftinagents.com", "*.iftinagents.com"]
+            };
+            delete cfg.server.url;
 
             fs.writeFileSync("capacitor.config.json", JSON.stringify(cfg, null, 2));
           '
@@ -237,9 +242,11 @@ jobs:
             || fail "tenant splash fade-out duration is not 0ms"
           grep -Eq '"launchAutoHide"[[:space:]]*:[[:space:]]*true' capacitor.config.json \
             || fail "tenant splash auto-hide is not enabled"
-          if grep -Eq '"server"[[:space:]]*:' capacitor.config.json; then
-            fail "tenant APK must boot from packaged webDir, not remote server.url"
+          if grep -Eq '"url"[[:space:]]*:' capacitor.config.json; then
+            fail "tenant APK must not use remote server.url; packaged webDir is the offline fallback"
           fi
+          grep -Fq '"iftinagents.com"' capacitor.config.json \
+            || fail "live tenant host is not allowed for hybrid APK updates"
           if [ -f "$ASSETS/capacitor.config.json" ]; then
             grep -Eq '"captureInput"[[:space:]]*:[[:space:]]*false' "$ASSETS/capacitor.config.json" \
               || fail "captureInput is not false in the synced Android capacitor.config.json"
