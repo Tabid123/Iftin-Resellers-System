@@ -175,7 +175,12 @@ export function TransactionsDashboard() {
     if (debouncedSearch) {
       const q = debouncedSearch.replace(/[%(),]/g, '').trim();
       if (q) {
-        orderQuery = orderQuery.or(`customer_phone.ilike.%${q}%,receiver_phone.ilike.%${q}%,sender_phone.ilike.%${q}%,package_name.ilike.%${q}%,id.ilike.${q}%`);
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(q);
+        if (isUuid) {
+          orderQuery = orderQuery.eq('id', q);
+        } else {
+          orderQuery = orderQuery.or(`customer_phone.ilike.%${q}%,receiver_phone.ilike.%${q}%,sender_phone.ilike.%${q}%,package_name.ilike.%${q}%`);
+        }
       }
     }
     if (statusFilter === 'completed') orderQuery = orderQuery.eq('delivery_status', 'delivered');
