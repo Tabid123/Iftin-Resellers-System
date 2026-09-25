@@ -71,6 +71,7 @@ from base;
 $$;
 
 revoke all on function public.get_admin_dashboard_summary(timestamptz,timestamptz) from public;
+revoke execute on function public.get_admin_dashboard_summary(timestamptz,timestamptz) from anon;
 grant execute on function public.get_admin_dashboard_summary(timestamptz,timestamptz) to authenticated;
 
 create or replace function public.get_admin_device_period_stats(
@@ -155,4 +156,5 @@ group by android_device_id;
 $$;
 
 revoke all on function public.get_admin_device_period_stats(timestamptz,timestamptz) from public;
+revoke execute on function public.get_admin_device_period_stats(timestamptz,timestamptz) from anon;
 grant execute on function public.get_admin_device_period_stats(timestamptz,timestamptz) to authenticated;
