@@ -73,6 +73,15 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Capacitor tenant APKs already boot from a packaged local web bundle and
+  // maintain their own tenant/offline caches. Intercepting every Supabase GET
+  // inside Android WebView caused duplicate Cache Storage writes and can make
+  // low-end devices appear frozen/ANR under admin traffic. Keep the service
+  // worker for normal browser/PWA use, but let native Capacitor requests pass
+  // straight through without service-worker caching.
+  const swHost = self.location && self.location.hostname;
+  if (swHost === 'localhost' || swHost === '127.0.0.1') return;
+
   const { request } = event;
   const url = new URL(request.url);
 
