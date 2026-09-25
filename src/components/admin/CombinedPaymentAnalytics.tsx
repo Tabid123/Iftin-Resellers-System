@@ -139,125 +139,73 @@ const CombinedPaymentAnalytics = () => {
 
   const loadData = async () => {
     setLoading(true);
-    const startDate = getDateRange(period);
-    
-    const { fetchAllRows } = await import('@/utils/fetchAllRows');
-    const data = await fetchAllRows(() =>
-      supabase
-        .from('orders')
-        .select(`
-          id, selling_price, delivery_status, payment_source, created_at,
-          data_packages_config(cost_price),
-          providers_config(evoucher_rate)
-        `)
-        .neq('status', 'pending_payment')
-        .gte('created_at', startDate.toISOString())
-        .order('created_at', { ascending: false })
-    );
+    try {
+      const startDate = getDateRange(period);
+      const { data, error } = await (supabase as any).rpc('get_combined_payment_analytics', {
+        p_start: startDate.toISOString(),
+        p_bucket: period === 'year' ? 'month' : 'day',
+      });
+      if (error) throw error;
+      const payload = data || {};
+      const toStats = (row: any): SourceStats => {
+        const totalOrders = Number(row?.total_orders || 0);
+        const delivered = Number(row?.delivered || 0);
+        return {
+          totalOrders,
+          revenue: Number(row?.revenue || 0),
+          profit: Number(row?.profit || 0),
+          delivered,
+          pending: Number(row?.pending || 0),
+          failed: Number(row?.failed || 0),
+          successRate: totalOrders > 0 ? (delivered / totalOrders) * 100 : 0,
+        };
+      };
+      const onlineStats = toStats(payload.online);
+      const offlineStats = toStats(payload.sms);
+      setWaafipayStats(onlineStats);
+      setSmsStats(offlineStats);
+      setOrders([]);
 
-    if (data) {
-      const typedData = data as unknown as OrderWithDetails[];
-      setOrders(typedData);
-      
-      const waafipayOrders = typedData.filter(o => o.payment_source === 'ussd_online');
-      const smsOrders = typedData.filter(o => o.payment_source === 'sms_offline' || !o.payment_source);
-      
-      setWaafipayStats(calculateStats(waafipayOrders));
-      setSmsStats(calculateStats(smsOrders));
-      
-      const breakdown = generateBreakdown(typedData, period);
-      setBreakdownData(breakdown);
-      
-      setChartData(breakdown.map(b => ({
-        name: b.label,
-        Online: b.waafipayOrders,
-        SMS: b.smsOrders
-      })));
-      
+      const rows: BreakdownRow[] = (Array.isArray(payload.breakdown) ? payload.breakdown : []).map((b: any) => {
+        const d = new Date(b.bucket);
+        const label = period === 'week' ? format(d, 'EEE') : period === 'year' ? format(d, 'MMM yyyy') : format(d, 'MMM d');
+        return {
+          label,
+          waafipayOrders: Number(b.online_orders || 0),
+          smsOrders: Number(b.sms_orders || 0),
+          waafipayRevenue: Number(b.online_revenue || 0),
+          smsRevenue: Number(b.sms_revenue || 0),
+          total: Number(b.online_revenue || 0) + Number(b.sms_revenue || 0),
+        };
+      });
+      setBreakdownData(rows);
+      setChartData(rows.map(b => ({ name: b.label, Online: b.waafipayOrders, SMS: b.smsOrders })));
       setPieData([
-        { name: 'Online (USSD)', value: waafipayOrders.length, color: '#3b82f6' },
-        { name: 'SMS Offline', value: smsOrders.length, color: '#22c55e' }
+        { name: 'Online (USSD)', value: onlineStats.totalOrders, color: '#3b82f6' },
+        { name: 'SMS Offline', value: offlineStats.totalOrders, color: '#22c55e' },
       ].filter(p => p.value > 0));
+    } catch (error) {
+      console.error('Combined analytics load failed', error);
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
-  };
-
-  const recalcAll = (updated: OrderWithDetails[]) => {
-    const waafipayOrders = updated.filter(o => o.payment_source === 'ussd_online');
-    const smsOrders = updated.filter(o => o.payment_source === 'sms_offline' || !o.payment_source);
-    setWaafipayStats(calculateStats(waafipayOrders));
-    setSmsStats(calculateStats(smsOrders));
-    const breakdown = generateBreakdown(updated, period);
-    setBreakdownData(breakdown);
-      setChartData(breakdown.map(b => ({ name: b.label, Online: b.waafipayOrders, SMS: b.smsOrders })));
-    setPieData([
-      { name: 'Online (USSD)', value: waafipayOrders.length, color: '#3b82f6' },
-      { name: 'SMS Offline', value: smsOrders.length, color: '#22c55e' }
-    ].filter(p => p.value > 0));
   };
 
   useEffect(() => {
-    loadData();
-    
+    void loadData();
     const channel = supabase
       .channel('combined-analytics-orders')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, async (payload) => {
-        const newId = payload.new?.id;
-        if (!newId) return;
-        const { data } = await supabase
-          .from('orders')
-          .select(`
-            id, selling_price, delivery_status, payment_source, created_at,
-            data_packages_config(cost_price),
-            providers_config(evoucher_rate)
-          `)
-          .eq('id', newId)
-          .neq('status', 'pending_payment')
-          .single();
-        if (data) {
-          const typedRow = data as unknown as OrderWithDetails;
-          const startDate = getDateRange(period);
-          if (new Date(typedRow.created_at) >= startDate) {
-            setOrders(prev => {
-              const updated = [typedRow, ...prev];
-              recalcAll(updated);
-              return updated;
-            });
-          }
-        }
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, async (payload) => {
-        const updatedId = payload.new?.id;
-        if (!updatedId) return;
-        const { data } = await supabase
-          .from('orders')
-          .select(`
-            id, selling_price, delivery_status, payment_source, created_at,
-            data_packages_config(cost_price),
-            providers_config(evoucher_rate)
-          `)
-          .eq('id', updatedId)
-          .single();
-        if (data) {
-          const typedRow = data as unknown as OrderWithDetails;
-          setOrders(prev => {
-            const updated = prev.map(o => o.id === updatedId ? typedRow : o);
-            recalcAll(updated);
-            return updated;
-          });
-        }
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => void loadData())
       .subscribe();
-    
-    return () => { supabase.removeChannel(channel); };
+    return () => { void supabase.removeChannel(channel); };
   }, [period]);
+
 
   const combinedStats = {
     totalOrders: waafipayStats.totalOrders + smsStats.totalOrders,
     revenue: waafipayStats.revenue + smsStats.revenue,
     profit: waafipayStats.profit + smsStats.profit,
-    successRate: orders.length > 0 ? ((waafipayStats.delivered + smsStats.delivered) / orders.length) * 100 : 0
+    successRate: (waafipayStats.totalOrders + smsStats.totalOrders) > 0 ? ((waafipayStats.delivered + smsStats.delivered) / (waafipayStats.totalOrders + smsStats.totalOrders)) * 100 : 0
   };
 
   const StatCard = ({ title, stats, icon: Icon, color }: { title: string; stats: SourceStats; icon: any; color: string }) => (
