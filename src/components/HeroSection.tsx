@@ -7,7 +7,7 @@ const HeroSection = () => {
   const t = useTenant();
   const tenant = t.status === 'ready' || t.status === 'suspended' ? t.tenant : null;
   const logo = tenant?.logo_url || najaxLogo;
-  const name = tenant?.name || 'NAJAX DATA';
+  const name = tenant?.name || (import.meta.env.VITE_TENANT_NAME as string) || '';
 
   return (
     <div className="text-center space-y-5 pt-4">

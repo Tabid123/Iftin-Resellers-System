@@ -151,11 +151,29 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   errorComponent: ErrorComponent,
 });
 
+// Apply the last-known tenant colours before first paint so no default
+// (Najax) colours flash while the tenant record loads.
+const earlyTenantBrandScript = `(function(){try{
+var s=localStorage.getItem('najax.tenant_slug');if(!s)return;
+var t=JSON.parse(localStorage.getItem('najax.tenant_cache.'+s)||'null');if(!t)return;
+function h(c){if(!c)return null;c=String(c).trim();if(c.charAt(0)!=='#')return c.replace(/^hsl\\(/i,'').replace(/\\)$/,'');
+var x=c.slice(1);if(x.length===3)x=x.split('').map(function(a){return a+a}).join('');
+var r=parseInt(x.substr(0,2),16)/255,g=parseInt(x.substr(2,2),16)/255,b=parseInt(x.substr(4,2),16)/255;
+var M=Math.max(r,g,b),m=Math.min(r,g,b),l=(M+m)/2,d=M-m,H=0,S=0;
+if(d){S=l>.5?d/(2-M-m):d/(M+m);H=M===r?(g-b)/d+(g<b?6:0):M===g?(b-r)/d+2:(r-g)/d+4;H*=60}
+return Math.round(H)+' '+Math.round(S*100)+'% '+Math.round(l*100)+'%'}
+var st=document.documentElement.style,p=h(t.primary_color),a=h(t.accent_color);
+if(p){st.setProperty('--primary',p);st.setProperty('--ring',p);st.setProperty('--brand-primary','hsl('+p+')');
+var L=parseFloat(p.split(' ')[2]);st.setProperty('--primary-foreground',L>58?'222 30% 10%':'0 0% 100%');}
+if(a){st.setProperty('--accent',a);st.setProperty('--brand-accent','hsl('+a+')');}
+}catch(e){}})();`;
+
 function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <head>
         <HeadContent />
+        <script dangerouslySetInnerHTML={{ __html: earlyTenantBrandScript }} />
         <script dangerouslySetInnerHTML={{ __html: chunkRecoveryScript }} />
       </head>
       <body>
