@@ -226,7 +226,7 @@ export function TransactionsDashboard() {
     setServerStats({
       revenue: Number(summary.revenue || 0),
       cost: Number(summary.cost || 0),
-      profitEvoucher: Number(summary.profit_evoucher || 0),
+      profitEvoucher: Number(summary.profit_ev || 0),
       profitUsd: Number(summary.profit_usd || 0),
       deliveredCount: Number(summary.delivered_count || 0),
     });
