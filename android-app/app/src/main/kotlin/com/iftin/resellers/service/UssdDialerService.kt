@@ -633,12 +633,14 @@ class UssdDialerService : Service() {
 
                     override fun onFailure(webSocket: okhttp3.WebSocket, t: Throwable, response: okhttp3.Response?) {
                         realtimeConnected = false
+                        bulkSmsWebSocket = null
                         android.util.Log.e("UssdDialer", "❌ Realtime WebSocket failed: ${t.message}")
                         connected.complete(false)
                     }
 
                     override fun onClosed(webSocket: okhttp3.WebSocket, code: Int, reason: String) {
                         realtimeConnected = false
+                        bulkSmsWebSocket = null
                         android.util.Log.w("UssdDialer", "🔌 Realtime WebSocket closed: $reason")
                         connected.complete(false)
                     }
@@ -668,7 +670,8 @@ class UssdDialerService : Service() {
                                 put("payload", JSONObject())
                                 put("ref", System.currentTimeMillis().toString())
                             }
-                            bulkSmsWebSocket?.send(heartbeat.toString()) ?: break
+                            val heartbeatSent = bulkSmsWebSocket?.send(heartbeat.toString()) ?: false
+                            if (!heartbeatSent) break
                         } catch (e: Exception) {
                             android.util.Log.e("UssdDialer", "❌ Realtime heartbeat failed: ${e.message}")
                             break
