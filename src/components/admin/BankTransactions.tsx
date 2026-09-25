@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   Banknote, RefreshCw, KeyRound, Search, CheckCircle2, XCircle, AlertCircle, Copy,
 } from 'lucide-react';
+import { AdminPagination, ADMIN_PAGE_SIZE } from './simple/AdminPagination';
 
 interface BankTx {
   id: string;
@@ -60,6 +61,8 @@ export function BankTransactions({ isSo = true }: { isSo?: boolean }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'matched' | 'unmatched' | 'ignored_debit' | 'failed_parse'>('all');
   const [stats, setStats] = useState({ total: 0, matched: 0, unmatched: 0, totalAmount: 0 });
+  const [page, setPage] = useState(0);
+  const [totalRows, setTotalRows] = useState(0);
 
   // Credentials dialog
   const [credOpen, setCredOpen] = useState(false);
@@ -102,50 +105,55 @@ export function BankTransactions({ isSo = true }: { isSo?: boolean }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      const ps = periodStart(period);
+      const from = page * ADMIN_PAGE_SIZE;
+      const to = from + ADMIN_PAGE_SIZE - 1;
       let q = supabase
         .from('bank_transactions')
-        .select('id, tran_no, tran_date_time, customer_name, tran_amt, parsed_sender_phone, parsed_receiver_phone, match_status, match_notes, matched_payment_id, narration, dr_cr, currency_code, created_at')
+        .select('id,tran_no,tran_date_time,customer_name,tran_amt,parsed_sender_phone,parsed_receiver_phone,match_status,match_notes,matched_payment_id,narration,dr_cr,currency_code,created_at', { count: 'exact' })
         .order('created_at', { ascending: false })
-        .limit(500);
+        .range(from, to);
 
-      const ps = periodStart(period);
       if (ps) q = q.gte('created_at', ps);
       if (statusFilter !== 'all') q = q.eq('match_status', statusFilter);
-
-      const { data, error } = await q;
-      if (error) throw error;
-      let rows = (data || []) as BankTx[];
-
-      if (search.trim()) {
-        const s = search.trim().toLowerCase();
-        rows = rows.filter(r =>
-          r.tran_no?.toLowerCase().includes(s) ||
-          r.customer_name?.toLowerCase().includes(s) ||
-          r.parsed_sender_phone?.includes(s) ||
-          r.parsed_receiver_phone?.includes(s) ||
-          r.narration?.toLowerCase().includes(s)
-        );
+      const cleanedSearch = search.trim().replace(/[%(),]/g, '');
+      if (cleanedSearch) {
+        q = q.or(`tran_no.ilike.%${cleanedSearch}%,customer_name.ilike.%${cleanedSearch}%,parsed_sender_phone.ilike.%${cleanedSearch}%,parsed_receiver_phone.ilike.%${cleanedSearch}%,narration.ilike.%${cleanedSearch}%`);
       }
 
-      setTxs(rows);
+      const [pageRes, summaryRes] = await Promise.all([
+        q,
+        (supabase as any).rpc('get_bank_transactions_summary', {
+          p_start: ps,
+          p_status: statusFilter === 'all' ? null : statusFilter,
+          p_search: cleanedSearch || null,
+        }),
+      ]);
+      if (pageRes.error) throw pageRes.error;
+      if (summaryRes.error) throw summaryRes.error;
 
-      const matched = rows.filter(r => r.match_status === 'matched').length;
-      const unmatched = rows.filter(r => r.match_status === 'unmatched').length;
-      const totalAmount = rows
-        .filter(r => r.dr_cr === 'cr' || !r.dr_cr)
-        .reduce((s, r) => s + Number(r.tran_amt || 0), 0);
-      setStats({ total: rows.length, matched, unmatched, totalAmount });
+      setTxs((pageRes.data || []) as BankTx[]);
+      setTotalRows(pageRes.count ?? 0);
+      const summary = summaryRes.data || {};
+      setStats({
+        total: Number(summary.total || 0),
+        matched: Number(summary.matched || 0),
+        unmatched: Number(summary.unmatched || 0),
+        totalAmount: Number(summary.total_amount || 0),
+      });
     } catch (e: any) {
       console.error('load bank tx failed', e);
       toast({ title: isSo ? 'Khalad' : 'Error', description: e.message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
-  }, [period, statusFilter, search, periodStart, toast, isSo]);
+  }, [period, statusFilter, search, page, periodStart, toast, isSo]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => { setPage(0); }, [period, statusFilter, search]);
 
   // Realtime: refresh on insert/update
   useEffect(() => {
@@ -427,6 +435,7 @@ export function BankTransactions({ isSo = true }: { isSo?: boolean }) {
           </Table>
         </div>
       </Card>
+      <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
 
       {/* Credentials Dialog */}
       <Dialog open={credOpen} onOpenChange={setCredOpen}>
