@@ -23,6 +23,6 @@
 - [ ] Fix tenant Android/PWA bottom movement, covered phone/code fields, and the white bottom banner.
 - [x] Play the supplied full voice prompt whenever the login phone-number field is tapped.
 - [x] Play the supplied full OTP prompt when the code screen appears and whenever an OTP field is tapped.
-- [ ] Add a small APK test button on the providers page (to confirm new builds reach the APK).
-- [ ] Remove Najax logo/colours flash before tenant branding loads (admin login + app start).
+- [x] Add a small APK test button on the providers page (to confirm new builds reach the APK).
+- [x] Remove Najax logo/colours flash before tenant branding loads (admin login + app start).
 - [ ] APK: bundle voice prompts locally, faster splash, payment status re-check on app resume.
