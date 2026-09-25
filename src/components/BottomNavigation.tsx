@@ -4,9 +4,10 @@ import { useLanguage } from "@/contexts/LanguageContext";
 
 interface BottomNavigationProps {
   onNotificationsClick?: () => void;
+  visible?: boolean;
 }
 
-export function BottomNavigation({ onNotificationsClick }: BottomNavigationProps = {}) {
+export function BottomNavigation({ onNotificationsClick, visible = true }: BottomNavigationProps = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const { language } = useLanguage();
@@ -37,7 +38,8 @@ export function BottomNavigation({ onNotificationsClick }: BottomNavigationProps
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-50"
+      aria-hidden={visible ? undefined : true}
+      className={`iftin-bottom-nav fixed bottom-0 left-0 right-0 z-50 ${visible ? "" : "pointer-events-none invisible"}`}
       style={{
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
         contain: "layout",
