@@ -51,9 +51,12 @@ class UssdDialerService : Service() {
         private const val SMS_DEFAULT_LOOKBACK_MS = 60000L // 1 minute for normal polling
         private const val SMS_COUNT_KEY = "last_sms_count" // Smart SMS polling
         private const val LAST_SMS_POLL_TIME_KEY = "last_sms_poll_time" // Track last successful poll
-        private const val DAYTIME_POLL_INTERVAL_MS = 12000L  // 05:01-23:59
-        private const val NIGHT_POLL_INTERVAL_MS = 20000L   // 00:00-05:00
-        private const val BUSY_POLL_INTERVAL_MS = 3000L     // when orders found
+        private const val DAYTIME_POLL_INTERVAL_MS = 12000L  // fallback when Realtime is disconnected
+        private const val NIGHT_POLL_INTERVAL_MS = 20000L   // fallback when Realtime is disconnected
+        private const val BUSY_POLL_INTERVAL_MS = 3000L     // drain queue quickly after work is found
+        private const val REALTIME_FALLBACK_POLL_INTERVAL_MS = 120000L // 2 min safety poll while Realtime is healthy
+        private const val REALTIME_DISCONNECTED_DISCOVERY_POLL_MS = 5000L
+        private const val HEARTBEAT_INTERVAL_MS = 60000L     // presence safety margin; server uses a 90s online window
         private const val JITTER_MAX_MS = 2000L             // 1-2s random jitter
         private val API_URL = com.iftin.resellers.config.ApiConfig.FUNCTIONS_URL + "/process-payment-receipt"
     }
@@ -322,7 +325,7 @@ class UssdDialerService : Service() {
                 } catch (e: Exception) {
                     android.util.Log.w("UssdDialer", "Heartbeat failed: ${e.message}")
                 }
-                delay(15_000L)
+                delay(HEARTBEAT_INTERVAL_MS)
             }
         }
     }
@@ -338,7 +341,13 @@ class UssdDialerService : Service() {
                 } catch (e: Exception) {
                     android.util.Log.e("UssdDialer", "❌ Discovery loop: ${e.message}")
                 }
-                delay(if (claimed) 300L else 600L)
+                delay(
+                    when {
+                        claimed -> 500L
+                        realtimeConnected -> REALTIME_FALLBACK_POLL_INTERVAL_MS
+                        else -> REALTIME_DISCONNECTED_DISCOVERY_POLL_MS
+                    }
+                )
             }
         }
     }
@@ -391,8 +400,13 @@ class UssdDialerService : Service() {
                         updateNotification("Active - $s successful, $f failed", s, f)
                     }
                     
-                    // Dynamic polling: 3s busy, daytime 12s, nighttime 20s + jitter
-                    val baseInterval = if (foundOrders) BUSY_POLL_INTERVAL_MS else getBaseInterval()
+                    // Realtime is primary. Polling is only a safety net while the socket is healthy.
+                    // If Realtime drops, temporarily fall back to the old fast polling cadence.
+                    val baseInterval = when {
+                        foundOrders -> BUSY_POLL_INTERVAL_MS
+                        realtimeConnected -> REALTIME_FALLBACK_POLL_INTERVAL_MS
+                        else -> getBaseInterval()
+                    }
                     delay(addJitter(baseInterval))
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -401,7 +415,7 @@ class UssdDialerService : Service() {
             }
         }
         
-        // DISCOVERY POLLING (*212*) — self-healing 600ms loop.
+        // DISCOVERY (*212*) — Realtime-first with a slow safety poll; fast fallback only if Realtime disconnects.
         ensureDiscoveryPollingLoop()
 
 
@@ -445,11 +459,16 @@ class UssdDialerService : Service() {
             startBulkSmsRealtimeListener()
         }
         
-        // Bulk SMS fallback polling (30-45s) in case WebSocket disconnects
+        // Bulk SMS safety polling. Realtime handles normal delivery; fast fallback is used only while disconnected.
         serviceScope.launch {
-            android.util.Log.d("UssdDialer", "📤 Starting Bulk SMS fallback polling (30-45s)")
+            android.util.Log.d("UssdDialer", "📤 Starting Bulk SMS adaptive fallback polling")
             while (isRunning) {
-                delay(30000L + (Random().nextDouble() * 15000).toLong())
+                val fallbackDelay = if (realtimeConnected) {
+                    REALTIME_FALLBACK_POLL_INTERVAL_MS
+                } else {
+                    30000L + (Random().nextDouble() * 15000).toLong()
+                }
+                delay(fallbackDelay)
                 try {
                     processPendingBulkSms()
                 } catch (e: Exception) {
@@ -461,6 +480,8 @@ class UssdDialerService : Service() {
     
     // ==================== BULK SMS via SUPABASE REALTIME ====================
     
+    @Volatile
+    private var realtimeConnected = false
     private var bulkSmsWebSocket: okhttp3.WebSocket? = null
     private val realtimeClient = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS) // Keep alive indefinitely
@@ -473,144 +494,206 @@ class UssdDialerService : Service() {
      */
     private suspend fun startBulkSmsRealtimeListener() {
         var retryDelay = 3000L
-        
+
         while (isRunning) {
             try {
-                android.util.Log.d("UssdDialer", "🔌 Connecting to Supabase Realtime for Bulk SMS...")
-                
-                // First, process any already-pending items (catch up)
+                val authRepo = com.iftin.resellers.auth.AuthRepository(applicationContext)
+                if (!authRepo.ensureValidSession()) {
+                    realtimeConnected = false
+                    android.util.Log.w("UssdDialer", "⚠️ Realtime auth session unavailable; using polling fallback")
+                    delay(retryDelay)
+                    retryDelay = (retryDelay * 2).coerceAtMost(60000L)
+                    continue
+                }
+
+                val accessToken = authRepo.getAccessToken()
+                val tenantId = authRepo.getTenantId()
+                if (accessToken.isNullOrBlank() || tenantId.isNullOrBlank()) {
+                    realtimeConnected = false
+                    delay(retryDelay)
+                    retryDelay = (retryDelay * 2).coerceAtMost(60000L)
+                    continue
+                }
+
+                android.util.Log.d("UssdDialer", "🔌 Connecting unified Supabase Realtime listener...")
+
+                // Catch up once before relying on events.
                 processPendingBulkSms()
-                
+                try { pollPendingOrders() } catch (_: Exception) {}
+                try { pollDiscoveryJobs() } catch (_: Exception) {}
+
                 val wsUrl = "${com.iftin.resellers.config.ApiConfig.REALTIME_URL}?apikey=${apiClient.getAnonKey()}&vsn=1.0.0"
                 val request = Request.Builder().url(wsUrl).build()
-                
                 val connected = CompletableDeferred<Boolean>()
-                
+                val topic = "realtime:delivery-agent-$deviceId"
+
                 bulkSmsWebSocket = realtimeClient.newWebSocket(request, object : okhttp3.WebSocketListener() {
-                    
                     override fun onOpen(webSocket: okhttp3.WebSocket, response: okhttp3.Response) {
-                        android.util.Log.d("UssdDialer", "✅ Realtime WebSocket connected")
-                        retryDelay = 3000L // Reset backoff
-                        
-                        // Send heartbeat join
-                        val joinPhoenix = JSONObject().apply {
-                            put("topic", "phoenix")
-                            put("event", "phx_join")
-                            put("payload", JSONObject())
-                            put("ref", "1")
+                        retryDelay = 3000L
+
+                        val postgresChanges = org.json.JSONArray().apply {
+                            // Delivery order assigned to this physical device.
+                            put(JSONObject().apply {
+                                put("event", "*")
+                                put("schema", "public")
+                                put("table", "delivery_queue")
+                                put("filter", "android_device_id=eq.$deviceId")
+                            })
+                            // Discovery starts before a device is claimed, so subscribe at tenant level.
+                            put(JSONObject().apply {
+                                put("event", "*")
+                                put("schema", "public")
+                                put("table", "ussd_package_discoveries")
+                                put("filter", "tenant_id=eq.$tenantId")
+                            })
+                            put(JSONObject().apply {
+                                put("event", "INSERT")
+                                put("schema", "public")
+                                put("table", "bulk_sms_queue")
+                                put("filter", "device_id=eq.$deviceId")
+                            })
                         }
-                        webSocket.send(joinPhoenix.toString())
-                        
-                        // Subscribe to bulk_sms_queue inserts for this device
+
                         val subscribePayload = JSONObject().apply {
-                            put("topic", "realtime:public:bulk_sms_queue")
+                            put("topic", topic)
                             put("event", "phx_join")
                             put("payload", JSONObject().apply {
+                                put("access_token", accessToken)
                                 put("config", JSONObject().apply {
-                                    put("broadcast", JSONObject().put("self", false))
-                                    put("presence", JSONObject().put("key", ""))
-                                    put("postgres_changes", org.json.JSONArray().apply {
-                                        put(JSONObject().apply {
-                                            put("event", "INSERT")
-                                            put("schema", "public")
-                                            put("table", "bulk_sms_queue")
-                                            put("filter", "device_id=eq.$deviceId")
-                                        })
+                                    put("broadcast", JSONObject().apply {
+                                        put("ack", false)
+                                        put("self", false)
                                     })
+                                    put("presence", JSONObject().apply {
+                                        put("enabled", false)
+                                        put("key", "")
+                                    })
+                                    put("postgres_changes", postgresChanges)
+                                    put("private", false)
                                 })
                             })
                             put("ref", "2")
+                            put("join_ref", "2")
                         }
                         webSocket.send(subscribePayload.toString())
                         connected.complete(true)
                     }
-                    
+
                     override fun onMessage(webSocket: okhttp3.WebSocket, text: String) {
                         try {
                             val msg = JSONObject(text)
                             val event = msg.optString("event", "")
-                            
-                            // Phoenix heartbeat - respond to keep alive
-                            if (event == "phx_reply" || event == "phx_close") return
-                            
+                            val ref = msg.optString("ref", "")
+
+                            if (event == "phx_reply" && ref == "2") {
+                                val status = msg.optJSONObject("payload")?.optString("status", "")
+                                realtimeConnected = status == "ok"
+                                android.util.Log.d("UssdDialer", "📡 Realtime subscription status=$status")
+                                return
+                            }
+                            if (event == "phx_close") {
+                                realtimeConnected = false
+                                return
+                            }
+
                             if (msg.optString("topic", "").startsWith("realtime:") && event == "postgres_changes") {
-                                val payload = msg.optJSONObject("payload")
-                                val data = payload?.optJSONObject("data")
+                                val data = msg.optJSONObject("payload")?.optJSONObject("data")
+                                val table = data?.optString("table", "").orEmpty()
                                 val record = data?.optJSONObject("record")
-                                
-                                if (record != null && record.optString("device_id") == deviceId && record.optString("status") == "pending") {
-                                    android.util.Log.d("UssdDialer", "📨 Realtime: New bulk SMS task received!")
-                                    // Process all pending items (batch)
-                                    serviceScope.launch {
-                                        processPendingBulkSms()
+
+                                when (table) {
+                                    "delivery_queue" -> {
+                                        if (record?.optString("android_device_id") == deviceId &&
+                                            record?.optString("status") == "pending") {
+                                            serviceScope.launch {
+                                                try { pollPendingOrders() } catch (_: Exception) {}
+                                            }
+                                        }
+                                    }
+                                    "ussd_package_discoveries" -> {
+                                        if (record?.optString("tenant_id") == tenantId &&
+                                            record?.optString("status") == "pending") {
+                                            serviceScope.launch {
+                                                try { pollDiscoveryJobs() } catch (_: Exception) {}
+                                            }
+                                        }
+                                    }
+                                    "bulk_sms_queue" -> {
+                                        if (record?.optString("device_id") == deviceId &&
+                                            record?.optString("status") == "pending") {
+                                            serviceScope.launch { processPendingBulkSms() }
+                                        }
                                     }
                                 }
-                            }
-                            
-                            // Handle heartbeat
-                            if (event == "heartbeat" || msg.optString("topic") == "phoenix") {
-                                val heartbeat = JSONObject().apply {
-                                    put("topic", "phoenix")
-                                    put("event", "heartbeat")
-                                    put("payload", JSONObject())
-                                    put("ref", System.currentTimeMillis().toString())
-                                }
-                                webSocket.send(heartbeat.toString())
                             }
                         } catch (e: Exception) {
                             android.util.Log.e("UssdDialer", "❌ Realtime message parse error: ${e.message}")
                         }
                     }
-                    
+
                     override fun onFailure(webSocket: okhttp3.WebSocket, t: Throwable, response: okhttp3.Response?) {
+                        realtimeConnected = false
+                        bulkSmsWebSocket = null
                         android.util.Log.e("UssdDialer", "❌ Realtime WebSocket failed: ${t.message}")
                         connected.complete(false)
                     }
-                    
+
                     override fun onClosed(webSocket: okhttp3.WebSocket, code: Int, reason: String) {
+                        realtimeConnected = false
+                        bulkSmsWebSocket = null
                         android.util.Log.w("UssdDialer", "🔌 Realtime WebSocket closed: $reason")
                         connected.complete(false)
                     }
                 })
-                
-                // Wait for connection result
+
                 val success = connected.await()
                 if (success) {
-                    // Send periodic heartbeats to keep connection alive
                     while (isRunning && bulkSmsWebSocket != null) {
                         delay(25000L)
                         try {
+                            // Refresh Realtime authorization without reconnecting after JWT refresh.
+                            val freshToken = com.iftin.resellers.auth.AuthRepository(applicationContext).getAccessToken()
+                            if (!freshToken.isNullOrBlank()) {
+                                val authUpdate = JSONObject().apply {
+                                    put("topic", topic)
+                                    put("event", "access_token")
+                                    put("payload", JSONObject().put("access_token", freshToken))
+                                    put("ref", System.currentTimeMillis().toString())
+                                    put("join_ref", "2")
+                                }
+                                bulkSmsWebSocket?.send(authUpdate.toString())
+                            }
+
                             val heartbeat = JSONObject().apply {
                                 put("topic", "phoenix")
                                 put("event", "heartbeat")
                                 put("payload", JSONObject())
                                 put("ref", System.currentTimeMillis().toString())
                             }
-                            bulkSmsWebSocket?.send(heartbeat.toString()) ?: break
+                            val heartbeatSent = bulkSmsWebSocket?.send(heartbeat.toString()) ?: false
+                            if (!heartbeatSent) break
                         } catch (e: Exception) {
-                            android.util.Log.e("UssdDialer", "❌ Heartbeat send failed: ${e.message}")
+                            android.util.Log.e("UssdDialer", "❌ Realtime heartbeat failed: ${e.message}")
                             break
                         }
                     }
                 }
-                
-                // Connection lost, cleanup
+
+                realtimeConnected = false
                 bulkSmsWebSocket?.close(1000, "Reconnecting")
                 bulkSmsWebSocket = null
-                
             } catch (e: Exception) {
+                realtimeConnected = false
                 android.util.Log.e("UssdDialer", "❌ Realtime listener error: ${e.message}")
             }
-            
-            // Exponential backoff reconnect (max 60s)
+
             if (isRunning) {
-                android.util.Log.d("UssdDialer", "🔄 Reconnecting Realtime in ${retryDelay / 1000}s...")
                 delay(retryDelay)
                 retryDelay = (retryDelay * 2).coerceAtMost(60000L)
             }
         }
     }
-    
+
     /**
      * Process all pending bulk SMS items for this device.
      * Runs in a while(true) loop until queue is empty.
