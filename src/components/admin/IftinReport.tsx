@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, RefreshCw, TrendingUp } from 'lucide-react';
 import { resolveTenantId } from '@/lib/iftinCatalog';
-import { listPartnerIntents, type PartnerIntent } from '@/lib/iftinIntents.functions';
+import { listPartnerIntents, type PartnerIntentsData, type PartnerReportAgg } from '@/lib/iftinIntents.functions';
 import { EmptyState, LazyFallback } from './simple/shared';
 
 const TZ = 'Africa/Mogadishu';
@@ -12,45 +12,8 @@ const dayKey = (iso?: string | null) => (iso ? isoDayFmt.format(new Date(iso)) :
 const todayKey = () => isoDayFmt.format(new Date());
 const money = (n: number) => `$${n.toFixed(2)}`;
 
-const NAME_MATCH: Array<[string, string[]]> = [
-  ['Hormuud', ['hormuud', 'evc']],
-  ['Somtel', ['somtel', 'edahab', 'e-dahab']],
-  ['Somnet', ['somnet', 'jeeb']],
-  ['Somlink', ['somlink']],
-  ['Amtel', ['amtel']],
-  ['Telesom', ['telesom', 'zaad']],
-  ['Golis', ['golis', 'sahal']],
-  ['Nationlink', ['nationlink', 'nation link']],
-];
-const PREFIX_MATCH: Record<string, string> = {
-  '61': 'Hormuud', '77': 'Hormuud',
-  '62': 'Somtel', '68': 'Somnet', '64': 'Somlink',
-  '71': 'Amtel', '63': 'Telesom',
-  '90': 'Golis', '85': 'Golis',
-  '67': 'Nationlink', '69': 'Nationlink',
-};
-
-const providerOf = (p: PartnerIntent) => {
-  const raw = p as unknown as Record<string, unknown>;
-  const text = [raw['provider_name'], raw['provider'], raw['network'], p.package_name]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-  const byName = NAME_MATCH.find(([, keys]) => keys.some((k) => text.includes(k)));
-  if (byName) return byName[0];
-  const phone = String(p.receiver_phone ?? '').replace(/\D/g, '').replace(/^252/, '');
-  return PREFIX_MATCH[phone.slice(0, 2)] ?? 'Kale';
-};
-
-
 type Agg = { orders: number; sales: number; cost: number; profit: number };
 const emptyAgg = (): Agg => ({ orders: 0, sales: 0, cost: 0, profit: 0 });
-const addTo = (a: Agg, i: PartnerIntent) => {
-  a.orders += 1;
-  a.sales += Number(i.amount ?? 0);
-  a.cost += Number(i.base_price ?? 0);
-  a.profit += Number(i.your_profit ?? 0);
-};
 
 const PERIODS = ['today', 'week', 'month', 'year'] as const;
 type PeriodKey = (typeof PERIODS)[number];
@@ -63,7 +26,7 @@ const periodLabel: Record<PeriodKey, string> = {
 const periodDays: Record<PeriodKey, number> = { today: 1, week: 7, month: 30, year: 365 };
 
 const IftinReport: React.FC<{ isSo?: boolean }> = () => {
-  const [intents, setIntents] = useState<PartnerIntent[] | null>(null);
+  const [report, setReport] = useState<PartnerIntentsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [date, setDate] = useState(todayKey());
@@ -76,35 +39,41 @@ const IftinReport: React.FC<{ isSo?: boolean }> = () => {
     try {
       const tenantId = await resolveTenantId();
       if (!tenantId) throw new Error('Reseller-ka lama garanayo');
-      const res = await listPartnerIntents({ data: { tenantId, limit: 200, includeUnpaid: false } });
-      setIntents((res.intents ?? []).filter((i) => i.counts_as_order === true));
+
+      const selectedStart = new Date(`${date}T00:00:00+03:00`).getTime();
+      const periodStart = period === 'today'
+        ? new Date(`${todayKey()}T00:00:00+03:00`).getTime()
+        : Date.now() - periodDays[period] * 86_400_000;
+      const start = new Date(Math.min(selectedStart, periodStart)).toISOString();
+
+      const res = await listPartnerIntents({
+        data: { tenantId, limit: 1, offset: 0, includeUnpaid: false, start },
+      });
+      setReport(res);
     } catch (e: any) {
       setError(e?.message ?? 'Xogta lama soo dejin');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [date, period]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
-    const t = setInterval(() => void load(true), 60_000);
+    const t = setInterval(() => void load(true), 120_000);
     return () => clearInterval(t);
   }, [load]);
 
-  const delivered = useMemo(
-    () => (intents ?? []).filter((i) => i.result === 'delivered'),
-    [intents],
-  );
-
   const byProvider = useMemo(() => {
-    const map = new Map<string, Agg>();
-    delivered.filter((i) => dayKey(i.created_at) === date).forEach((i) => {
-      const key = providerOf(i);
-      if (!map.has(key)) map.set(key, emptyAgg());
-      addTo(map.get(key)!, i);
-    });
-    return [...map.entries()].sort((a, b) => b[1].orders - a[1].orders);
-  }, [delivered, date]);
+    return (report?.by_provider_day ?? [])
+      .filter((row) => row.day === date)
+      .map((row) => [row.name ?? 'Kale', {
+        orders: Number(row.orders || 0),
+        sales: Number(row.sales || 0),
+        cost: Number(row.cost || 0),
+        profit: Number(row.profit || 0),
+      }] as [string, Agg])
+      .sort((a, b) => b[1].orders - a[1].orders);
+  }, [report, date]);
 
   const providerTotals = byProvider.reduce((acc, [, a]) => {
     acc.orders += a.orders; acc.sales += a.sales; acc.cost += a.cost; acc.profit += a.profit;
@@ -112,27 +81,33 @@ const IftinReport: React.FC<{ isSo?: boolean }> = () => {
   }, emptyAgg());
 
   const byDay = useMemo(() => {
-    const cutoff = Date.now() - periodDays[period] * 86_400_000;
+    const cutoff = period === 'today'
+      ? todayKey()
+      : isoDayFmt.format(new Date(Date.now() - periodDays[period] * 86_400_000));
+    const source = report?.by_provider_day ?? [];
     const map = new Map<string, Agg>();
-    delivered
-      .filter((i) => provider === 'all' || providerOf(i) === provider)
-      .filter((i) => (period === 'today'
-        ? dayKey(i.created_at) === todayKey()
-        : i.created_at && new Date(i.created_at).getTime() >= cutoff))
-      .forEach((i) => {
-        const key = dayKey(i.created_at);
-        if (!map.has(key)) map.set(key, emptyAgg());
-        addTo(map.get(key)!, i);
+    source
+      .filter((row) => String(row.day || '') >= cutoff)
+      .filter((row) => provider === 'all' || row.name === provider)
+      .forEach((row: PartnerReportAgg) => {
+        const key = String(row.day || '');
+        if (!key) return;
+        const agg = map.get(key) ?? emptyAgg();
+        agg.orders += Number(row.orders || 0);
+        agg.sales += Number(row.sales || 0);
+        agg.cost += Number(row.cost || 0);
+        agg.profit += Number(row.profit || 0);
+        map.set(key, agg);
       });
     return [...map.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
-  }, [delivered, period, provider]);
+  }, [report, period, provider]);
 
   const providerOptions = useMemo(
-    () => [...new Set(delivered.map(providerOf))].sort(),
-    [delivered],
+    () => [...new Set((report?.by_provider_day ?? []).map((row) => row.name).filter(Boolean) as string[])].sort(),
+    [report],
   );
 
-  if (loading && !intents) return <LazyFallback />;
+  if (loading && !report) return <LazyFallback />;
 
   return (
     <div className="space-y-4">
