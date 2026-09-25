@@ -24,6 +24,28 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
   const state = useTenant();
   const [showStartupSplash, setShowStartupSplash] = React.useState(true);
 
+  const routeTenantSlug =
+    typeof window !== "undefined"
+      ? window.location.pathname.match(/^\/t\/([^/]+)(?=\/|$)/)?.[1] ?? null
+      : null;
+
+  const resolvedTenant =
+    state.status === "ready" || state.status === "suspended" ? state.tenant : null;
+
+  // A path-scoped tenant route must never render children from a different
+  // workspace (or the platform/default state), even for a single frame.
+  const tenantIdentityPending = Boolean(
+    routeTenantSlug &&
+      (
+        state.status === "loading" ||
+        state.status === "platform" ||
+        !resolvedTenant ||
+        resolvedTenant.slug.toLowerCase() !== routeTenantSlug.toLowerCase()
+      ) &&
+      state.status !== "not_found" &&
+      state.status !== "offline"
+  );
+
   React.useEffect(() => {
     const timer = window.setTimeout(() => {
       setShowStartupSplash(false);
@@ -32,9 +54,12 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
     return () => window.clearTimeout(timer);
   }, []);
 
-  if (state.status === "loading" || showStartupSplash) {
+  if (state.status === "loading" || showStartupSplash || tenantIdentityPending) {
     const tenant =
-      state.status === "ready" || state.status === "suspended" ? state.tenant : null;
+      resolvedTenant &&
+      (!routeTenantSlug || resolvedTenant.slug.toLowerCase() === routeTenantSlug.toLowerCase())
+        ? resolvedTenant
+        : null;
 
     let cachedLogo: string | null = null;
     let cachedName: string | null = null;
