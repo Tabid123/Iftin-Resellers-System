@@ -16,6 +16,7 @@ import { PaymentAnalyticsCharts } from './PaymentAnalyticsCharts';
 import { DeliveryTracker } from './DeliveryTracker';
 import { EVoucherTransactions } from './EVoucherTransactions';
 import CachedImage from '@/components/CachedImage';
+import { AdminPagination, ADMIN_PAGE_SIZE } from './simple/AdminPagination';
 
 interface PaymentReceipt {
   id: string;
@@ -60,6 +61,8 @@ export function PaymentSmsLog() {
   const [selectedReceipt, setSelectedReceipt] = useState<PaymentReceipt | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [providers, setProviders] = useState<{ id: string; provider_name: string }[]>([]);
+  const [page, setPage] = useState(0);
+  const [totalRows, setTotalRows] = useState(0);
 
   // Load providers for filter
   useEffect(() => {
@@ -73,127 +76,71 @@ export function PaymentSmsLog() {
     loadProviders();
   }, []);
 
-  // Load payment receipts
+  // Load only the visible 50-row page; filters run on the server.
   const loadReceipts = async () => {
     setLoading(true);
     try {
-      // Calculate date range
       let dateFrom: Date | null = null;
       let dateTo: Date | null = null;
       const now = new Date();
-
       switch (dateFilter) {
-        case 'today':
-          dateFrom = startOfDay(now);
-          dateTo = endOfDay(now);
-          break;
-        case 'yesterday':
-          dateFrom = startOfDay(subDays(now, 1));
-          dateTo = endOfDay(subDays(now, 1));
-          break;
-        case '7days':
-          dateFrom = startOfDay(subDays(now, 7));
-          dateTo = endOfDay(now);
-          break;
-        case '30days':
-          dateFrom = startOfDay(subDays(now, 30));
-          dateTo = endOfDay(now);
-          break;
-        case 'all':
-          dateFrom = null;
-          dateTo = null;
-          break;
-        default:
-          dateFrom = startOfDay(now);
-          dateTo = endOfDay(now);
+        case 'today': dateFrom = startOfDay(now); dateTo = endOfDay(now); break;
+        case 'yesterday': dateFrom = startOfDay(subDays(now, 1)); dateTo = endOfDay(subDays(now, 1)); break;
+        case '7days': dateFrom = startOfDay(subDays(now, 7)); dateTo = endOfDay(now); break;
+        case '30days': dateFrom = startOfDay(subDays(now, 30)); dateTo = endOfDay(now); break;
+        case 'all': break;
+        default: dateFrom = startOfDay(now); dateTo = endOfDay(now);
       }
 
-      // Build query
+      const from = page * ADMIN_PAGE_SIZE;
+      const to = from + ADMIN_PAGE_SIZE - 1;
       let query = supabase
         .from('payment_receipts')
         .select(`
-          *,
+          id,sender_phone,amount,receiver_sim,sms_body,status,matched_order_id,tx_id,created_at,processed_at,matching_strategy,admin_notes,
           order:matched_order_id (
-            id,
-            package_name,
-            data_amount,
-            customer_phone,
-            receiver_phone,
-            provider_id,
-            delivery_status,
-            delivery_notes,
-            selling_price
+            id,package_name,data_amount,customer_phone,receiver_phone,provider_id,delivery_status,delivery_notes,selling_price
           )
-        `)
-        .order('created_at', { ascending: false });
+        `, { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
-      // Apply date filter
-      if (dateFrom) {
-        query = query.gte('created_at', dateFrom.toISOString());
-      }
-      if (dateTo) {
-        query = query.lte('created_at', dateTo.toISOString());
-      }
+      if (dateFrom) query = query.gte('created_at', dateFrom.toISOString());
+      if (dateTo) query = query.lte('created_at', dateTo.toISOString());
+      if (statusFilter !== 'all') query = query.eq('status', statusFilter);
+      const q = searchQuery.trim().replace(/[%(),]/g, '');
+      if (q) query = query.or(`sender_phone.ilike.%${q}%,receiver_sim.ilike.%${q}%,tx_id.ilike.%${q}%`);
 
-      // Apply status filter
-      if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter);
-      }
-
-      const { data, error } = await query.limit(200);
-
+      const { data, error, count } = await query;
       if (error) throw error;
 
-      // Now fetch provider info for matched orders
-      if (data) {
-        const receiptsWithProviders = await Promise.all(
-          data.map(async (receipt: any) => {
-            if (receipt.order?.provider_id) {
-              const { data: providerData } = await supabase
-                .from('providers_config')
-                .select('provider_name, provider_logo')
-                .eq('id', receipt.order.provider_id)
-                .single();
-              
-              if (providerData) {
-                receipt.order.provider = providerData;
-              }
-            }
-            return receipt as PaymentReceipt;
-          })
-        );
-
-        // Filter by provider if selected
-        let filteredReceipts = receiptsWithProviders;
-        if (providerFilter !== 'all') {
-          filteredReceipts = receiptsWithProviders.filter(
-            r => r.order?.provider?.provider_name === providerFilter
-          );
-        }
-
-        // Filter by search query
-        if (searchQuery) {
-          filteredReceipts = filteredReceipts.filter(r => 
-            r.sender_phone.includes(searchQuery) ||
-            r.order?.customer_phone?.includes(searchQuery) ||
-            r.order?.receiver_phone?.includes(searchQuery)
-          );
-        }
-
-        setReceipts(filteredReceipts);
+      const rows = (data || []) as any[];
+      const providerIds = Array.from(new Set(rows.map((r: any) => r.order?.provider_id).filter(Boolean))) as string[];
+      const providerMap = new Map<string, any>();
+      if (providerIds.length) {
+        const { data: providerRows } = await supabase
+          .from('providers_config')
+          .select('id,provider_name,provider_logo')
+          .in('id', providerIds);
+        (providerRows || []).forEach((p: any) => providerMap.set(p.id, p));
       }
-    } catch (error: any) {
-      toast({
-        title: language === 'so' ? 'Khalad' : 'Error',
-        description: error.message,
-        variant: 'destructive',
+      const decorated = rows.map((receipt: any) => {
+        if (receipt.order?.provider_id) receipt.order.provider = providerMap.get(receipt.order.provider_id) || null;
+        return receipt as PaymentReceipt;
       });
+      const visible = providerFilter === 'all'
+        ? decorated
+        : decorated.filter((r: any) => r.order?.provider?.provider_name === providerFilter);
+      setReceipts(visible);
+      setTotalRows(count ?? 0);
+    } catch (error) {
+      console.error('Error loading payment receipts:', error);
+      toast({ title: language === 'so' ? 'Khalad' : 'Error', description: String((error as any)?.message || error), variant: 'destructive' });
     } finally {
       setLoading(false);
     }
   };
 
-  // Initial load and when filters change
   useEffect(() => {
     loadReceipts();
   }, [statusFilter, dateFilter, providerFilter]);
@@ -205,6 +152,8 @@ export function PaymentSmsLog() {
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  useEffect(() => { setPage(0); }, [dateFilter, statusFilter, providerFilter, searchQuery]);
 
   // Real-time subscription - single row fetch, no full reload
   useEffect(() => {
@@ -727,6 +676,7 @@ export function PaymentSmsLog() {
             <DeliveryTracker />
           </TabsContent>
         </Tabs>
-      </div>
+        <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={language === 'so'} />
+</div>
   );
 }
