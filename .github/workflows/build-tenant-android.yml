@@ -111,7 +111,17 @@ jobs:
             const color = process.env.SPLASH_COLOR;
             cfg.plugins.SplashScreen.backgroundColor = color;
             cfg.plugins.StatusBar.backgroundColor = color;
+            cfg.plugins.StatusBar.style = "LIGHT";
             cfg.plugins.NavigationBar.backgroundColor = color;
+            cfg.plugins.NavigationBar.style = "LIGHT";
+
+            // EdgeToEdge owns the visible Android status/navigation bar surfaces.
+            // Keep it in sync with the tenant colour too; otherwise its default
+            // #0F4C81 leaks through during splash/startup.
+            cfg.plugins.EdgeToEdge.backgroundColor = color;
+            cfg.plugins.EdgeToEdge.statusBarColor = color;
+            cfg.plugins.EdgeToEdge.navigationBarColor = color;
+            cfg.plugins.SystemBars.style = "LIGHT";
 
             // Tenant APKs boot from the packaged Capacitor web bundle for
             // offline safety, then the app may navigate the WebView to the live
@@ -242,6 +252,8 @@ jobs:
             || fail "tenant splash fade-out duration is not 0ms"
           grep -Eq '"launchAutoHide"[[:space:]]*:[[:space:]]*true' capacitor.config.json \
             || fail "tenant splash auto-hide is not enabled"
+          grep -Fq "\"statusBarColor\": \"${SPLASH_COLOR}\"" capacitor.config.json \
+            || fail "EdgeToEdge status bar color is not tenant splash color"
           if grep -Eq '"url"[[:space:]]*:' capacitor.config.json; then
             fail "tenant APK must not use remote server.url; packaged webDir is the offline fallback"
           fi
