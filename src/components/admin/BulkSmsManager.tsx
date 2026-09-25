@@ -61,6 +61,7 @@ export function BulkSmsManager() {
   const [selectedDevice, setSelectedDevice] = useState('');
   const [selectedSim, setSelectedSim] = useState('1');
   const [devices, setDevices] = useState<Device[]>([]);
+  const currentDevice = devices.find(d => d.device_id === selectedDevice);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
