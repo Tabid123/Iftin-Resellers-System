@@ -426,28 +426,44 @@ export const DevicesCustomView = ({ isSo }: { isSo: boolean }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editDevice, setEditDevice] = useState<any>(null);
   const [deleteDevice, setDeleteDevice] = useState<any>(null);
+  const [page, setPage] = useState(0);
+  const [totalRows, setTotalRows] = useState(0);
 
   const loadDevices = useCallback(async () => {
-    const [devRes, balRes] = await Promise.all([
-      supabase.from('android_devices').select('*').is('archived_at', null).order('last_ping_at', { ascending: false }),
-      supabase.from('sim_balances').select('*'),
-    ]);
-    if (!devRes.error) setDevices(devRes.data || []);
+    const from = page * ADMIN_PAGE_SIZE;
+    const to = from + ADMIN_PAGE_SIZE - 1;
+    const devRes = await supabase
+      .from('android_devices')
+      .select('id,device_id,device_name,provider_name,sim1_provider,sim2_provider,sim_number,sim2_number,last_ping_at,is_active,battery_level,is_charging,is_primary_hormuud_sim,sim1_enabled,sim2_enabled,sim1_priority,sim2_priority,total_deliveries,failed_deliveries', { count: 'exact' })
+      .is('archived_at', null)
+      .order('last_ping_at', { ascending: false })
+      .range(from, to);
+
+    const rows = devRes.data || [];
+    const ids = rows.map((d: any) => d.id);
+    const balRes = ids.length
+      ? await supabase
+          .from('sim_balances')
+          .select('device_id,sim_slot,balance,balance_type,last_updated')
+          .in('device_id', ids)
+      : { data: [], error: null };
+
+    if (!devRes.error) {
+      setDevices(rows);
+      setTotalRows(devRes.count ?? 0);
+    }
     if (!balRes.error) setBalances(balRes.data || []);
     setLoading(false);
-  }, []);
-
+  }, [page]);
   useEffect(() => {
     void loadDevices();
     const refreshVisible = () => {
       if (document.visibilityState === 'visible') void loadDevices();
     };
-    const timer = window.setInterval(refreshVisible, 10_000);
     window.addEventListener('focus', refreshVisible);
     window.addEventListener('online', refreshVisible);
     document.addEventListener('visibilitychange', refreshVisible);
     return () => {
-      window.clearInterval(timer);
       window.removeEventListener('focus', refreshVisible);
       window.removeEventListener('online', refreshVisible);
       document.removeEventListener('visibilitychange', refreshVisible);
@@ -591,6 +607,8 @@ export const DevicesCustomView = ({ isSo }: { isSo: boolean }) => {
           })}
         </div>
       )}
+
+      <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
 
       {/* Edit Dialog */}
       {editDevice && (
