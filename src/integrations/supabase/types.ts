@@ -2995,6 +2995,10 @@ export type Database = {
         Returns: Json
       }
       authorized_tenant_id: { Args: never; Returns: string }
+      bulk_sms_recipient_count: {
+        Args: { p_target_type?: string }
+        Returns: number
+      }
       claim_discovery_selection: {
         Args: { p_device_id: string }
         Returns: Json
@@ -3021,6 +3025,15 @@ export type Database = {
           p_id: string
           p_response?: string
           p_success: boolean
+        }
+        Returns: Json
+      }
+      create_bulk_sms_audience_campaign: {
+        Args: {
+          p_device_id: string
+          p_message: string
+          p_sim_slot: number
+          p_target_type: string
         }
         Returns: Json
       }
@@ -3114,6 +3127,62 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_admin_bank_transactions_summary: {
+        Args: { p_search?: string; p_start?: string; p_status?: string }
+        Returns: Json
+      }
+      get_admin_customers_page:
+        | {
+            Args: { p_limit?: number; p_offset?: number; p_search?: string }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_filter?: string
+              p_limit?: number
+              p_offset?: number
+              p_search?: string
+            }
+            Returns: Json
+          }
+      get_admin_dashboard_counts: {
+        Args: { p_end?: string; p_start: string }
+        Returns: Json
+      }
+      get_admin_dashboard_summary: {
+        Args: { p_end?: string; p_start: string }
+        Returns: Json
+      }
+      get_admin_device_period_stats: {
+        Args: { p_end?: string; p_start: string }
+        Returns: {
+          cost: number
+          delivered: number
+          device_id: string
+          failed: number
+          orders: number
+          profit: number
+          revenue: number
+        }[]
+      }
+      get_admin_order_source_summary: {
+        Args: {
+          p_provider_id?: string
+          p_search?: string
+          p_sources: string[]
+          p_start?: string
+          p_status?: string
+        }
+        Returns: Json
+      }
+      get_admin_transactions_summary: {
+        Args: { p_end?: string; p_provider_id?: string; p_start?: string }
+        Returns: Json
+      }
+      get_combined_payment_analytics: {
+        Args: { p_bucket?: string; p_start: string }
+        Returns: Json
+      }
       get_customer_order_history: {
         Args: { customer_phone_number: string; p_tenant_id?: string }
         Returns: {
@@ -3206,6 +3275,10 @@ export type Database = {
           ref_id: string
           sell_price: number
         }[]
+      }
+      get_simple_admin_dashboard_summary: {
+        Args: { p_end?: string; p_start: string }
+        Returns: Json
       }
       get_tenant_app_settings: {
         Args: never
