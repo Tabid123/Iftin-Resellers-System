@@ -2,7 +2,6 @@ import React from "react";
 import { useTenant } from "@/contexts/TenantContext";
 import { ResellerCodeGate } from "@/components/ResellerCodeGate";
 import { AlertCircle, Lock, MessageCircle, Wallet, WifiOff } from "lucide-react";
-import najaxLogoSplash from "@/assets/najax-logo.jpeg";
 import { normalizeSupportPhone } from "@/hooks/useSupportPhone";
 
 
