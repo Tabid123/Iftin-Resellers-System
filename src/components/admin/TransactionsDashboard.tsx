@@ -7,6 +7,7 @@ import { Loader2, Search, ChevronLeft, ChevronRight, ChevronDown, Phone, DollarS
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { calculateEvoucherProfit, calculateOrderProfit, effectiveOrderCost, isDirectFlowCode } from '@/lib/iftinProfit';
+import { ADMIN_PAGE_SIZE } from './simple/AdminPagination';
 
 interface Transaction {
   id: string;
@@ -144,6 +145,7 @@ export function TransactionsDashboard() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [periodFilter, setPeriodFilter] = useState('today');
   const [providerFilter, setProviderFilter] = useState('all');
+  const [totalRows, setTotalRows] = useState(0);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(searchQuery.trim()), 350);
@@ -231,6 +233,7 @@ export function TransactionsDashboard() {
       deliveredCount: Number(summary.delivered_count || 0),
     });
 
+    setTotalRows(ordersResult.count ?? 0);
     const providerRows = (providersResult.data || []) as Provider[];
     const providerMap = new Map(providerRows.map((provider) => [provider.id, provider]));
     const packageRows = (packagesResult.data || []) as PackageConfig[];
