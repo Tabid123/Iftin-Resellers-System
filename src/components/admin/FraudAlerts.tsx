@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Loader2, ShieldAlert, CheckCircle, Eye } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { AdminPagination, ADMIN_PAGE_SIZE } from './simple/AdminPagination';
 
 interface FraudAlert {
   id: string;
@@ -29,19 +30,25 @@ export function FraudAlerts() {
   const queryClient = useQueryClient();
   const [selectedAlert, setSelectedAlert] = useState<FraudAlert | null>(null);
   const [reviewNotes, setReviewNotes] = useState('');
+  const [page, setPage] = useState(0);
 
-  const { data: alerts, isLoading } = useQuery({
-    queryKey: ['fraud-alerts'],
+  const { data: result, isLoading } = useQuery({
+    queryKey: ['fraud-alerts', page],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const from = page * ADMIN_PAGE_SIZE;
+      const to = from + ADMIN_PAGE_SIZE - 1;
+      const { data, error, count } = await supabase
         .from('fraud_alerts')
-        .select('*')
+        .select('id,sender_phone,amount,alert_type,severity,description,is_reviewed,notes,created_at', { count: 'exact' })
         .order('created_at', { ascending: false })
-        .limit(100);
+        .range(from, to);
       if (error) throw error;
-      return data as FraudAlert[];
+      return { alerts: (data || []) as FraudAlert[], total: count ?? 0 };
     },
   });
+
+  const alerts = result?.alerts ?? [];
+  const totalRows = result?.total ?? 0;
 
   const reviewMutation = useMutation({
     mutationFn: async ({ id, notes }: { id: string; notes: string }) => {
@@ -65,7 +72,7 @@ export function FraudAlerts() {
     },
   });
 
-  const unreviewed = alerts?.filter(a => !a.is_reviewed).length || 0;
+  const unreviewed = alerts.filter(a => !a.is_reviewed).length;
 
   const severityBadge = (severity: string) => {
     switch (severity) {
@@ -120,7 +127,7 @@ export function FraudAlerts() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {alerts?.map((alert) => (
+                {alerts.map((alert) => (
                   <TableRow key={alert.id} className={!alert.is_reviewed ? 'bg-red-50/50 dark:bg-red-950/10' : ''}>
                     <TableCell className="text-xs whitespace-nowrap">
                       {format(new Date(alert.created_at), 'dd MMM HH:mm')}
@@ -153,6 +160,7 @@ export function FraudAlerts() {
               </TableBody>
             </Table>
           )}
+          <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={language === 'so'} />
         </CardContent>
       </Card>
 
