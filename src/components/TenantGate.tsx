@@ -1,4 +1,6 @@
 import React from "react";
+import { Capacitor } from "@capacitor/core";
+import { SplashScreen } from "@capacitor/splash-screen";
 import { useTenant } from "@/contexts/TenantContext";
 import { ResellerCodeGate } from "@/components/ResellerCodeGate";
 import { AlertCircle, Lock, MessageCircle, Wallet, WifiOff } from "lucide-react";
@@ -22,6 +24,7 @@ const WEB_SPLASH_MS = 1500;
 export const TenantGate: React.FC<Props> = ({ children }) => {
   const state = useTenant();
   const [showStartupSplash, setShowStartupSplash] = React.useState(true);
+  const startupSplashStartedRef = React.useRef(false);
 
   const routeTenantSlug =
     typeof window !== "undefined"
@@ -59,16 +62,37 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
     buildLogo
   );
 
-  // Start the visible splash timer only after tenant branding is actually known.
-  // This prevents a generic placeholder splash from appearing first.
+  // TenantGate is the single web splash for both browser and Android.
+  // Start it once per app launch so a later tenant/logo refresh cannot create
+  // another splash. On Android, hand off from the native splash only after this
+  // branded surface has been painted; native auto-hide remains capped at 1.5s.
   React.useEffect(() => {
-    if (!hasTenantIdentity) return;
-    setShowStartupSplash(true);
+    if (!hasTenantIdentity || startupSplashStartedRef.current) return;
+    startupSplashStartedRef.current = true;
+
+    let cancelled = false;
+    let frameOne = 0;
+    let frameTwo = 0;
+
+    if (Capacitor.getPlatform() === "android") {
+      frameOne = window.requestAnimationFrame(() => {
+        frameTwo = window.requestAnimationFrame(() => {
+          if (!cancelled) void SplashScreen.hide();
+        });
+      });
+    }
+
     const timer = window.setTimeout(() => {
       setShowStartupSplash(false);
     }, WEB_SPLASH_MS);
-    return () => window.clearTimeout(timer);
-  }, [hasTenantIdentity, splashLogo, splashName]);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      if (frameOne) window.cancelAnimationFrame(frameOne);
+      if (frameTwo) window.cancelAnimationFrame(frameTwo);
+    };
+  }, [hasTenantIdentity]);
 
   // While the tenant is still unresolved, block child routes but render no
   // generic logo/spinner. The first branded screen the user sees is the
