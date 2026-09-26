@@ -1,54 +1,15 @@
-# Qorshaha hagaajinta APK-ga Android
+# Qorshe: hal furitaan nadiif ah iyo meelaha qoraalka oo keyboard-ka ka sarreeya
 
-Afar dhibaato ayaad soo sheegtay: codka oo aan APK-ga ka dhicin, lacag-bixinta oo daahda (ilaa 5 furitaan kadib), splash-ka oo 10-20 ilbiriqsi qaata, iyo app-ka oo guud ahaan culus.
+## Waxa muuqaalka laga arkay
+- Marka APK-ga Marwaan Data la furo, waxaa is daba jooga astaanta bilowga Android, shaashad buluug ah oo astaan/spinner leh, shaashad kale oo astaanta tenant-ka leh, ka dibna bogga lambarka. Xitaa waxaa dhex muuqda madow/cirro kooban.
+- Marka la taabto lambarka ama koodka, keyboard-ku wuxuu daboolaa qayb ka mid ah meesha wax lagu qorayo; boggu kor uma dhaqaaqo si ku filan.
 
-## 1. Codka oo APK-ga ka dhaca
-
-Hadda codadku waxay ka soo degayaan internetka (iftinagents.com) mar kasta oo la taabto. WebView-ga APK-ga taasi ma shaqeyso si joogto ah: haddii shabakaddu gaabis tahay ama codku weli soo dhammaan uusan ku bilaaban gestures-ka, waxba lama maqlayo.
-
-Xalka: saddexda cod (lambarka, OTP, offline) waa la soo dejinayaa waqtiga app-ka la dhisayo oo waa lagu duubayaa APK-ga gudihiisa. Markaas:
-- codku wuxuu ka dhacaa gudaha telefoonka, internet la'aanna wuu shaqeeyaa;
-- taabashada koowaad codku isla markiiba wuu bilaabmayaa (hore uma sugayo soo dejin);
-- haddii file-ka gudaha maqan yahay, waxaa lagu soo noqonayaa internetka sidii hore.
-
-Waxaa sidoo kale lagu darayaa furitaan mid ah taabashada koowaad ee shaashadda si WebView-gu u ogolaado codka inta kale ee wakhtiga.
-
-## 2. Lacag-bixinta oo daahda ilaa 5 furitaan
-
-Hadda xaaladda lacagta waxaa la hubiyaa 5 ilbiriqsi kasta oo keliya inta bogga furan yahay. Marka app-ka la xiro ama background loo diro, Android-ku wuu hakiyaa jadwalkaas — sidaa darteed natiijadu soo muuqataa marka aad dib u furto oo bogga ku soo noqoto.
-
-Xalka:
-- dalab kasta oo la sugayo waxaa lagu kaydinayaa telefoonka (order id + xaaladdiisa);
-- mar kasta oo app-ka dib loo furo ama dib loogu soo noqdo (app resume), waxaa si toos ah loo hubinayaa dalabyada sugaya, natiijadana la tusayaa isla markiiba — bogga lacag-bixinta ha furan yahay ha furnaanine;
-- ogeysiis/status-ka dalabka wuxuu ka muuqan doonaa taariikhda dalabyada xitaa haddii user-ku baxay inta lagu jiro.
-
-## 3. Splash 10-20 ilbiriqsi
-
-Splash-ka waxaa lagu qoray "launchAutoHide: false" — taas macnaheedu waa in codeka web-ku uu naftiisa u qariyo. Hadda qarintaasi waxay sugaysaa in bogga hore uu si buuxda u soo baxo (tenant lookup + chunk-yada JS), taasoo internet gaabis ah ku qaadan karta 10-20 ilbiriqsi.
-
-Xalka:
-- splash-ka waxaa la qarinayaa isla marka shell-ka app-ka uu sawiro, ma aha marka xogta tenant-ka la helo;
-- waxaa lagu darayaa waqti ugu badan oo adag (ugu badnaan ~3 ilbiriqsi) oo si toos ah u qarinaya splash-ka xitaa haddii wax kasta gaabsadaan;
-- bogga hore wuxuu ka bilaabmayaa xogta gudaha APK-ga lagu duubay (packaged snapshot), kadibna internetka ayuu ka cusboonaysiiyaa background-ka.
-
-## 4. Adkaanta/gaabiska isticmaalka
-
-Marka splash-ka la saxo, waxaa hadhaya culayska koowaad ee bogga. Waxaan sameynayaa:
-- cabbir (measurement) cold start ah oo lagu ogaanayo meelaha ugu waaweyn ee wakhtiga cunaya;
-- xogta bogagga (providers, categories, packages) in marka hore laga soo bandhigo kaydka gudaha, network-na uusan waxba xannibin;
-- yaraynta codsiyada isku mid ah ee cold start-ka (hal bootstrap oo keliya), iyo hordhac (prefetch) bogagga ugu badan ee la isticmaalo.
+## Waxa la qabanayo
+1. **Laba shaashadood oo furitaan oo keliya.** Hayso astaanta native-ka ee APK-ga iyo hal shaashad web ah oo leh astaanta tenant-ka. Ka saar dib-u-bilaabista muuqaalka web-ka ee ka dhalata in APK-gu marka hore furo bogga gudaha, kadibna u wareego bogga internetka. Wareejintaas ha sii taageerto cusboonaysiinta tooska ah iyo isticmaalka offline-ka, laakiin ha dib u shidin splash-ka; bogga dhexdiisa ha uusan muuqan shaashad madhan/madow. Hubi in isbeddelka astaanta ama xogta tenant-ku aanu dib u bilaabin waqtiga splash-ka. Ha saameyn bogga xiritaanka tenant-ka ama degelka caadiga ah.
+2. **Keyboard-ka.** Marka lambarka ama mid ka mid ah afarta sanduuq ee koodka la taabto, meelaha qoraalka iyo qiimaha la gelinayo si degdeg ah kor ugu qaad meel ka sarreysa keyboard-ka. Isku waafaji dhererka muuqda ee WebView-ga, dhererka keyboard-ka iyo qaybta bogga ee la rogi karo; ha ku darin bannaan keyboard laba jeer marka Android horay u yareeyo shaashadda. Ku celi hubinta marka keyboard-ku cabbir beddelo ama OTP-ga sanduuqa xiga u wareego; marka la xiro dib u celi muuqaalka, adigoon navigation-ka hoose boodboodsiin. Sidoo kale xaqiiji labada lambar ee bogga offline-mode.
+3. **Tijaabo.** Ku tijaabi socodka bilowga APK tenant ah marka internet jiro iyo marka uusan jirin; tirso labada splash oo keliya. Ku tijaabi gelinta 9-ka tiro iyo OTP-ga 4-ta tiro (oo ay ku jirto sanduuqa ugu dambeeya), furitaanka/xiritaanka keyboard-ka, iyo bogga labada lambar; sawirro iyo cabbir muuqda ku xaqiiji inaan field ama qoraal la gelinayo la daboolin. Hubi sidoo kale in web-ka telefoonka uusan jabin.
 
 ## Faahfaahin farsamo
-
-- `scripts/build.mjs` (marka `CAPACITOR_BUILD=true`) + tallaabo CI ah oo ku jirta `.github/workflows/build-tenant-android.yml`: soo deji saddexda WAV ee `src/assets/*.asset.json` ku xusan oo geli `public/audio/{phone,otp,offline}.wav`; dhismaha web-ka ayaa u gudbinaya `dist/` → `cap sync android`.
-- `src/lib/audioPrompts.ts`: `primarySource()` waxay native-ka ku bilaabmaysaa `/audio/<kind>.wav`, kadib `PRODUCTION_AUDIO_ORIGIN` fallback ah marka `error` dhaco; waxaa lagu darayaa hal-mar unlock (muted play) oo ku xiran taabashada koowaad ee dukumeentiga.
-- Lacagta: kayd `pending_payments` ah oo `workspaceStorage` ku jira; `@capacitor/app` `appStateChange` + `visibilitychange` → reconcile query ee `orders` (status/delivery_status) → invalidate `orders`/`history` queries + toast. `setInterval(tick, 5000)` ee `PaymentProviders.tsx:714` wuxuu noqonayaa mid la joojiyo marka bogga la hakiyo.
-- Splash: `capacitor.config.json` `launchShowDuration` 2000 → 1200; `src/lib/nativeSplash.ts` `NATIVE_SPLASH_MS` yaree oo `scheduleNativeSplashFallback` laga wac `__root.tsx` boot-ka (hadda kaliya `Index` route-ka ayaa `hideNativeSplash()` wacaya, sidaas darteed route kasta oo kale/gaabis kasta wuu daahayaa).
-- Waxaan APK dhisi karaa oo tijaabin karaa `bun run build` + `cap sync`, laakiin qiimeynta dhabta ah ee codka, splash-ka iyo lacagta waxay u baahan tahay taleefan dhab ah — waxaan ku siinayaa liis tijaabo gaaban.
-
-## Tartiibka shaqada
-
-1. Codka (gudaha APK-ga lagu duubo + unlock).
-2. Splash-ka (qarinta hore + waqti xaddidan).
-3. Reconcile-ka lacagta marka app-ka dib loo furo.
-4. Xawaaraha cold start-ka.
+- Baadh oo isku dubbarid `android/app` splash theme/assets, `capacitor.config.json`, `src/lib/liveNativeUpdates.ts`, iyo `src/components/TenantGate.tsx`: hal owner oo web splash ah, hal mar oo launch ah, iyo handoff gudaha→live oo aan sababin splash kale; sii hay packaged bundle offline.
+- Dib u eeg `src/hooks/useKeyboardInsets.ts`, `src/mobile-stability.css`, `src/components/pages/Index.tsx`, `src/components/PhoneInput.tsx`, iyo dejinta Android `adjustResize`/Capacitor Keyboard. Ku salay dhaqaaqista field-ka visible viewport-ka dhabta ah iyo scroll container-ka saxda ah, halkii laga isku dari lahaa root height go'an iyo inset labo jeer ah.
+- Cusboonaysii xaqiijinta workflow-ga tenant APK haddii habka splash/keyboard-ka la beddelo, si APK-yada cusub dhammaantood isla saxitaanka u qaataan. Wixii ku jira binary-ga native-ka ee APK-yadii hore waxay u baahan karaan dib-u-dhis; qaybta web-ka ee la daabaco waxay gaari kartaa APK-yadii hore ee online-ka ah.
