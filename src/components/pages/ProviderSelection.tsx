@@ -297,6 +297,16 @@ const ProviderSelection = () => {
           </div>
         </div>
 
+        {/* Live update test button */}
+        <div className="px-4 mt-4">
+          <button
+            type="button"
+            className="w-full rounded-xl border border-primary/30 bg-primary/10 px-4 py-2.5 text-sm font-bold text-primary"
+          >
+            LIVE UPDATE TEST
+          </button>
+        </div>
+
         {/* Popular Packages */}
         <div className="px-4 mt-6 mb-4">
           <PopularPackages />
