@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { Keyboard, KeyboardInfo } from '@capacitor/keyboard';
+import { Keyboard } from '@capacitor/keyboard';
 
 const setKeyboardOpen = (open: boolean) => {
   document.documentElement.classList.toggle('iftin-keyboard-open', open);
@@ -17,7 +17,8 @@ const keepFocusedFieldVisible = () => {
   const anchor = active.closest<HTMLElement>('[data-keyboard-anchor]') ?? active;
   const viewport = window.visualViewport;
   const visibleTop = viewport?.offsetTop ?? 0;
-  const visibleBottom = visibleTop + (viewport?.height ?? window.innerHeight);
+  const visibleHeight = Math.min(viewport?.height ?? window.innerHeight, window.innerHeight);
+  const visibleBottom = visibleTop + visibleHeight;
   const rect = anchor.getBoundingClientRect();
   const margin = 20;
 
