@@ -81,6 +81,32 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Patch Android 15+ IME inset handling
+        run: |
+          set -e
+          FILE="node_modules/@capawesome/capacitor-android-edge-to-edge-support/android/src/main/java/io/capawesome/capacitorjs/plugins/androidedgetoedgesupport/EdgeToEdge.java"
+          test -f "$FILE"
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("node_modules/@capawesome/capacitor-android-edge-to-edge-support/android/src/main/java/io/capawesome/capacitorjs/plugins/androidedgetoedgesupport/EdgeToEdge.java")
+          s = p.read_text()
+          old = """        boolean keyboardVisible = currentInsets.isVisible(WindowInsetsCompat.Type.ime());
+        // When keyboard is visible, don't apply bottom margin to avoid double-counting
+        // (the system already resizes the window for the keyboard)
+        int bottomMargin = keyboardVisible ? 0 : Math.max(imeInsets.bottom, systemBarsInsets.bottom);
+"""
+          new = """        // Android 15+ edge-to-edge no longer shrinks the app window when the IME
+        // opens. The IME height is delivered only as an inset, so always include
+        // it in the WebView bottom margin. Otherwise the keyboard covers phone
+        // and OTP fields.
+        int bottomMargin = Math.max(imeInsets.bottom, systemBarsInsets.bottom);
+"""
+          if old not in s:
+              raise SystemExit("Expected EdgeToEdge IME block not found; package source changed")
+          p.write_text(s.replace(old, new))
+          PY
+          grep -Fq 'int bottomMargin = Math.max(imeInsets.bottom, systemBarsInsets.bottom);' "$FILE"
+
       - name: Verify OneSignal Capacitor dependency
         run: |
           node -e 'const p=require("./package.json"); if(!p.dependencies?.["@onesignal/capacitor-plugin"]) process.exit(1)'
