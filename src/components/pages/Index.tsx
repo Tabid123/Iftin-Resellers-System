@@ -42,22 +42,9 @@ const Index = () => {
     }
   }, [navigate, destination, verifiedPhone]);
 
-  // Route-level beforeLoad normally redirects before this component mounts.
-  // Keep the current login surface mounted during the short transition instead
-  // of painting a full-screen primary-colour frame.
-  if (destination) {
-    return (
-      <div className="iftin-auth-page min-h-screen bg-background flex flex-col items-center justify-center px-5 py-6 gap-4">
-        <div className="w-full max-w-md space-y-5">
-          <HeroSection />
-          <div className="bg-card rounded-2xl p-5 shadow-sm border border-border/50">
-            <PhoneInput />
-          </div>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
+  // Route-level beforeLoad handles verified-user navigation.
+  // Do not render any intermediate transition screen.
+  if (destination) return null;
 
   return (
     <div className="iftin-auth-page min-h-screen bg-background flex flex-col items-center justify-center px-5 py-6 gap-4">
