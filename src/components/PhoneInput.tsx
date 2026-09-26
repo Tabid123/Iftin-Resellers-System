@@ -260,7 +260,7 @@ const PhoneInput = () => {
             <p className="text-[11px] text-muted-foreground">Geli koodkan hoosta</p>
           </div>
           
-          <div className="space-y-1.5">
+          <div className="space-y-1.5" data-keyboard-anchor>
             <label htmlFor="code" className="text-sm font-medium text-muted-foreground">
               Koodka Xaqiijinta
             </label>
