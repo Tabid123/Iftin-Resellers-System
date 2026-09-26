@@ -22,6 +22,7 @@ const WEB_SPLASH_MS = 1500;
 export const TenantGate: React.FC<Props> = ({ children }) => {
   const state = useTenant();
   const [showStartupSplash, setShowStartupSplash] = React.useState(true);
+  const startupSplashStartedRef = React.useRef(false);
 
   const routeTenantSlug =
     typeof window !== "undefined"
@@ -59,16 +60,16 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
     buildLogo
   );
 
-  // Start the visible splash timer only after tenant branding is actually known.
-  // This prevents a generic placeholder splash from appearing first.
+  // TenantGate is the only web splash. Start its timer once per page load;
+  // later tenant/logo/name refreshes must never restart the splash.
   React.useEffect(() => {
-    if (!hasTenantIdentity) return;
-    setShowStartupSplash(true);
+    if (!hasTenantIdentity || startupSplashStartedRef.current) return;
+    startupSplashStartedRef.current = true;
     const timer = window.setTimeout(() => {
       setShowStartupSplash(false);
     }, WEB_SPLASH_MS);
     return () => window.clearTimeout(timer);
-  }, [hasTenantIdentity, splashLogo, splashName]);
+  }, [hasTenantIdentity]);
 
   // While the tenant is still unresolved, block child routes but render no
   // generic logo/spinner. The first branded screen the user sees is the
