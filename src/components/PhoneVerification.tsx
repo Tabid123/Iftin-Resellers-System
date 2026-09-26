@@ -171,7 +171,7 @@ const PhoneVerification = ({ isOpen, onClose, onSuccess, paymentProvider, packag
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md p-0 overflow-hidden border-0 rounded-3xl bg-background max-h-[90vh]">
+      <DialogContent className="iftin-keyboard-dialog sm:max-w-md p-0 overflow-y-auto overscroll-contain border-0 rounded-3xl bg-background max-h-[90vh]">
         {!isCodeSent ? (
           /* ───────── PHONE INPUT STEP ───────── */
           <div className="flex flex-col items-center px-5 py-5">
