@@ -7,7 +7,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { warmPages } from "@/lib/lazyPages";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -43,7 +43,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { registerServiceWorker } from "@/lib/registerServiceWorker";
-import { openLiveTenantWhenAvailable } from "@/lib/liveNativeUpdates";
+import { buildTenantSlug } from "@/lib/nativeTenant";
+import { Capacitor } from "@capacitor/core";
 
 const CHUNK_RELOAD_KEY = "iftin:chunk-reload";
 const OFFLINE_CACHE_SCHEMA_KEY = "iftin:offline-cache-schema";
@@ -221,12 +222,74 @@ function AppContent() {
   );
 }
 
-function RootComponent() {
-  const { queryClient } = Route.useRouteContext();
+function NativeLiveStartupGate({ children }: { children: ReactNode }) {
+  const packagedNative =
+    typeof window !== "undefined" &&
+    Capacitor.isNativePlatform() &&
+    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+  const [ready, setReady] = useState(!packagedNative);
 
   useEffect(() => {
-    void openLiveTenantWhenAvailable();
-  }, []);
+    if (!packagedNative) {
+      setReady(true);
+      return;
+    }
+
+    const slug = buildTenantSlug();
+    if (!slug || typeof navigator === "undefined" || navigator.onLine === false) {
+      setReady(true);
+      return;
+    }
+
+    const controller = new AbortController();
+    let settled = false;
+    const liveUrl = `https://iftinagents.com/t/${encodeURIComponent(slug)}${window.location.search || ""}`;
+
+    // Decide live-vs-packaged before TenantGate can paint. This prevents the
+    // old packaged TenantGate -> late live reload -> second TenantGate sequence.
+    // Give the live probe a short budget so native splash still never exceeds 1.5s.
+    const timer = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      controller.abort();
+      setReady(true);
+    }, 850);
+
+    fetch(liveUrl, {
+      method: "GET",
+      mode: "no-cors",
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(() => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        window.location.replace(liveUrl);
+      })
+      .catch(() => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        setReady(true);
+      });
+
+    return () => {
+      settled = true;
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [packagedNative]);
+
+  if (!ready) {
+    return <div className="fixed inset-0 z-[10000] bg-primary" aria-hidden="true" />;
+  }
+
+  return <>{children}</>;
+}
+
+function RootComponent() {
+  const { queryClient } = Route.useRouteContext();
 
   useEffect(() => {
     registerServiceWorker();
@@ -273,11 +336,13 @@ function RootComponent() {
             <TooltipProvider>
               <Toaster />
               <Sonner />
-              <TenantProvider>
-                <TenantGate>
-                  <AppContent />
-                </TenantGate>
-              </TenantProvider>
+              <NativeLiveStartupGate>
+                <TenantProvider>
+                  <TenantGate>
+                    <AppContent />
+                  </TenantGate>
+                </TenantProvider>
+              </NativeLiveStartupGate>
             </TooltipProvider>
           </LanguageProvider>
         </ThemeProvider>
