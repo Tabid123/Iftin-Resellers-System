@@ -14,6 +14,7 @@
 :root {
   --iftin-shell-height: 100dvh;
   --iftin-keyboard-inset: 0px;
+  --iftin-visible-height: 100dvh;
 }
 
 /* If the WebView height changes for a few frames (Android system/gesture bar),
@@ -174,22 +175,38 @@ body {
   html.iftin-keyboard-open,
   html.iftin-keyboard-open body,
   html.iftin-keyboard-open body > #root {
-    height: auto !important;
-    min-height: 100dvh !important;
-    max-height: none !important;
+    height: var(--iftin-visible-height) !important;
+    min-height: var(--iftin-visible-height) !important;
+    max-height: var(--iftin-visible-height) !important;
     overflow-y: auto !important;
     overscroll-behavior-y: contain !important;
   }
 
   html.iftin-keyboard-open body > #root {
-    padding-bottom: calc(var(--iftin-keyboard-inset) + 32px) !important;
+    padding-bottom: 24px !important;
   }
 
   html.iftin-keyboard-open input:focus,
   html.iftin-keyboard-open textarea:focus,
   html.iftin-keyboard-open [contenteditable="true"]:focus {
     scroll-margin-top: 28px !important;
-    scroll-margin-bottom: calc(var(--iftin-keyboard-inset) + 32px) !important;
+    scroll-margin-bottom: 32px !important;
+  }
+
+  /* Login and OTP are vertically centred while idle. When the IME opens, pin
+   * their content to the top of the visible WebView and let that viewport scroll. */
+  html.iftin-keyboard-open .iftin-auth-page {
+    min-height: var(--iftin-visible-height) !important;
+    justify-content: flex-start !important;
+    overflow-y: auto !important;
+    padding-top: 16px !important;
+    padding-bottom: 32px !important;
+  }
+
+  html.iftin-keyboard-open .iftin-keyboard-dialog {
+    top: calc(var(--iftin-visible-height) / 2) !important;
+    max-height: calc(var(--iftin-visible-height) - 24px) !important;
+    overflow-y: auto !important;
   }
 
   .min-h-screen.bg-background.flex.flex-col > .fixed.top-0.left-0.right-0.z-50 > .grid.h-14 {

@@ -18,7 +18,7 @@
       "navigationBarColor": "#0F4C81"
     },
     "Keyboard": {
-      "resize": "body",
+      "resize": "native",
       "resizeOnFullScreen": false
     },
     "SplashScreen": {

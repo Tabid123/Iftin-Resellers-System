@@ -17,12 +17,36 @@ const keepFocusedFieldVisible = () => {
   const viewport = window.visualViewport;
   const visibleTop = viewport?.offsetTop ?? 0;
   const visibleBottom = visibleTop + (viewport?.height ?? window.innerHeight);
-  const rect = active.getBoundingClientRect();
-  const margin = 28;
+  const anchor = active.closest<HTMLElement>('[data-keyboard-anchor]') ?? active;
+  const rect = anchor.getBoundingClientRect();
+  const margin = 20;
 
   if (rect.bottom > visibleBottom - margin || rect.top < visibleTop + margin) {
-    active.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
+    anchor.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
+
+    // scrollIntoView can target the locked document instead of the route/modal
+    // scroller in Android WebView. Correct the nearest real scroll container too.
+    const corrected = anchor.getBoundingClientRect();
+    const delta = corrected.bottom - (visibleBottom - margin);
+    if (delta > 0) {
+      let parent = anchor.parentElement;
+      while (parent) {
+        const style = window.getComputedStyle(parent);
+        if (/auto|scroll/.test(style.overflowY) && parent.scrollHeight > parent.clientHeight) {
+          parent.scrollBy({ top: delta + margin, behavior: 'auto' });
+          return;
+        }
+        parent = parent.parentElement;
+      }
+      window.scrollBy({ top: delta + margin, behavior: 'auto' });
+    }
   }
+};
+
+const updateVisibleHeight = () => {
+  const viewport = window.visualViewport;
+  const height = viewport?.height ?? window.innerHeight;
+  document.documentElement.style.setProperty('--iftin-visible-height', `${Math.max(1, Math.round(height))}px`);
 };
 
 /**
@@ -49,6 +73,7 @@ export const useKeyboardInsets = () => {
     const showListener = Keyboard.addListener('keyboardWillShow', (info: KeyboardInfo) => {
       const height = Math.max(0, Number(info.keyboardHeight || 0));
       setKeyboardInset(height);
+      updateVisibleHeight();
       scheduleVisibilityCheck();
     });
 
@@ -65,6 +90,7 @@ export const useKeyboardInsets = () => {
 
     const viewportHandler = () => {
       if (document.documentElement.classList.contains('iftin-keyboard-open')) {
+        updateVisibleHeight();
         scheduleVisibilityCheck();
       }
     };
@@ -81,6 +107,7 @@ export const useKeyboardInsets = () => {
       window.visualViewport?.removeEventListener('scroll', viewportHandler);
       timers.forEach((timer) => window.clearTimeout(timer));
       setKeyboardInset(0);
+      document.documentElement.style.removeProperty('--iftin-visible-height');
     };
   }, []);
 };
