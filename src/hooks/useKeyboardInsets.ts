@@ -2,54 +2,28 @@ import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Keyboard, KeyboardInfo } from '@capacitor/keyboard';
 
-const setKeyboardInset = (height: number) => {
-  document.documentElement.style.setProperty(
-    '--iftin-keyboard-inset',
-    `${Math.max(0, Math.round(height))}px`,
-  );
-  document.documentElement.classList.toggle('iftin-keyboard-open', height > 0);
+const setKeyboardOpen = (open: boolean) => {
+  document.documentElement.classList.toggle('iftin-keyboard-open', open);
+};
+
+const setInputFocused = (focused: boolean) => {
+  document.documentElement.classList.toggle('iftin-input-focused', focused);
 };
 
 const keepFocusedFieldVisible = () => {
   const active = document.activeElement;
   if (!(active instanceof HTMLElement) || !active.matches('input, textarea, [contenteditable="true"]')) return;
 
+  const anchor = active.closest<HTMLElement>('[data-keyboard-anchor]') ?? active;
   const viewport = window.visualViewport;
   const visibleTop = viewport?.offsetTop ?? 0;
   const visibleBottom = visibleTop + (viewport?.height ?? window.innerHeight);
-  const anchor = active.closest<HTMLElement>('[data-keyboard-anchor]') ?? active;
   const rect = anchor.getBoundingClientRect();
   const margin = 20;
 
   if (rect.bottom > visibleBottom - margin || rect.top < visibleTop + margin) {
     anchor.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
-
-    // scrollIntoView can target the locked document instead of the route/modal
-    // scroller in Android WebView. Correct the nearest real scroll container too.
-    const corrected = anchor.getBoundingClientRect();
-    const delta = corrected.bottom - (visibleBottom - margin);
-    if (delta > 0) {
-      let parent = anchor.parentElement;
-      while (parent) {
-        const style = window.getComputedStyle(parent);
-        if (/auto|scroll/.test(style.overflowY) && parent.scrollHeight > parent.clientHeight) {
-          parent.scrollBy({ top: delta + margin, behavior: 'auto' });
-          return;
-        }
-        parent = parent.parentElement;
-      }
-      window.scrollBy({ top: delta + margin, behavior: 'auto' });
-    }
   }
-};
-
-const updateVisibleHeight = (keyboardHeight = 0, launchHeight = window.innerHeight) => {
-  const viewport = window.visualViewport;
-  const resizedHeight = Math.min(viewport?.height ?? window.innerHeight, window.innerHeight);
-  const height = keyboardHeight > 0
-    ? Math.min(resizedHeight, Math.max(240, launchHeight - keyboardHeight))
-    : resizedHeight;
-  document.documentElement.style.setProperty('--iftin-visible-height', `${Math.max(1, Math.round(height))}px`);
 };
 
 /**
@@ -64,57 +38,92 @@ export const useKeyboardInsets = () => {
     if (Capacitor.getPlatform() !== 'android') return;
 
     let timers: number[] = [];
-    const launchHeight = window.innerHeight;
-    let keyboardHeight = 0;
+    let blurTimer: number | null = null;
+
     const scheduleVisibilityCheck = () => {
       timers.forEach((timer) => window.clearTimeout(timer));
       timers = [
-        window.setTimeout(keepFocusedFieldVisible, 40),
+        window.setTimeout(keepFocusedFieldVisible, 0),
+        window.setTimeout(keepFocusedFieldVisible, 80),
         window.setTimeout(keepFocusedFieldVisible, 180),
-        window.setTimeout(keepFocusedFieldVisible, 360),
+        window.setTimeout(keepFocusedFieldVisible, 320),
       ];
     };
 
-    const showListener = Keyboard.addListener('keyboardWillShow', (info: KeyboardInfo) => {
-      keyboardHeight = Math.max(0, Number(info.keyboardHeight || 0));
-      setKeyboardInset(keyboardHeight);
-      updateVisibleHeight(keyboardHeight, launchHeight);
+    const showWillListener = Keyboard.addListener('keyboardWillShow', () => {
+      setKeyboardOpen(true);
       scheduleVisibilityCheck();
     });
 
-    const hideListener = Keyboard.addListener('keyboardWillHide', () => {
-      keyboardHeight = 0;
-      setKeyboardInset(0);
-      document.documentElement.style.removeProperty('--iftin-visible-height');
+    const showDidListener = Keyboard.addListener('keyboardDidShow', () => {
+      setKeyboardOpen(true);
+      scheduleVisibilityCheck();
+    });
+
+    const hideWillListener = Keyboard.addListener('keyboardWillHide', () => {
+      setKeyboardOpen(false);
+    });
+
+    const hideDidListener = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardOpen(false);
     });
 
     const focusHandler = (event: FocusEvent) => {
       const target = event.target;
-      if (target instanceof HTMLElement && target.matches('input, textarea, [contenteditable="true"]')) {
-        scheduleVisibilityCheck();
+      if (!(target instanceof HTMLElement) || !target.matches('input, textarea, [contenteditable="true"]')) return;
+
+      if (blurTimer !== null) {
+        window.clearTimeout(blurTimer);
+        blurTimer = null;
       }
+
+      // Unlock the fixed launch-height shell immediately, before Android opens
+      // the IME. Native adjustResize can then make the WebView shorter and the
+      // focused phone/OTP field can scroll inside that real visible area.
+      setInputFocused(true);
+      scheduleVisibilityCheck();
+    };
+
+    const blurHandler = () => {
+      if (blurTimer !== null) window.clearTimeout(blurTimer);
+      blurTimer = window.setTimeout(() => {
+        const active = document.activeElement;
+        const stillEditing =
+          active instanceof HTMLElement &&
+          active.matches('input, textarea, [contenteditable="true"]');
+        if (!stillEditing) setInputFocused(false);
+      }, 120);
     };
 
     const viewportHandler = () => {
-      if (document.documentElement.classList.contains('iftin-keyboard-open')) {
-        updateVisibleHeight(keyboardHeight, launchHeight);
+      if (
+        document.documentElement.classList.contains('iftin-keyboard-open') ||
+        document.documentElement.classList.contains('iftin-input-focused')
+      ) {
         scheduleVisibilityCheck();
       }
     };
 
     document.addEventListener('focusin', focusHandler);
+    document.addEventListener('focusout', blurHandler);
+    window.addEventListener('resize', viewportHandler);
     window.visualViewport?.addEventListener('resize', viewportHandler);
     window.visualViewport?.addEventListener('scroll', viewportHandler);
 
     return () => {
-      showListener.then((handle) => handle.remove());
-      hideListener.then((handle) => handle.remove());
+      showWillListener.then((handle) => handle.remove());
+      showDidListener.then((handle) => handle.remove());
+      hideWillListener.then((handle) => handle.remove());
+      hideDidListener.then((handle) => handle.remove());
       document.removeEventListener('focusin', focusHandler);
+      document.removeEventListener('focusout', blurHandler);
+      window.removeEventListener('resize', viewportHandler);
       window.visualViewport?.removeEventListener('resize', viewportHandler);
       window.visualViewport?.removeEventListener('scroll', viewportHandler);
       timers.forEach((timer) => window.clearTimeout(timer));
-      setKeyboardInset(0);
-      document.documentElement.style.removeProperty('--iftin-visible-height');
+      if (blurTimer !== null) window.clearTimeout(blurTimer);
+      setKeyboardOpen(false);
+      setInputFocused(false);
     };
   }, []);
 };
