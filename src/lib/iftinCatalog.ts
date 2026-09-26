@@ -369,16 +369,393 @@ const DEFAULT_USSD_PREFIX: Record<string, string> = { '61': '*712*', '77': '*712
 /**
  * Qaabka lacagta ee USSD-ka — sida gacanta (manual) loogu diro:
  *  - 1      -> "1"
- *  - 0.10   -> "010"   (ka yar $1: nuqul aan calaamad lahayn)
+ *  - 0.09   -> "0*09"
+ *  - 0.10   -> "0*10"
  *  - 1.50   -> "1*50"
  */
 export function formatUssdAmount(amount: number | string): string {
-  const n = Number(String(amount).replace('$', '').trim());
+  const n = Number(String(amount).replace('
+
+function normalizePaymentAmount(amount: number | string): string {
+  const raw = String(amount).replace('
+
+export function buildPaymentUssd(
+  paymentProvider: { ussd_code_template?: string | null; ussd_prefix?: string | null; prefix_code?: string | null; payment_number?: string | null },
+  amount: number | string,
+): string | null {
+  const number = String(paymentProvider.payment_number ?? '').replace(/\D/g, '');
+  if (!number) return null;
+
+  const prefixCode = String(paymentProvider.prefix_code ?? '').trim();
+  const explicitPrefix = String(paymentProvider.ussd_prefix ?? '').trim();
+  const resolvedPrefix = explicitPrefix || DEFAULT_USSD_PREFIX[prefixCode] || (prefixCode.startsWith('*') ? prefixCode : '');
+  const ussdAmount = normalizePaymentAmount(amount);
+
+  const compactPrefix = resolvedPrefix.replace(/\s/g, '');
+  const isEvc = compactPrefix.startsWith('*712*') || prefixCode === '61' || prefixCode === '77';
+  if (isEvc) {
+    return `*712*${number}*${ussdAmount}#`;
+  }
+
+  const tpl = paymentProvider.ussd_code_template;
+  if (tpl) {
+    return tpl
+      .replace(/\{\{?\s*(number|payment_number|phone)\s*\}?\}/gi, number)
+      .replace(/\{\{?\s*amount\s*\}?\}/gi, ussdAmount);
+  }
+
+  if (!resolvedPrefix) return null;
+  const base = resolvedPrefix.endsWith('*') ? resolvedPrefix : `${resolvedPrefix}*`;
+  return `${base}${number}*${ussdAmount}#`;
+}
+
+/** Keeps the workspace-scoped offline caches filled from Iftin's catalog. */
+function cacheLegacyShapes(catalog: IftinCatalog, tenantId: string) {
+  if (!hasCatalog(catalog)) return;
+  try {
+    const providers = mapProviders(catalog);
+    const paymentProviders = mapPaymentProviders(catalog);
+    const categories = mapCategories(catalog);
+    const packages = mapPackages(catalog);
+    const packagesByProvider: Record<string, any[]> = {};
+    for (const pkg of packages) {
+      (packagesByProvider[pkg.provider_id] ??= []).push(pkg);
+    }
+    workspaceStorage.setJson('offline_providers', providers, tenantId);
+    workspaceStorage.setJson('offline_categories', categories, tenantId);
+    workspaceStorage.setJson('offline_packages', packagesByProvider, tenantId);
+    workspaceStorage.setJson('offline_payment_providers', paymentProviders, tenantId);
+    cacheImages([
+      ...providers.map((p: any) => p.provider_logo),
+      ...paymentProviders.map((p: any) => p.provider_logo),
+      ...categories.map((c: any) => c.category_image),
+    ]);
+  } catch { /* quota */ }
+}
+
+export function catalogLimits(catalog: IftinCatalog | null | undefined) {
+  const balance = Number(catalog?.balance_due ?? 0);
+  const limit = Number(catalog?.credit_limit ?? 0);
+  const blocked = limit > 0 && balance >= limit;
+  return { balance, limit, blocked };
+}
+
+export function isOrderingBlocked(): boolean {
+  const catalog = memo?.catalog ?? readCachedCatalog();
+  return catalogLimits(catalog).blocked;
+}
+
+export type PopularPackageDTO = {
+  package_id: string;
+  package_name: string;
+  data_amount: string;
+  selling_price: number;
+  provider_id: string;
+  provider_name: string;
+  provider_logo: string | null;
+  connection_type_label: string;
+};
+
+export function mapPopularPackages(catalog: IftinCatalog | null | undefined): PopularPackageDTO[] {
+  if (!catalog) return [];
+  const anyCatalog = catalog as any;
+  const providers: any[] = catalog.providers ?? [];
+
+  const providerById = new Map<string, any>();
+  for (const p of providers) providerById.set(String(p.provider_id ?? p.id), p);
+
+  let raw: any[] = anyCatalog.popular_packages ?? anyCatalog.popularPackages ?? [];
+  if (!Array.isArray(raw) || raw.length === 0) {
+    raw = [];
+    for (const p of providers) {
+      const list = p.popular_packages ?? p.popularPackages ?? [];
+      for (const pkg of list) raw.push({ ...pkg, provider_id: pkg.provider_id ?? p.provider_id ?? p.id });
+    }
+  }
+
+  return raw
+    .map((pkg: any) => {
+      const providerId = String(pkg.provider_id ?? pkg.providerId ?? '');
+      const provider = providerById.get(providerId);
+      const packageId = String(pkg.package_id ?? pkg.id ?? '');
+      const basePrice = Number(pkg.selling_price ?? pkg.price ?? pkg.base_price ?? 0);
+      return {
+        package_id: packageId,
+        package_name: String(pkg.package_name ?? pkg.name ?? ''),
+        data_amount: String(pkg.data_amount ?? pkg.data ?? ''),
+        selling_price: sellPriceFor(packageId, basePrice),
+        provider_id: providerId,
+        provider_name: String(pkg.provider_name ?? provider?.provider_name ?? ''),
+        provider_logo: localizeImage(
+          'provider',
+          pkg.provider_logo ?? provider?.provider_logo,
+          pkg.provider_name ?? provider?.provider_name,
+        ),
+        connection_type_label: String(pkg.connection_type_label ?? pkg.type ?? ''),
+      };
+    })
+    .filter((p) => p.package_id && (p.data_amount || p.package_name));
+}
+, '').trim());
   if (!isFinite(n)) return String(amount);
   if (Number.isInteger(n)) return String(n);
-  const str = n.toFixed(2);
-  if (n < 1) return str.replace('.', '').replace(/^0+/, '0');
-  return str.replace('.', '*');
+  return n.toFixed(2).replace('.', '*');
+}
+
+function normalizePaymentAmount(amount: number | string): string {
+  const raw = String(amount).replace('$', '').trim();
+  // Horay ayaa loo qaabeeyay: "1*50" ama "010" — sidiisa ha ahaato.
+  if (/^\d+\*\d{2}$/.test(raw)) return raw;
+  if (/^0\d+$/.test(raw)) return raw;
+  if (/^\d+(?:\.\d+)?$/.test(raw)) return formatUssdAmount(raw);
+  return raw;
+}
+
+export function buildPaymentUssd(
+  paymentProvider: { ussd_code_template?: string | null; ussd_prefix?: string | null; prefix_code?: string | null; payment_number?: string | null },
+  amount: number | string,
+): string | null {
+  const number = String(paymentProvider.payment_number ?? '').replace(/\D/g, '');
+  if (!number) return null;
+
+  const prefixCode = String(paymentProvider.prefix_code ?? '').trim();
+  const explicitPrefix = String(paymentProvider.ussd_prefix ?? '').trim();
+  const resolvedPrefix = explicitPrefix || DEFAULT_USSD_PREFIX[prefixCode] || (prefixCode.startsWith('*') ? prefixCode : '');
+  const ussdAmount = normalizePaymentAmount(amount);
+
+  const compactPrefix = resolvedPrefix.replace(/\s/g, '');
+  const isEvc = compactPrefix.startsWith('*712*') || prefixCode === '61' || prefixCode === '77';
+  if (isEvc) {
+    return `*712*${number}*${ussdAmount}#`;
+  }
+
+  const tpl = paymentProvider.ussd_code_template;
+  if (tpl) {
+    return tpl
+      .replace(/\{\{?\s*(number|payment_number|phone)\s*\}?\}/gi, number)
+      .replace(/\{\{?\s*amount\s*\}?\}/gi, ussdAmount);
+  }
+
+  if (!resolvedPrefix) return null;
+  const base = resolvedPrefix.endsWith('*') ? resolvedPrefix : `${resolvedPrefix}*`;
+  return `${base}${number}*${ussdAmount}#`;
+}
+
+/** Keeps the workspace-scoped offline caches filled from Iftin's catalog. */
+function cacheLegacyShapes(catalog: IftinCatalog, tenantId: string) {
+  if (!hasCatalog(catalog)) return;
+  try {
+    const providers = mapProviders(catalog);
+    const paymentProviders = mapPaymentProviders(catalog);
+    const categories = mapCategories(catalog);
+    const packages = mapPackages(catalog);
+    const packagesByProvider: Record<string, any[]> = {};
+    for (const pkg of packages) {
+      (packagesByProvider[pkg.provider_id] ??= []).push(pkg);
+    }
+    workspaceStorage.setJson('offline_providers', providers, tenantId);
+    workspaceStorage.setJson('offline_categories', categories, tenantId);
+    workspaceStorage.setJson('offline_packages', packagesByProvider, tenantId);
+    workspaceStorage.setJson('offline_payment_providers', paymentProviders, tenantId);
+    cacheImages([
+      ...providers.map((p: any) => p.provider_logo),
+      ...paymentProviders.map((p: any) => p.provider_logo),
+      ...categories.map((c: any) => c.category_image),
+    ]);
+  } catch { /* quota */ }
+}
+
+export function catalogLimits(catalog: IftinCatalog | null | undefined) {
+  const balance = Number(catalog?.balance_due ?? 0);
+  const limit = Number(catalog?.credit_limit ?? 0);
+  const blocked = limit > 0 && balance >= limit;
+  return { balance, limit, blocked };
+}
+
+export function isOrderingBlocked(): boolean {
+  const catalog = memo?.catalog ?? readCachedCatalog();
+  return catalogLimits(catalog).blocked;
+}
+
+export type PopularPackageDTO = {
+  package_id: string;
+  package_name: string;
+  data_amount: string;
+  selling_price: number;
+  provider_id: string;
+  provider_name: string;
+  provider_logo: string | null;
+  connection_type_label: string;
+};
+
+export function mapPopularPackages(catalog: IftinCatalog | null | undefined): PopularPackageDTO[] {
+  if (!catalog) return [];
+  const anyCatalog = catalog as any;
+  const providers: any[] = catalog.providers ?? [];
+
+  const providerById = new Map<string, any>();
+  for (const p of providers) providerById.set(String(p.provider_id ?? p.id), p);
+
+  let raw: any[] = anyCatalog.popular_packages ?? anyCatalog.popularPackages ?? [];
+  if (!Array.isArray(raw) || raw.length === 0) {
+    raw = [];
+    for (const p of providers) {
+      const list = p.popular_packages ?? p.popularPackages ?? [];
+      for (const pkg of list) raw.push({ ...pkg, provider_id: pkg.provider_id ?? p.provider_id ?? p.id });
+    }
+  }
+
+  return raw
+    .map((pkg: any) => {
+      const providerId = String(pkg.provider_id ?? pkg.providerId ?? '');
+      const provider = providerById.get(providerId);
+      const packageId = String(pkg.package_id ?? pkg.id ?? '');
+      const basePrice = Number(pkg.selling_price ?? pkg.price ?? pkg.base_price ?? 0);
+      return {
+        package_id: packageId,
+        package_name: String(pkg.package_name ?? pkg.name ?? ''),
+        data_amount: String(pkg.data_amount ?? pkg.data ?? ''),
+        selling_price: sellPriceFor(packageId, basePrice),
+        provider_id: providerId,
+        provider_name: String(pkg.provider_name ?? provider?.provider_name ?? ''),
+        provider_logo: localizeImage(
+          'provider',
+          pkg.provider_logo ?? provider?.provider_logo,
+          pkg.provider_name ?? provider?.provider_name,
+        ),
+        connection_type_label: String(pkg.connection_type_label ?? pkg.type ?? ''),
+      };
+    })
+    .filter((p) => p.package_id && (p.data_amount || p.package_name));
+}
+, '').trim();
+  // Horay ayaa loo qaabeeyay: "1*50" ama "0*09" — sidiisa ha ahaato.
+  if (/^\d+\*\d{2}$/.test(raw)) return raw;
+  if (/^\d+(?:\.\d+)?$/.test(raw)) return formatUssdAmount(raw);
+  return raw;
+}
+
+export function buildPaymentUssd(
+  paymentProvider: { ussd_code_template?: string | null; ussd_prefix?: string | null; prefix_code?: string | null; payment_number?: string | null },
+  amount: number | string,
+): string | null {
+  const number = String(paymentProvider.payment_number ?? '').replace(/\D/g, '');
+  if (!number) return null;
+
+  const prefixCode = String(paymentProvider.prefix_code ?? '').trim();
+  const explicitPrefix = String(paymentProvider.ussd_prefix ?? '').trim();
+  const resolvedPrefix = explicitPrefix || DEFAULT_USSD_PREFIX[prefixCode] || (prefixCode.startsWith('*') ? prefixCode : '');
+  const ussdAmount = normalizePaymentAmount(amount);
+
+  const compactPrefix = resolvedPrefix.replace(/\s/g, '');
+  const isEvc = compactPrefix.startsWith('*712*') || prefixCode === '61' || prefixCode === '77';
+  if (isEvc) {
+    return `*712*${number}*${ussdAmount}#`;
+  }
+
+  const tpl = paymentProvider.ussd_code_template;
+  if (tpl) {
+    return tpl
+      .replace(/\{\{?\s*(number|payment_number|phone)\s*\}?\}/gi, number)
+      .replace(/\{\{?\s*amount\s*\}?\}/gi, ussdAmount);
+  }
+
+  if (!resolvedPrefix) return null;
+  const base = resolvedPrefix.endsWith('*') ? resolvedPrefix : `${resolvedPrefix}*`;
+  return `${base}${number}*${ussdAmount}#`;
+}
+
+/** Keeps the workspace-scoped offline caches filled from Iftin's catalog. */
+function cacheLegacyShapes(catalog: IftinCatalog, tenantId: string) {
+  if (!hasCatalog(catalog)) return;
+  try {
+    const providers = mapProviders(catalog);
+    const paymentProviders = mapPaymentProviders(catalog);
+    const categories = mapCategories(catalog);
+    const packages = mapPackages(catalog);
+    const packagesByProvider: Record<string, any[]> = {};
+    for (const pkg of packages) {
+      (packagesByProvider[pkg.provider_id] ??= []).push(pkg);
+    }
+    workspaceStorage.setJson('offline_providers', providers, tenantId);
+    workspaceStorage.setJson('offline_categories', categories, tenantId);
+    workspaceStorage.setJson('offline_packages', packagesByProvider, tenantId);
+    workspaceStorage.setJson('offline_payment_providers', paymentProviders, tenantId);
+    cacheImages([
+      ...providers.map((p: any) => p.provider_logo),
+      ...paymentProviders.map((p: any) => p.provider_logo),
+      ...categories.map((c: any) => c.category_image),
+    ]);
+  } catch { /* quota */ }
+}
+
+export function catalogLimits(catalog: IftinCatalog | null | undefined) {
+  const balance = Number(catalog?.balance_due ?? 0);
+  const limit = Number(catalog?.credit_limit ?? 0);
+  const blocked = limit > 0 && balance >= limit;
+  return { balance, limit, blocked };
+}
+
+export function isOrderingBlocked(): boolean {
+  const catalog = memo?.catalog ?? readCachedCatalog();
+  return catalogLimits(catalog).blocked;
+}
+
+export type PopularPackageDTO = {
+  package_id: string;
+  package_name: string;
+  data_amount: string;
+  selling_price: number;
+  provider_id: string;
+  provider_name: string;
+  provider_logo: string | null;
+  connection_type_label: string;
+};
+
+export function mapPopularPackages(catalog: IftinCatalog | null | undefined): PopularPackageDTO[] {
+  if (!catalog) return [];
+  const anyCatalog = catalog as any;
+  const providers: any[] = catalog.providers ?? [];
+
+  const providerById = new Map<string, any>();
+  for (const p of providers) providerById.set(String(p.provider_id ?? p.id), p);
+
+  let raw: any[] = anyCatalog.popular_packages ?? anyCatalog.popularPackages ?? [];
+  if (!Array.isArray(raw) || raw.length === 0) {
+    raw = [];
+    for (const p of providers) {
+      const list = p.popular_packages ?? p.popularPackages ?? [];
+      for (const pkg of list) raw.push({ ...pkg, provider_id: pkg.provider_id ?? p.provider_id ?? p.id });
+    }
+  }
+
+  return raw
+    .map((pkg: any) => {
+      const providerId = String(pkg.provider_id ?? pkg.providerId ?? '');
+      const provider = providerById.get(providerId);
+      const packageId = String(pkg.package_id ?? pkg.id ?? '');
+      const basePrice = Number(pkg.selling_price ?? pkg.price ?? pkg.base_price ?? 0);
+      return {
+        package_id: packageId,
+        package_name: String(pkg.package_name ?? pkg.name ?? ''),
+        data_amount: String(pkg.data_amount ?? pkg.data ?? ''),
+        selling_price: sellPriceFor(packageId, basePrice),
+        provider_id: providerId,
+        provider_name: String(pkg.provider_name ?? provider?.provider_name ?? ''),
+        provider_logo: localizeImage(
+          'provider',
+          pkg.provider_logo ?? provider?.provider_logo,
+          pkg.provider_name ?? provider?.provider_name,
+        ),
+        connection_type_label: String(pkg.connection_type_label ?? pkg.type ?? ''),
+      };
+    })
+    .filter((p) => p.package_id && (p.data_amount || p.package_name));
+}
+, '').trim());
+  if (!isFinite(n)) return String(amount);
+  if (Number.isInteger(n)) return String(n);
+  return n.toFixed(2).replace('.', '*');
 }
 
 function normalizePaymentAmount(amount: number | string): string {
