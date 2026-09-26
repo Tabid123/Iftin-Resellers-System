@@ -22,6 +22,12 @@ const keepFocusedFieldVisible = () => {
   const margin = 28;
 
   if (rect.bottom > visibleBottom - margin || rect.top < visibleTop + margin) {
+    const surface = active.closest('.iftin-keyboard-dialog, .iftin-auth-page');
+    if (surface instanceof HTMLElement) {
+      const surfaceRect = surface.getBoundingClientRect();
+      const targetTop = Math.max(0, surface.scrollTop + rect.top - surfaceRect.top - 72);
+      surface.scrollTo({ top: targetTop, behavior: 'auto' });
+    }
     active.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
   }
 };
