@@ -7,7 +7,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { warmPages } from "@/lib/lazyPages";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -227,28 +227,19 @@ function NativeLiveStartupGate({ children }: { children: ReactNode }) {
     typeof window !== "undefined" &&
     Capacitor.isNativePlatform() &&
     (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-  const [ready, setReady] = useState(!packagedNative);
 
   useEffect(() => {
-    if (!packagedNative) {
-      setReady(true);
-      return;
-    }
+    if (!packagedNative) return;
 
     const slug = buildTenantSlug();
-    if (!slug || typeof navigator === "undefined" || navigator.onLine === false) {
-      setReady(true);
-      return;
-    }
+    if (!slug || typeof navigator === "undefined" || navigator.onLine === false) return;
 
     const controller = new AbortController();
     let settled = false;
     const liveUrl = `https://iftinagents.com/t/${encodeURIComponent(slug)}${window.location.search || ""}`;
 
-    // Online tenant APKs always hand off to the live storefront before the
-    // packaged UI is allowed to render. The previous 850ms timeout caused
-    // normal/slower mobile connections to fall back permanently to stale
-    // packaged code, so website changes never appeared in the installed APK.
+    // Keep the packaged tenant UI visible while checking the live storefront.
+    // Never cover startup with a blank/brand-colour screen.
     fetch(liveUrl, {
       method: "GET",
       mode: "no-cors",
@@ -261,9 +252,7 @@ function NativeLiveStartupGate({ children }: { children: ReactNode }) {
         window.location.replace(liveUrl);
       })
       .catch(() => {
-        if (settled) return;
         settled = true;
-        setReady(true);
       });
 
     return () => {
@@ -271,10 +260,6 @@ function NativeLiveStartupGate({ children }: { children: ReactNode }) {
       controller.abort();
     };
   }, [packagedNative]);
-
-  if (!ready) {
-    return <div className="fixed inset-0 z-[10000] bg-primary" aria-hidden="true" />;
-  }
 
   return <>{children}</>;
 }
