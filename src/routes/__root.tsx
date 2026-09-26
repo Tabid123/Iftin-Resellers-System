@@ -245,16 +245,10 @@ function NativeLiveStartupGate({ children }: { children: ReactNode }) {
     let settled = false;
     const liveUrl = `https://iftinagents.com/t/${encodeURIComponent(slug)}${window.location.search || ""}`;
 
-    // Decide live-vs-packaged before TenantGate can paint. This prevents the
-    // old packaged TenantGate -> late live reload -> second TenantGate sequence.
-    // Give the live probe a short budget so native splash still never exceeds 1.5s.
-    const timer = window.setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      controller.abort();
-      setReady(true);
-    }, 850);
-
+    // Online tenant APKs always hand off to the live storefront before the
+    // packaged UI is allowed to render. The previous 850ms timeout caused
+    // normal/slower mobile connections to fall back permanently to stale
+    // packaged code, so website changes never appeared in the installed APK.
     fetch(liveUrl, {
       method: "GET",
       mode: "no-cors",
@@ -264,19 +258,16 @@ function NativeLiveStartupGate({ children }: { children: ReactNode }) {
       .then(() => {
         if (settled) return;
         settled = true;
-        window.clearTimeout(timer);
         window.location.replace(liveUrl);
       })
       .catch(() => {
         if (settled) return;
         settled = true;
-        window.clearTimeout(timer);
         setReady(true);
       });
 
     return () => {
       settled = true;
-      window.clearTimeout(timer);
       controller.abort();
     };
   }, [packagedNative]);
