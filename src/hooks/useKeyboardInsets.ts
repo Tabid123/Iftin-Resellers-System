@@ -2,12 +2,13 @@ import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Keyboard, KeyboardInfo } from '@capacitor/keyboard';
 
-const setKeyboardInset = (height: number) => {
+const setKeyboardState = (open: boolean) => {
+  const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
   document.documentElement.style.setProperty(
-    '--iftin-keyboard-inset',
-    `${Math.max(0, Math.round(height))}px`,
+    '--iftin-visual-height',
+    `${Math.max(0, Math.round(viewportHeight))}px`,
   );
-  document.documentElement.classList.toggle('iftin-keyboard-open', height > 0);
+  document.documentElement.classList.toggle('iftin-keyboard-open', open);
 };
 
 const keepFocusedFieldVisible = () => {
@@ -46,14 +47,13 @@ export const useKeyboardInsets = () => {
       ];
     };
 
-    const showListener = Keyboard.addListener('keyboardWillShow', (info: KeyboardInfo) => {
-      const height = Math.max(0, Number(info.keyboardHeight || 0));
-      setKeyboardInset(height);
+    const showListener = Keyboard.addListener('keyboardDidShow', (_info: KeyboardInfo) => {
+      setKeyboardState(true);
       scheduleVisibilityCheck();
     });
 
-    const hideListener = Keyboard.addListener('keyboardWillHide', () => {
-      setKeyboardInset(0);
+    const hideListener = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardState(false);
     });
 
     const focusHandler = (event: FocusEvent) => {
@@ -64,10 +64,14 @@ export const useKeyboardInsets = () => {
     };
 
     const viewportHandler = () => {
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+      document.documentElement.style.setProperty('--iftin-visual-height', `${Math.round(viewportHeight)}px`);
       if (document.documentElement.classList.contains('iftin-keyboard-open')) {
         scheduleVisibilityCheck();
       }
     };
+
+    viewportHandler();
 
     document.addEventListener('focusin', focusHandler);
     window.visualViewport?.addEventListener('resize', viewportHandler);
@@ -80,7 +84,7 @@ export const useKeyboardInsets = () => {
       window.visualViewport?.removeEventListener('resize', viewportHandler);
       window.visualViewport?.removeEventListener('scroll', viewportHandler);
       timers.forEach((timer) => window.clearTimeout(timer));
-      setKeyboardInset(0);
+      setKeyboardState(false);
     };
   }, []);
 };
