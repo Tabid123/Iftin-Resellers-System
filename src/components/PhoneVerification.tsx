@@ -153,10 +153,9 @@ const PhoneVerification = ({ isOpen, onClose, onSuccess, paymentProvider, packag
 
       toast({ title: "✅ Xaqiijin guul!", description: "Fadlan diiwaangeli lambaradaada." });
       localStorage.removeItem('verificationCode');
-      localStorage.setItem('hasSkippedOfflineRegistration', 'true');
       setIsVerifying(false);
       onClose();
-      navigate('/providers', { replace: true });
+      navigate('/offline-mode');
     } else {
       toast({ title: "Khalad", description: "Koodka aad gelisay waa mid khaldan.", variant: "destructive" });
       setIsVerifying(false);
