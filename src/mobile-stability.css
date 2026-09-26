@@ -172,27 +172,21 @@ body {
   /* Login/OTP pages are not inside the storefront route scroller. While the
    * Android keyboard is open, let the document become vertically scrollable so
    * the focused field can be moved above the IME instead of being covered. */
-  html.iftin-keyboard-open,
-  html.iftin-keyboard-open body,
-  html.iftin-keyboard-open body > #root {
-    height: var(--iftin-visual-height) !important;
-    min-height: 0 !important;
-    max-height: var(--iftin-visual-height) !important;
-    overflow-y: auto !important;
-    overscroll-behavior-y: contain !important;
-  }
-
+  /* Capacitor resizes the body itself. Do not resize the entire app root a
+   * second time: that was shrinking/repainting the WebView when an input focused. */
   html.iftin-keyboard-open .iftin-auth-page {
     min-height: var(--iftin-visual-height) !important;
-    height: auto !important;
+    height: var(--iftin-visual-height) !important;
+    max-height: var(--iftin-visual-height) !important;
     justify-content: flex-start !important;
     overflow-y: auto !important;
-    padding-top: 24px !important;
+    overscroll-behavior-y: contain !important;
+    padding-top: 16px !important;
     padding-bottom: 24px !important;
   }
 
   html.iftin-keyboard-open .iftin-keyboard-dialog {
-    max-height: calc(var(--iftin-visual-height) - 24px) !important;
+    max-height: calc(var(--iftin-visual-height) - 16px) !important;
     overflow-y: auto !important;
     overscroll-behavior: contain !important;
   }
