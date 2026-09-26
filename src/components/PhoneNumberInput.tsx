@@ -34,6 +34,7 @@ const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
         {label}
       </label>
       <div
+        data-keyboard-anchor
         className={`flex items-stretch border-2 rounded-xl overflow-hidden bg-background shadow-sm transition-colors ${
           hasError ? 'border-destructive' : 'border-border focus-within:border-primary'
         }`}

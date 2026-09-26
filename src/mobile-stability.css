@@ -14,8 +14,7 @@
 :root {
   --iftin-shell-height: 100dvh;
   --iftin-keyboard-inset: 0px;
-  --iftin-visual-height: 100dvh;
-  --iftin-keyboard-height: 0px;
+  --iftin-visible-height: 100dvh;
 }
 
 /* If the WebView height changes for a few frames (Android system/gesture bar),
@@ -170,35 +169,49 @@ body {
     overflow: hidden !important;
   }
 
+  html.iftin-keyboard-open .iftin-route-viewport {
+    padding-bottom: 24px !important;
+    scroll-padding-bottom: 32px !important;
+  }
+
   /* Login/OTP pages are not inside the storefront route scroller. While the
    * Android keyboard is open, let the document become vertically scrollable so
    * the focused field can be moved above the IME instead of being covered. */
-  /* Capacitor resizes the body itself. Do not resize the entire app root a
-   * second time: that was shrinking/repainting the WebView when an input focused. */
-  html.iftin-keyboard-open .iftin-auth-page {
-    height: auto !important;
-    min-height: var(--iftin-visual-height) !important;
-    max-height: none !important;
-    justify-content: flex-start !important;
+  html.iftin-keyboard-open,
+  html.iftin-keyboard-open body,
+  html.iftin-keyboard-open body > #root {
+    height: var(--iftin-visible-height) !important;
+    min-height: var(--iftin-visible-height) !important;
+    max-height: var(--iftin-visible-height) !important;
     overflow-y: auto !important;
     overscroll-behavior-y: contain !important;
-    scroll-padding-bottom: calc(var(--iftin-keyboard-height) + 32px) !important;
-    padding-top: 16px !important;
-    padding-bottom: calc(var(--iftin-keyboard-height) + 32px) !important;
   }
 
-  html.iftin-keyboard-open .iftin-keyboard-dialog {
-    max-height: calc(100dvh - var(--iftin-keyboard-height) - 16px) !important;
-    overflow-y: auto !important;
-    overscroll-behavior: contain !important;
-    scroll-padding-bottom: 32px !important;
+  html.iftin-keyboard-open body > #root {
+    padding-bottom: 24px !important;
   }
 
   html.iftin-keyboard-open input:focus,
   html.iftin-keyboard-open textarea:focus,
   html.iftin-keyboard-open [contenteditable="true"]:focus {
     scroll-margin-top: 28px !important;
-    scroll-margin-bottom: 28px !important;
+    scroll-margin-bottom: 32px !important;
+  }
+
+  /* Login and OTP are vertically centred while idle. When the IME opens, pin
+   * their content to the top of the visible WebView and let that viewport scroll. */
+  html.iftin-keyboard-open .iftin-auth-page {
+    min-height: var(--iftin-visible-height) !important;
+    justify-content: flex-start !important;
+    overflow-y: auto !important;
+    padding-top: 16px !important;
+    padding-bottom: 32px !important;
+  }
+
+  html.iftin-keyboard-open .iftin-keyboard-dialog {
+    top: calc(var(--iftin-visible-height) / 2) !important;
+    max-height: calc(var(--iftin-visible-height) - 24px) !important;
+    overflow-y: auto !important;
   }
 
   .min-h-screen.bg-background.flex.flex-col > .fixed.top-0.left-0.right-0.z-50 > .grid.h-14 {

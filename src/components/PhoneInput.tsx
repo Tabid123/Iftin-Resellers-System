@@ -194,7 +194,7 @@ const PhoneInput = () => {
             <label htmlFor="phone" className="text-base font-medium text-muted-foreground">
               Geli lambarka telefoonkaaga
             </label>
-            <div className="flex gap-2">
+            <div className="flex gap-2" data-keyboard-anchor>
               <div className="flex items-center gap-2 bg-card border border-input rounded-xl px-3 py-2.5 text-base font-medium">
                 <img src={somaliaFlag} alt="Calanka Somalia" className="w-7 h-5 object-cover rounded" />
                 <span>+252</span>
@@ -264,7 +264,7 @@ const PhoneInput = () => {
             <label htmlFor="code" className="text-sm font-medium text-muted-foreground">
               Koodka Xaqiijinta
             </label>
-            <div className="flex gap-2 justify-center">
+            <div className="flex gap-2 justify-center" data-keyboard-anchor>
               {[0, 1, 2, 3].map((index) => (
                 <Input
                   key={index}

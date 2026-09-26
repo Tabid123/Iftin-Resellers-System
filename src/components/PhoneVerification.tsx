@@ -171,7 +171,7 @@ const PhoneVerification = ({ isOpen, onClose, onSuccess, paymentProvider, packag
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="iftin-keyboard-dialog sm:max-w-md p-0 overflow-y-auto overscroll-contain border-0 rounded-3xl bg-background max-h-[90vh]">
+      <DialogContent className="iftin-keyboard-dialog sm:max-w-md p-0 overflow-y-auto border-0 rounded-3xl bg-background max-h-[90vh]">
         {!isCodeSent ? (
           /* ───────── PHONE INPUT STEP ───────── */
           <div className="flex flex-col items-center px-5 py-5">
@@ -191,7 +191,7 @@ const PhoneVerification = ({ isOpen, onClose, onSuccess, paymentProvider, packag
                 <span className="text-xs font-semibold text-foreground">Geli lambarkaaga</span>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2" data-keyboard-anchor>
                 <div className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-muted/50 border border-border">
                   <img src={somaliaFlag} alt="🇸🇴" className="w-6 h-4 object-cover rounded" width={24} height={16} />
                   <span className="text-xs font-bold text-foreground">+252</span>
@@ -267,7 +267,7 @@ const PhoneVerification = ({ isOpen, onClose, onSuccess, paymentProvider, packag
               </div>
             </div>
 
-            <div className="w-full space-y-1 mb-1.5">
+            <div className="w-full space-y-1 mb-1.5" data-keyboard-anchor>
               <p className="text-[11px] font-semibold text-foreground">Koodka Xaqiijinta</p>
               <InputOTP
                 maxLength={4}

@@ -43,6 +43,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { registerServiceWorker } from "@/lib/registerServiceWorker";
+import { openLiveTenantWhenAvailable } from "@/lib/liveNativeUpdates";
 
 const CHUNK_RELOAD_KEY = "iftin:chunk-reload";
 const OFFLINE_CACHE_SCHEMA_KEY = "iftin:offline-cache-schema";
@@ -222,6 +223,10 @@ function AppContent() {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    void openLiveTenantWhenAvailable();
+  }, []);
 
   useEffect(() => {
     registerServiceWorker();
