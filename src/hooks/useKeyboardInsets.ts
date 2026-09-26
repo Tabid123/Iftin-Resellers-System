@@ -43,9 +43,12 @@ const keepFocusedFieldVisible = () => {
   }
 };
 
-const updateVisibleHeight = () => {
+const updateVisibleHeight = (keyboardHeight = 0, launchHeight = window.innerHeight) => {
   const viewport = window.visualViewport;
-  const height = viewport?.height ?? window.innerHeight;
+  const resizedHeight = Math.min(viewport?.height ?? window.innerHeight, window.innerHeight);
+  const height = keyboardHeight > 0
+    ? Math.min(resizedHeight, Math.max(240, launchHeight - keyboardHeight))
+    : resizedHeight;
   document.documentElement.style.setProperty('--iftin-visible-height', `${Math.max(1, Math.round(height))}px`);
 };
 
@@ -61,6 +64,8 @@ export const useKeyboardInsets = () => {
     if (Capacitor.getPlatform() !== 'android') return;
 
     let timers: number[] = [];
+    const launchHeight = window.innerHeight;
+    let keyboardHeight = 0;
     const scheduleVisibilityCheck = () => {
       timers.forEach((timer) => window.clearTimeout(timer));
       timers = [
@@ -71,14 +76,16 @@ export const useKeyboardInsets = () => {
     };
 
     const showListener = Keyboard.addListener('keyboardWillShow', (info: KeyboardInfo) => {
-      const height = Math.max(0, Number(info.keyboardHeight || 0));
-      setKeyboardInset(height);
-      updateVisibleHeight();
+      keyboardHeight = Math.max(0, Number(info.keyboardHeight || 0));
+      setKeyboardInset(keyboardHeight);
+      updateVisibleHeight(keyboardHeight, launchHeight);
       scheduleVisibilityCheck();
     });
 
     const hideListener = Keyboard.addListener('keyboardWillHide', () => {
+      keyboardHeight = 0;
       setKeyboardInset(0);
+      document.documentElement.style.removeProperty('--iftin-visible-height');
     });
 
     const focusHandler = (event: FocusEvent) => {
@@ -90,7 +97,7 @@ export const useKeyboardInsets = () => {
 
     const viewportHandler = () => {
       if (document.documentElement.classList.contains('iftin-keyboard-open')) {
-        updateVisibleHeight();
+        updateVisibleHeight(keyboardHeight, launchHeight);
         scheduleVisibilityCheck();
       }
     };

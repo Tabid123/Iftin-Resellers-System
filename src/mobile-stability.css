@@ -169,6 +169,11 @@ body {
     overflow: hidden !important;
   }
 
+  html.iftin-keyboard-open .iftin-route-viewport {
+    padding-bottom: 24px !important;
+    scroll-padding-bottom: 32px !important;
+  }
+
   /* Login/OTP pages are not inside the storefront route scroller. While the
    * Android keyboard is open, let the document become vertically scrollable so
    * the focused field can be moved above the IME instead of being covered. */
