@@ -174,9 +174,8 @@ const PhoneInput = () => {
         description: "Lambarka telefoonka waa la xaqiijiyay",
       });
       
-      localStorage.setItem('hasSkippedOfflineRegistration', 'true');
       setIsVerifying(false);
-      navigate('/providers', { replace: true });
+      navigate('/offline-mode');
     } else {
       toast({
         title: "Kood khaldan",
