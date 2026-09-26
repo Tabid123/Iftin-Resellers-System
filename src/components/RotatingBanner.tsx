@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import CachedImage from '@/components/CachedImage';
 import { useTenant } from '@/contexts/TenantContext';
 import { onStorefront } from '@/lib/storefrontEvents';
 import { activeWorkspaceId, workspaceStorage } from '@/lib/workspaceKeys';
@@ -35,6 +34,7 @@ const RotatingBanner = () => {
   const [currentBanner, setCurrentBanner] = useState(0);
   const [isLoading, setIsLoading] = useState(() => readBannerCache(workspaceId).length === 0);
   const [reloadKey, setReloadKey] = useState(0);
+  const [bannerReady, setBannerReady] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => onStorefront('banners-changed', () => setReloadKey((n) => n + 1)), []);
@@ -78,6 +78,10 @@ const RotatingBanner = () => {
   }, []);
 
   useEffect(() => {
+    setBannerReady(false);
+  }, [currentBanner, banners]);
+
+  useEffect(() => {
     if (!banners.length) return;
     const item = banners[currentBanner];
     if (!item || item.media_type === 'video') return;
@@ -119,19 +123,30 @@ const RotatingBanner = () => {
             aria-label={item.alt_text || 'Promotional video'}
           />
         ) : (
-          <CachedImage
-            key={item.banner_image}
-            src={item.banner_image}
-            alt={item.alt_text || 'Promotional banner'}
-            kind="banner"
-            className="h-full w-full object-cover"
-            width={1200}
-            height={400}
-            sizes="(max-width: 768px) 100vw, 1200px"
-            loading="eager"
-            fetchPriority="high"
-            decoding="async"
-          />
+          <>
+            {!bannerReady && <div className="absolute inset-0 bg-muted" aria-hidden="true" />}
+            <img
+              key={item.banner_image}
+              src={item.banner_image}
+              alt={item.alt_text || 'Promotional banner'}
+              className={`h-full w-full object-cover transition-none ${bannerReady ? 'opacity-100' : 'opacity-0'}`}
+              width={1200}
+              height={400}
+              sizes="(max-width: 768px) 100vw, 1200px"
+              loading="eager"
+              fetchPriority="high"
+              decoding="async"
+              onLoad={() => setBannerReady(true)}
+              onError={() => {
+                setBannerReady(false);
+                if (banners.length > 1) {
+                  setCurrentBanner((prev) => (prev + 1) % banners.length);
+                } else {
+                  window.setTimeout(() => setReloadKey((n) => n + 1), 1500);
+                }
+              }}
+            />
+          </>
         )}
       </div>
       {banners.length > 1 && (
