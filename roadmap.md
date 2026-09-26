@@ -26,3 +26,4 @@
 - [x] Add a small APK test button on the providers page (to confirm new builds reach the APK).
 - [x] Remove Najax logo/colours flash before tenant branding loads (admin login + app start).
 - [ ] APK: bundle voice prompts locally, faster splash, payment status re-check on app resume.
+- [ ] Keep phone/OTP inputs above the Android keyboard and verify live web changes appear in installed tenant APKs.
