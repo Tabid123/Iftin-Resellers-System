@@ -15,6 +15,7 @@
   --iftin-shell-height: 100dvh;
   --iftin-keyboard-inset: 0px;
   --iftin-visual-height: 100dvh;
+  --iftin-keyboard-height: 0px;
 }
 
 /* If the WebView height changes for a few frames (Android system/gesture bar),
@@ -175,20 +176,22 @@ body {
   /* Capacitor resizes the body itself. Do not resize the entire app root a
    * second time: that was shrinking/repainting the WebView when an input focused. */
   html.iftin-keyboard-open .iftin-auth-page {
+    height: auto !important;
     min-height: var(--iftin-visual-height) !important;
-    height: var(--iftin-visual-height) !important;
-    max-height: var(--iftin-visual-height) !important;
+    max-height: none !important;
     justify-content: flex-start !important;
     overflow-y: auto !important;
     overscroll-behavior-y: contain !important;
+    scroll-padding-bottom: calc(var(--iftin-keyboard-height) + 32px) !important;
     padding-top: 16px !important;
-    padding-bottom: 24px !important;
+    padding-bottom: calc(var(--iftin-keyboard-height) + 32px) !important;
   }
 
   html.iftin-keyboard-open .iftin-keyboard-dialog {
-    max-height: calc(var(--iftin-visual-height) - 16px) !important;
+    max-height: calc(100dvh - var(--iftin-keyboard-height) - 16px) !important;
     overflow-y: auto !important;
     overscroll-behavior: contain !important;
+    scroll-padding-bottom: 32px !important;
   }
 
   html.iftin-keyboard-open input:focus,
