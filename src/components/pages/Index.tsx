@@ -43,9 +43,21 @@ const Index = () => {
   }, [navigate, destination, verifiedPhone]);
 
   // Route-level beforeLoad normally redirects before this component mounts.
-  // Keep the tenant background as a final fallback so a slow route transition
-  // can never expose the browser/WebView white canvas.
-  if (destination) return <div className="fixed inset-0 bg-primary" aria-hidden="true" />;
+  // Keep the current login surface mounted during the short transition instead
+  // of painting a full-screen primary-colour frame.
+  if (destination) {
+    return (
+      <div className="iftin-auth-page min-h-screen bg-background flex flex-col items-center justify-center px-5 py-6 gap-4">
+        <div className="w-full max-w-md space-y-5">
+          <HeroSection />
+          <div className="bg-card rounded-2xl p-5 shadow-sm border border-border/50">
+            <PhoneInput />
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="iftin-auth-page min-h-screen bg-background flex flex-col items-center justify-center px-5 py-6 gap-4">
