@@ -42,8 +42,10 @@ const Index = () => {
     }
   }, [navigate, destination, verifiedPhone]);
 
-  // During the synchronous redirect, render nothing — never a spinner/logo.
-  if (destination) return null;
+  // Route-level beforeLoad normally redirects before this component mounts.
+  // Keep the tenant background as a final fallback so a slow route transition
+  // can never expose the browser/WebView white canvas.
+  if (destination) return <div className="fixed inset-0 bg-primary" aria-hidden="true" />;
 
   return (
     <div className="iftin-auth-page min-h-screen bg-background flex flex-col items-center justify-center px-5 py-6 gap-4">
