@@ -248,8 +248,8 @@ jobs:
 
           grep -Eq '"captureInput"[[:space:]]*:[[:space:]]*false' capacitor.config.json \
             || fail "captureInput is not false in capacitor.config.json"
-          grep -Eq '"launchShowDuration"[[:space:]]*:[[:space:]]*0' capacitor.config.json \
-            || fail "tenant splash duration is not 0ms"
+          grep -Eq '"launchShowDuration"[[:space:]]*:[[:space:]]*1500' capacitor.config.json \
+            || fail "native tenant splash is not capped at 1500ms"
           grep -Eq '"launchFadeOutDuration"[[:space:]]*:[[:space:]]*0' capacitor.config.json \
             || fail "tenant splash fade-out duration is not 0ms"
           grep -Eq '"launchAutoHide"[[:space:]]*:[[:space:]]*true' capacitor.config.json \
