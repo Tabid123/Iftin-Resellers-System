@@ -2,12 +2,10 @@ import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Keyboard, KeyboardInfo } from '@capacitor/keyboard';
 
-const setKeyboardState = (open: boolean) => {
+const setKeyboardState = (open: boolean, keyboardHeight = 0) => {
   const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-  document.documentElement.style.setProperty(
-    '--iftin-visual-height',
-    `${Math.max(0, Math.round(viewportHeight))}px`,
-  );
+  document.documentElement.style.setProperty('--iftin-visual-height', `${Math.max(0, Math.round(viewportHeight))}px`);
+  document.documentElement.style.setProperty('--iftin-keyboard-height', `${Math.max(0, Math.round(keyboardHeight))}px`);
   document.documentElement.classList.toggle('iftin-keyboard-open', open);
 };
 
@@ -53,8 +51,8 @@ export const useKeyboardInsets = () => {
       ];
     };
 
-    const showListener = Keyboard.addListener('keyboardDidShow', (_info: KeyboardInfo) => {
-      setKeyboardState(true);
+    const showListener = Keyboard.addListener('keyboardDidShow', (info: KeyboardInfo) => {
+      setKeyboardState(true, Number(info.keyboardHeight || 0));
       scheduleVisibilityCheck();
     });
 
