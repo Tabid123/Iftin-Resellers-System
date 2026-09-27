@@ -297,13 +297,13 @@ const ProviderSelection = () => {
           </div>
         </div>
 
-        {/* Live update test button */}
+        {/* Live update verification button */}
         <div className="px-4 mt-4">
           <button
             type="button"
             className="w-full rounded-xl border border-primary/30 bg-primary/10 px-4 py-2.5 text-sm font-bold text-primary"
           >
-            LIVE UPDATE TEST
+            APK LIVE SYNC OK
           </button>
         </div>
 
