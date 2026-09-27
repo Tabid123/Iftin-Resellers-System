@@ -20,7 +20,13 @@ const packagedHtml = fs.readFileSync(indexPath, "utf8");
 fs.writeFileSync(packagedPath, packagedHtml);
 
 const js = (value) => JSON.stringify(value).replace(/</g, "\\u003c");
-const liveUrl = `https://iftinagents.com/t/${encodeURIComponent(slug)}`;
+const liveParams = new URLSearchParams({
+  nativeSplash: "1",
+  brandName: appName,
+  brandColor: splashColor,
+});
+if (logoUrl) liveParams.set("brandLogo", logoUrl);
+const liveUrl = `https://iftinagents.com/t/${encodeURIComponent(slug)}?${liveParams.toString()}`;
 
 const bootstrap = `<!doctype html>
 <html lang="en">
