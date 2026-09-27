@@ -40,6 +40,7 @@ export const CustomersCustomView = ({ isSo }: { isSo: boolean }) => {
         p_limit: ADMIN_PAGE_SIZE,
         p_offset: page * ADMIN_PAGE_SIZE,
         p_search: debouncedSearch || null,
+        p_filter: 'all',
       });
       if (error) throw error;
       const payload = data || {};
