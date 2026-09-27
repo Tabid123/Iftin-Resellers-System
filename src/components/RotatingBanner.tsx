@@ -34,7 +34,9 @@ const RotatingBanner = () => {
   const [currentBanner, setCurrentBanner] = useState(0);
   const [isLoading, setIsLoading] = useState(() => readBannerCache(workspaceId).length === 0);
   const [reloadKey, setReloadKey] = useState(0);
-  const [bannerReady, setBannerReady] = useState(false);
+  const initialCachedBanner = readBannerCache(workspaceId).find((banner) => banner.media_type !== 'video')?.banner_image ?? null;
+  const [bannerReady, setBannerReady] = useState(Boolean(initialCachedBanner));
+  const [lastGoodImage, setLastGoodImage] = useState<string | null>(initialCachedBanner);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => onStorefront('banners-changed', () => setReloadKey((n) => n + 1)), []);
@@ -78,8 +80,14 @@ const RotatingBanner = () => {
   }, []);
 
   useEffect(() => {
+    const next = banners[currentBanner];
+    if (!next || next.media_type === 'video') return;
+    if (next.banner_image === lastGoodImage) {
+      setBannerReady(true);
+      return;
+    }
     setBannerReady(false);
-  }, [currentBanner, banners]);
+  }, [currentBanner, banners, lastGoodImage]);
 
   useEffect(() => {
     if (!banners.length) return;
@@ -124,19 +132,32 @@ const RotatingBanner = () => {
           />
         ) : (
           <>
-            {!bannerReady && <div className="absolute inset-0 bg-muted" aria-hidden="true" />}
+            {!bannerReady && lastGoodImage && (
+              <img
+                src={lastGoodImage}
+                alt=""
+                aria-hidden="true"
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            )}
+            {!bannerReady && !lastGoodImage && (
+              <div className="absolute inset-0 bg-muted" aria-hidden="true" />
+            )}
             <img
               key={item.banner_image}
               src={item.banner_image}
               alt={item.alt_text || 'Promotional banner'}
-              className={`h-full w-full object-cover transition-none ${bannerReady ? 'opacity-100' : 'opacity-0'}`}
+              className={`relative h-full w-full object-cover transition-none ${bannerReady ? 'opacity-100' : 'opacity-0'}`}
               width={1200}
               height={400}
               sizes="(max-width: 768px) 100vw, 1200px"
               loading="eager"
               fetchPriority="high"
               decoding="async"
-              onLoad={() => setBannerReady(true)}
+              onLoad={() => {
+                setLastGoodImage(item.banner_image);
+                setBannerReady(true);
+              }}
               onError={() => {
                 setBannerReady(false);
                 if (banners.length > 1) {
