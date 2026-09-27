@@ -7,7 +7,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, useLayoutEffect, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { warmPages } from "@/lib/lazyPages";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -43,8 +43,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { registerServiceWorker } from "@/lib/registerServiceWorker";
-import { buildTenantSlug } from "@/lib/nativeTenant";
-import { Capacitor } from "@capacitor/core";
 
 const CHUNK_RELOAD_KEY = "iftin:chunk-reload";
 const OFFLINE_CACHE_SCHEMA_KEY = "iftin:offline-cache-schema";
@@ -155,6 +153,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 // Apply the last-known tenant colours before first paint so no default
 // (Najax) colours flash while the tenant record loads.
+const bakedTenantSlug = ((import.meta.env.VITE_TENANT_SLUG as string | undefined) || "").trim().toLowerCase();
+
+const earlyNativeLiveHandoffScript = bakedTenantSlug
+  ? `(function(){try{
+var h=window.location.hostname;
+if(h!=="localhost"&&h!=="127.0.0.1")return;
+if(navigator.onLine===false)return;
+var live="https://iftinagents.com/t/"+${JSON.stringify(bakedTenantSlug)}+(window.location.search||"");
+window.location.replace(live);
+}catch(e){}})();`
+  : "";
+
 const earlyTenantBrandScript = `(function(){try{
 var s=localStorage.getItem('najax.tenant_slug');if(!s)return;
 var t=JSON.parse(localStorage.getItem('najax.tenant_cache.'+s)||'null');if(!t)return;
@@ -175,6 +185,9 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        {earlyNativeLiveHandoffScript ? (
+          <script dangerouslySetInnerHTML={{ __html: earlyNativeLiveHandoffScript }} />
+        ) : null}
         <script dangerouslySetInnerHTML={{ __html: earlyTenantBrandScript }} />
         <script dangerouslySetInnerHTML={{ __html: chunkRecoveryScript }} />
       </head>
@@ -220,28 +233,6 @@ function AppContent() {
       </AlertDialog>
     </>
   );
-}
-
-function NativeLiveStartupGate({ children }: { children: ReactNode }) {
-  const packagedNative =
-    typeof window !== "undefined" &&
-    Capacitor.isNativePlatform() &&
-    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-
-  // Native handoff is a startup-only decision. Do it before the browser paints
-  // the packaged React tree so it can never fire later while the user is
-  // typing a phone number or OTP and cause another splash/reload.
-  useLayoutEffect(() => {
-    if (!packagedNative) return;
-
-    const slug = buildTenantSlug();
-    if (!slug || typeof navigator === "undefined" || navigator.onLine === false) return;
-
-    const liveUrl = `https://iftinagents.com/t/${encodeURIComponent(slug)}${window.location.search || ""}`;
-    window.location.replace(liveUrl);
-  }, [packagedNative]);
-
-  return <>{children}</>;
 }
 
 function RootComponent() {
@@ -292,13 +283,11 @@ function RootComponent() {
             <TooltipProvider>
               <Toaster />
               <Sonner />
-              <NativeLiveStartupGate>
-                <TenantProvider>
-                  <TenantGate>
-                    <AppContent />
-                  </TenantGate>
-                </TenantProvider>
-              </NativeLiveStartupGate>
+              <TenantProvider>
+                <TenantGate>
+                  <AppContent />
+                </TenantGate>
+              </TenantProvider>
             </TooltipProvider>
           </LanguageProvider>
         </ThemeProvider>
