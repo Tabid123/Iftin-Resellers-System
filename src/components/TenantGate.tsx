@@ -38,6 +38,13 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
       ? window.location.pathname.match(/^\/t\/([^/]+)(?=\/|$)/)?.[1] ?? null
       : null;
 
+  const nativeParams =
+    typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const nativeBranding = nativeParams?.get("nativeSplash") === "1";
+  const nativeSplashLogo = nativeBranding ? nativeParams?.get("brandLogo") || null : null;
+  const nativeSplashName = nativeBranding ? nativeParams?.get("brandName") || null : null;
+  const nativeSplashColor = nativeBranding ? nativeParams?.get("brandColor") || null : null;
+
   const tenant =
     state.status === "ready" || state.status === "suspended" ? state.tenant : null;
 
@@ -58,12 +65,14 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
 
   const buildLogo = (import.meta.env.VITE_TENANT_LOGO_URL as string | undefined) || null;
   const buildName = (import.meta.env.VITE_TENANT_NAME as string | undefined) || null;
-  const splashLogo = tenant?.logo_url || cachedLogo || buildLogo;
-  const splashName = tenant?.name || cachedName || buildName || routeTenantSlug || "";
+  const splashLogo = tenant?.logo_url || cachedLogo || nativeSplashLogo || buildLogo;
+  const splashName = tenant?.name || cachedName || nativeSplashName || buildName || routeTenantSlug || "";
 
   const hasTenantIdentity = Boolean(
     tenant ||
     routeTenantSlug ||
+    nativeSplashName ||
+    nativeSplashLogo ||
     cachedName ||
     cachedLogo ||
     buildName ||
@@ -86,7 +95,11 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
   // normal app surface while identity resolves.
   if (hasTenantIdentity && (state.status === "loading" || showStartupSplash)) {
     return (
-      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-primary">
+      <div
+        id="tenant-web-splash"
+        className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-primary"
+        style={nativeSplashColor && !tenant ? { backgroundColor: nativeSplashColor } : undefined}
+      >
         {splashLogo ? (
           <img
             src={splashLogo}
