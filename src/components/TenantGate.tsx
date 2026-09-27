@@ -3,6 +3,7 @@ import { useTenant } from "@/contexts/TenantContext";
 import { ResellerCodeGate } from "@/components/ResellerCodeGate";
 import { AlertCircle, Lock, MessageCircle, Wallet, WifiOff } from "lucide-react";
 import { normalizeSupportPhone } from "@/hooks/useSupportPhone";
+import { isNativeApp } from "@/lib/nativeTenant";
 
 
 
@@ -41,6 +42,9 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
   const nativeParams =
     typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
   const nativeBranding = nativeParams?.get("nativeSplash") === "1";
+  // Native startup already has a branded handoff surface. Do not put a second
+  // timed web splash behind it, which otherwise appears when the overlay lifts.
+  const nativeHandoff = nativeBranding || isNativeApp();
   const nativeSplashLogo = nativeBranding ? nativeParams?.get("brandLogo") || null : null;
   const nativeSplashName = nativeBranding ? nativeParams?.get("brandName") || null : null;
   const nativeSplashColor = nativeBranding ? nativeParams?.get("brandColor") || null : null;
@@ -93,7 +97,7 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
   // Never render a separate solid-colour transition screen. Tenant routes
   // use the single branded splash below; non-tenant startup stays on the
   // normal app surface while identity resolves.
-  if (hasTenantIdentity && (state.status === "loading" || showStartupSplash)) {
+  if (hasTenantIdentity && (state.status === "loading" || (!nativeHandoff && showStartupSplash))) {
     return (
       <div
         id="tenant-web-splash"
@@ -256,5 +260,7 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
   }
 
 
-  return <>{children}</>;
+  // Android waits for this actual app surface, not merely WebView progress or
+  // document.readyState, before lifting its single startup overlay.
+  return <div id="tenant-app-ready" className="contents">{children}</div>;
 };
