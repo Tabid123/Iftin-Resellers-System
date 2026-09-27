@@ -588,7 +588,6 @@ Save anyway?`;
       {loading ? <LazyFallback /> : filtered.length === 0 ? <EmptyState message="No packages" /> : (
         <div className="space-y-3">{buildGroupedView()}</div>
       )}
-      <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
     </div>
   );
 };
