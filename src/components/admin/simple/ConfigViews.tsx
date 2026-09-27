@@ -168,14 +168,14 @@ export const PackagesCustomView = ({ isSo }: { isSo: boolean }) => {
     if (providerFilter !== 'all') pkgQuery = pkgQuery.eq('provider_id', providerFilter);
     if (search.trim()) {
       const q = search.trim().replace(/[%(),]/g, '');
-      pkgQuery = pkgQuery.or(`package_name.ilike.%${q}%,data_amount.ilike.%${q}%`);
+      pkgQuery = pkgQuery.or(`package_name.ilike.%${q}%,data_amount.ilike.%${q}%,ussd_code.ilike.%${q}%`);
     }
 
     let activeCountQuery = supabase.from('data_packages_config').select('id', { count: 'exact', head: true }).eq('is_active', true);
     if (providerFilter !== 'all') activeCountQuery = activeCountQuery.eq('provider_id', providerFilter);
     if (search.trim()) {
       const q = search.trim().replace(/[%(),]/g, '');
-      activeCountQuery = activeCountQuery.or(`package_name.ilike.%${q}%,data_amount.ilike.%${q}%`);
+      activeCountQuery = activeCountQuery.or(`package_name.ilike.%${q}%,data_amount.ilike.%${q}%,ussd_code.ilike.%${q}%`);
     }
 
     const [pkgRes, provRes, catRes, rulesRes, activeRes] = await Promise.all([
@@ -384,8 +384,16 @@ Save anyway?`;
   };
 
   const buildGroupedView = () => {
-    const provList = providerFilter === 'all' ? providers.filter(prov => filtered.some(p => p.provider_id === prov.id)) : [providers.find(p => p.id === providerFilter)].filter(Boolean);
-    return provList.map(prov => {
+    const provList = providerFilter === 'all'
+      ? providers.filter(prov => filtered.some(p => p.provider_id === prov.id))
+      : [providers.find(p => p.id === providerFilter)].filter(Boolean);
+
+    const knownProviderIds = new Set(providers.map((prov: any) => prov.id));
+    const orphanPackages = providerFilter === 'all'
+      ? filtered.filter((pkg: any) => !pkg.provider_id || !knownProviderIds.has(pkg.provider_id))
+      : [];
+
+    const grouped = provList.map(prov => {
       const provPkgs = filtered.filter(p => p.provider_id === prov.id);
       if (provPkgs.length === 0) return null;
       const provCats = categories.filter(c => c.provider_id === prov.id && provPkgs.some(p => p.category_id === c.id));
@@ -421,6 +429,24 @@ Save anyway?`;
         </div>
       );
     });
+
+    if (orphanPackages.length > 0) {
+      grouped.push(
+        <div key="legacy-orphan-packages" className="space-y-2">
+          <div className="flex items-center gap-2 px-1 pt-1">
+            <div className="w-7 h-7 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold">!</div>
+            <span className="font-bold text-sm text-gray-700 dark:text-gray-200">
+              {isSo ? 'Flow / Legacy Packages' : 'Flow / Legacy Packages'}
+            </span>
+            <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">{orphanPackages.length}</span>
+            <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+          </div>
+          <div className="space-y-1.5">{orphanPackages.map(renderPackageCard)}</div>
+        </div>
+      );
+    }
+
+    return grouped;
   };
 
   return (
