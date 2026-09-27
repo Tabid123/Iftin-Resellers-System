@@ -4,7 +4,7 @@ import { Capacitor } from '@capacitor/core';
  * Keep the native artwork just long enough for the bundled web UI to paint.
  * Network/tenant lookups must never extend this window.
  */
-export const NATIVE_SPLASH_MS = 2000;
+export const NATIVE_SPLASH_MS = 1500;
 
 let hidden = false;
 let hidePromise: Promise<void> | null = null;
