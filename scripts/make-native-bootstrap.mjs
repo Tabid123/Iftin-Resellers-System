@@ -49,14 +49,11 @@ const bootstrap = `<!doctype html>
       var done=false;
       function local(){
         if(done)return;done=true;
-        fetch("/packaged-app.html",{cache:"no-store"})
-          .then(function(r){if(!r.ok)throw new Error("packaged app missing");return r.text();})
-          .then(function(html){document.open();document.write(html);document.close();})
-          .catch(function(){location.replace("/packaged-app.html");});
+        location.replace("/packaged-app.html");
       }
       if(navigator.onLine===false){local();return;}
       var controller=typeof AbortController!=="undefined"?new AbortController():null;
-      var timer=setTimeout(function(){try{controller&&controller.abort();}catch(e){} local();},6000);
+       var timer=setTimeout(function(){try{controller&&controller.abort();}catch(e){} local();},2500);
       fetch(live,{method:"GET",mode:"no-cors",cache:"no-store",signal:controller?controller.signal:undefined})
         .then(function(){
           if(done)return;done=true;clearTimeout(timer);location.replace(live);

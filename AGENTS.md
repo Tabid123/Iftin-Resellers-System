@@ -13,3 +13,4 @@
 
 - Tenant APKs load the packaged app offline, then switch to `https://iftinagents.com/t/<slug>` online so published web UI changes reach installed apps.
 - Android keyboard layout has one resize owner: native `adjustResize`; web code only scrolls the focused field within the resulting visible viewport.
+- Tenant APK startup keeps one native overlay over local-to-live navigation and removes it only after the web app renders its ready surface; this prevents stacked splash screens and blank WebView frames.

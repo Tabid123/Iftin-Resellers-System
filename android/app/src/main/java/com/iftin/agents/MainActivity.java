@@ -25,7 +25,7 @@ import com.getcapacitor.BridgeActivity;
  * Native startup owns only the handoff surface. The customer UI stays web-driven.
  *
  * Startup invariant:
- * Android system splash (1.5s) -> one branded handoff surface -> live TenantGate/app.
+ * Android system splash (1.5s) -> one branded handoff surface -> live app.
  * The handoff surface covers localhost/bootstrap/live navigation so no local login,
  * blank frame, or second differently-branded splash can flash in between.
  */
@@ -133,9 +133,9 @@ public class MainActivity extends BridgeActivity {
                 boolean liveTenant = url != null && url.startsWith("https://iftinagents.com/t/");
                 boolean packagedFallback = url != null && url.contains("/packaged-app.html");
 
-                if ((liveTenant || packagedFallback) && webView.getProgress() >= 85) {
+                if ((liveTenant || packagedFallback) && webView.getProgress() >= 70) {
                     webView.evaluateJavascript(
-                        "(function(){return !!document.getElementById('tenant-web-splash') || document.readyState === 'complete';})()",
+                        "(function(){var app=document.getElementById('tenant-app-ready');return !!(app && app.querySelector('input,button,main,[role=main]'));})()",
                         value -> {
                             if ("true".equals(value)) {
                                 hideStartupOverlay();
