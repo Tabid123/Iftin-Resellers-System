@@ -184,6 +184,7 @@ jobs:
         run: bun run build
         env:
           CAPACITOR_BUILD: "true"
+          VITE_CAPACITOR_BUILD: "true"
           VITE_TENANT_SLUG: ${{ inputs.tenant_slug }}
           VITE_TENANT_NAME: ${{ inputs.app_name }}
           VITE_TENANT_LOGO_URL: ${{ inputs.logo_url }}
@@ -251,6 +252,9 @@ jobs:
           fi
 
           grep -Fq "tenant-bootstrap.js" "$ASSETS/public/index.html" || fail "offline bootstrap is not loaded before app startup"
+          if grep -Fq 'z-[9999] flex flex-col items-center justify-center bg-primary' "$ASSETS/public/index.html"; then
+            fail "packaged index.html must not SSR-render TenantGate splash before live handoff"
+          fi
           grep -Fq "offline_bootstrap_version" "$ASSETS/public/tenant-bootstrap.js" || fail "offline bootstrap cache seed missing"
           grep -Fq "\"slug\":\"${TENANT_SLUG}\"" "$ASSETS/public/tenant-bootstrap.json" || fail "offline snapshot belongs to the wrong tenant"
 
