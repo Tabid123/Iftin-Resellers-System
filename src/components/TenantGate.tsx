@@ -64,9 +64,11 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
   const splashLogo = tenant?.logo_url || cachedLogo || nativeSplashLogo || buildLogo;
   const splashName = tenant?.name || cachedName || nativeSplashName || buildName || routeTenantSlug || "";
 
+  // A slug alone is not enough to paint a splash. Until the actual tenant
+  // identity (or a safe cached/build/native identity) is available, painting
+  // bg-primary would expose the platform's generic blue loading screen.
   const hasTenantIdentity = Boolean(
     tenant ||
-    routeTenantSlug ||
     nativeSplashName ||
     nativeSplashLogo ||
     cachedName ||
@@ -74,6 +76,18 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
     buildName ||
     buildLogo
   );
+
+  // Fresh web tenant links may have no cache yet. Do not paint any generic
+  // platform/default loading surface while the tenant RPC resolves. Once the
+  // real tenant arrives, the branded TenantGate below becomes the first app UI.
+  if (
+    routeTenantSlug &&
+    !nativeHandoff &&
+    state.status === "loading" &&
+    !hasTenantIdentity
+  ) {
+    return null;
+  }
 
   // TenantGate is the second startup stage. Native Android explicitly signals
   // when its own 1.5s splash is finished; only then does this 1.5s timer start.
@@ -128,7 +142,13 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
       <div
         id="tenant-web-splash"
         className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-primary"
-        style={nativeSplashColor && !tenant ? { backgroundColor: nativeSplashColor } : undefined}
+        style={
+          tenant?.primary_color
+            ? { backgroundColor: tenant.primary_color }
+            : nativeSplashColor && !tenant
+              ? { backgroundColor: nativeSplashColor }
+              : undefined
+        }
       >
         {splashLogo ? (
           <img
