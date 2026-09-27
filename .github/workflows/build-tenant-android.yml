@@ -221,6 +221,16 @@ jobs:
             mv dist_capacitor dist
           fi
 
+      - name: Create native startup bootstrap
+        env:
+          LOGO_URL: ${{ inputs.logo_url }}
+          SPLASH_COLOR: ${{ inputs.splash_color }}
+        run: |
+          set -e
+          node scripts/make-native-bootstrap.mjs
+          grep -Fq 'name="iftin-native-bootstrap" content="v1"' dist/index.html
+          test -s dist/packaged-app.html
+
       - name: Sync Capacitor
         run: |
           rm -rf android/app/src/main/assets/public
@@ -251,9 +261,14 @@ jobs:
             grep -Fq '"offlineBootstrap":"packaged-v1"' "$ASSETS/public/apk-build.json" || fail "offline bootstrap stamp missing"
           fi
 
-          grep -Fq "tenant-bootstrap.js" "$ASSETS/public/index.html" || fail "offline bootstrap is not loaded before app startup"
-          if grep -Fq 'z-[9999] flex flex-col items-center justify-center bg-primary' "$ASSETS/public/index.html"; then
-            fail "packaged index.html must not SSR-render TenantGate splash before live handoff"
+          grep -Fq 'name="iftin-native-bootstrap" content="v1"' "$ASSETS/public/index.html" \
+            || fail "native startup bootstrap missing from packaged index.html"
+          test -s "$ASSETS/public/packaged-app.html" \
+            || fail "packaged offline app fallback missing"
+          grep -Fq "tenant-bootstrap.js" "$ASSETS/public/packaged-app.html" \
+            || fail "offline bootstrap is not loaded by packaged fallback"
+          if grep -Eq '/assets/index-[A-Za-z0-9_-]+\\.js' "$ASSETS/public/index.html"; then
+            fail "native bootstrap must not start the React app before live handoff"
           fi
           grep -Fq "offline_bootstrap_version" "$ASSETS/public/tenant-bootstrap.js" || fail "offline bootstrap cache seed missing"
           grep -Fq "\"slug\":\"${TENANT_SLUG}\"" "$ASSETS/public/tenant-bootstrap.json" || fail "offline snapshot belongs to the wrong tenant"
