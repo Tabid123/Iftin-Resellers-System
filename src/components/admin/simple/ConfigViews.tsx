@@ -170,15 +170,15 @@ export const PackagesCustomView = ({ isSo }: { isSo: boolean }) => {
       return;
     }
 
-    const from = page * ADMIN_PAGE_SIZE;
-    const to = from + ADMIN_PAGE_SIZE - 1;
-
+    // Load ALL packages (not just one 50-row page): the storefront shows every
+    // active package, so the admin table must show them all too — otherwise
+    // packages past page 1 look "missing" while customers can still order them.
     let pkgQuery = supabase
       .from('data_packages_config')
       .select('id,package_name,data_amount,selling_price,secret_prices,cost_price,validity_days,provider_id,category_id,ussd_code,connection_type_label,is_active,display_order,hide_cost_price,is_discovery_root', { count: 'exact' })
       .eq('tenant_id', tenantId)
       .order('display_order')
-      .range(from, to);
+      .limit(1000);
     if (providerFilter !== 'all') pkgQuery = pkgQuery.eq('provider_id', providerFilter);
     if (search.trim()) {
       const q = search.trim().replace(/[%(),]/g, '');
@@ -588,7 +588,6 @@ Save anyway?`;
       {loading ? <LazyFallback /> : filtered.length === 0 ? <EmptyState message="No packages" /> : (
         <div className="space-y-3">{buildGroupedView()}</div>
       )}
-      <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
     </div>
   );
 };
