@@ -15,6 +15,7 @@ import CachedImage from '@/components/CachedImage';
 import { AdminPagination, ADMIN_PAGE_SIZE } from './AdminPagination';
 import { findPriceConflicts, parseSecretPrices, secretPricesOf } from '@/lib/secretPrices';
 import { calculateUsdProfit } from '@/lib/iftinProfit';
+import { activeWorkspaceId } from '@/lib/workspaceKeys';
 
 // ========== PROVIDERS ==========
 export const ProvidersCustomView = ({ isSo }: { isSo: boolean }) => {
@@ -157,12 +158,25 @@ export const PackagesCustomView = ({ isSo }: { isSo: boolean }) => {
 
   const loadPackages = useCallback(async () => {
     setLoading(true);
+    const tenantId = activeWorkspaceId();
+    if (!tenantId) {
+      setPackages([]);
+      setProviders([]);
+      setCategories([]);
+      setRuleCosts(new Map());
+      setTotalRows(0);
+      setActiveTotal(0);
+      setLoading(false);
+      return;
+    }
+
     const from = page * ADMIN_PAGE_SIZE;
     const to = from + ADMIN_PAGE_SIZE - 1;
 
     let pkgQuery = supabase
       .from('data_packages_config')
       .select('id,package_name,data_amount,selling_price,secret_prices,cost_price,validity_days,provider_id,category_id,ussd_code,connection_type_label,is_active,display_order,hide_cost_price,is_discovery_root', { count: 'exact' })
+      .eq('tenant_id', tenantId)
       .order('display_order')
       .range(from, to);
     if (providerFilter !== 'all') pkgQuery = pkgQuery.eq('provider_id', providerFilter);
@@ -171,7 +185,11 @@ export const PackagesCustomView = ({ isSo }: { isSo: boolean }) => {
       pkgQuery = pkgQuery.or(`package_name.ilike.%${q}%,data_amount.ilike.%${q}%,ussd_code.ilike.%${q}%`);
     }
 
-    let activeCountQuery = supabase.from('data_packages_config').select('id', { count: 'exact', head: true }).eq('is_active', true);
+    let activeCountQuery = supabase
+      .from('data_packages_config')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true);
     if (providerFilter !== 'all') activeCountQuery = activeCountQuery.eq('provider_id', providerFilter);
     if (search.trim()) {
       const q = search.trim().replace(/[%(),]/g, '');
@@ -180,11 +198,22 @@ export const PackagesCustomView = ({ isSo }: { isSo: boolean }) => {
 
     const [pkgRes, provRes, catRes, rulesRes, activeRes, deliveryRes] = await Promise.all([
       pkgQuery,
-      supabase.from('providers_config').select('id,provider_name,provider_logo,evoucher_rate').order('display_order'),
-      supabase.from('package_categories').select('id,provider_id,category_name,category_image,display_order').order('display_order'),
-      supabase.from('package_delivery_rules').select('source_package_id,target_package_id,delivery_count').eq('is_active', true),
+      supabase.from('providers_config')
+        .select('id,provider_name,provider_logo,evoucher_rate')
+        .eq('tenant_id', tenantId)
+        .order('display_order'),
+      supabase.from('package_categories')
+        .select('id,provider_id,category_name,category_image,display_order')
+        .eq('tenant_id', tenantId)
+        .order('display_order'),
+      supabase.from('package_delivery_rules')
+        .select('source_package_id,target_package_id,delivery_count')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true),
       activeCountQuery,
-      supabase.from('delivery_instructions').select('package_id,ussd_code,code_template'),
+      supabase.from('delivery_instructions')
+        .select('package_id,ussd_code,code_template')
+        .eq('tenant_id', tenantId),
     ]);
 
     // Flow packages (*101*, *870*, *866*) must always be manageable from the
@@ -208,6 +237,7 @@ export const PackagesCustomView = ({ isSo }: { isSo: boolean }) => {
       let flowQuery = supabase
         .from('data_packages_config')
         .select('id,package_name,data_amount,selling_price,secret_prices,cost_price,validity_days,provider_id,category_id,ussd_code,connection_type_label,is_active,display_order,hide_cost_price,is_discovery_root')
+        .eq('tenant_id', tenantId)
         .in('id', Array.from(flowInstructionTextByPackage.keys()));
       if (providerFilter !== 'all') flowQuery = flowQuery.eq('provider_id', providerFilter);
       const { data: flowData } = await flowQuery;
@@ -235,7 +265,11 @@ export const PackagesCustomView = ({ isSo }: { isSo: boolean }) => {
     });
     const targetIds = Array.from(new Set((rulesRes.data || []).map((r: any) => r.target_package_id).filter(Boolean)));
     const { data: targetPackages } = targetIds.length
-      ? await supabase.from('data_packages_config').select('id,cost_price').in('id', targetIds)
+      ? await supabase
+          .from('data_packages_config')
+          .select('id,cost_price')
+          .eq('tenant_id', tenantId)
+          .in('id', targetIds)
       : { data: [] as any[] };
     const pkgCost = new Map<string, number>((targetPackages || []).map((p: any) => [p.id, Number(p.cost_price || 0)]));
     const ruleCost = new Map<string, number>();
