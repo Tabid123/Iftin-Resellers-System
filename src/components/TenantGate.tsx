@@ -20,11 +20,60 @@ interface Props {
  * - ready / platform → render children
  */
 const WEB_SPLASH_MS = 1500;
+const NATIVE_SPLASH_DONE_PREFIX = "iftin:native-tenant-splash-done:";
+
+type SplashWindow = typeof window & {
+  __IFTIN_NATIVE_SPLASH_COMPLETE__?: boolean;
+  __IFTIN_TENANT_SPLASH_COMPLETE__?: boolean;
+};
+
+function nativeLaunchSplashKey(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("nativeSplash") !== "1") return null;
+    const startedAt = params.get("nativeSplashStartedAt");
+    if (!startedAt) return null;
+    const slug =
+      window.location.pathname.match(/^\/t\/([^/]+)(?=\/|$)/)?.[1] ?? "tenant";
+    return `${NATIVE_SPLASH_DONE_PREFIX}${slug}:${startedAt}`;
+  } catch {
+    return null;
+  }
+}
+
+function splashAlreadyCompleted(): boolean {
+  if (typeof window === "undefined") return false;
+  const splashWindow = window as SplashWindow;
+  if (splashWindow.__IFTIN_TENANT_SPLASH_COMPLETE__) return true;
+  const key = nativeLaunchSplashKey();
+  if (!key) return false;
+  try {
+    return sessionStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markSplashCompleted() {
+  if (typeof window === "undefined") return;
+  const splashWindow = window as SplashWindow;
+  splashWindow.__IFTIN_TENANT_SPLASH_COMPLETE__ = true;
+  const key = nativeLaunchSplashKey();
+  if (!key) return;
+  try {
+    sessionStorage.setItem(key, "1");
+  } catch {
+    // The in-memory window flag still prevents remounts from replaying splash.
+  }
+}
 
 export const TenantGate: React.FC<Props> = ({ children }) => {
   const state = useTenant();
   const location = useLocation();
-  const [showStartupSplash, setShowStartupSplash] = React.useState(true);
+  const [showStartupSplash, setShowStartupSplash] = React.useState(
+    () => !splashAlreadyCompleted(),
+  );
   const startupSplashStartedRef = React.useRef(false);
 
   // Router location is available during SSR too. Reading only window.location
@@ -87,6 +136,7 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
       if (startupSplashStartedRef.current) return;
       startupSplashStartedRef.current = true;
       timer = window.setTimeout(() => {
+        markSplashCompleted();
         setShowStartupSplash(false);
       }, WEB_SPLASH_MS);
     };
@@ -98,9 +148,7 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
       };
     }
 
-    const nativeWindow = window as typeof window & {
-      __IFTIN_NATIVE_SPLASH_COMPLETE__?: boolean;
-    };
+    const nativeWindow = window as SplashWindow;
 
     if (nativeWindow.__IFTIN_NATIVE_SPLASH_COMPLETE__) {
       startWebSplashTimer();
