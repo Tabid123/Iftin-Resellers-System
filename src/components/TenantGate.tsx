@@ -20,6 +20,15 @@ interface Props {
 const WEB_SPLASH_MS = 1500;
 
 export const TenantGate: React.FC<Props> = ({ children }) => {
+  // The packaged Android HTML is server-rendered during CI. If we emit the
+  // branded TenantGate splash into that static HTML, Android paints it even
+  // though the <head> immediately redirects online APKs to the live tenant.
+  // Suppress only that build-time SSR frame; client hydration still owns the
+  // normal TenantGate splash for packaged offline startup.
+  if (typeof window === "undefined" && import.meta.env.VITE_CAPACITOR_BUILD === "true") {
+    return null;
+  }
+
   const state = useTenant();
   const [showStartupSplash, setShowStartupSplash] = React.useState(true);
   const startupSplashStartedRef = React.useRef(false);
