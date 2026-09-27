@@ -16,9 +16,22 @@ import { AdminPagination, ADMIN_PAGE_SIZE } from './AdminPagination';
 import { findPriceConflicts, parseSecretPrices, secretPricesOf } from '@/lib/secretPrices';
 import { calculateUsdProfit } from '@/lib/iftinProfit';
 import { activeWorkspaceId } from '@/lib/workspaceKeys';
+import { useTenant } from '@/contexts/TenantContext';
 
 // ========== PROVIDERS ==========
 export const ProvidersCustomView = ({ isSo }: { isSo: boolean }) => {
+  const tenantState = useTenant();
+  const tenantName =
+    tenantState.status === 'ready' || tenantState.status === 'suspended'
+      ? tenantState.tenant.name
+      : (import.meta.env.VITE_TENANT_NAME as string) || '';
+  const promoForTenant = (value: unknown) => {
+    const text = String(value ?? '').trim();
+    if (!text) return '—';
+    if (!tenantName) return text;
+    return text.replace(/\bIftin\b/gi, tenantName);
+  };
+
   const [providers, setProviders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -120,7 +133,7 @@ export const ProvidersCustomView = ({ isSo }: { isSo: boolean }) => {
                     { icon: Globe, label: 'Provider', value: item.provider_name, color: 'text-purple-500' },
                     { icon: DollarSign, label: 'E-Voucher Rate', value: `${item.evoucher_rate}%`, color: 'text-emerald-500' },
                     { icon: Hash, label: 'Display Order', value: `${item.display_order}`, color: 'text-blue-500' },
-                    { icon: FileText, label: 'Promo', value: item.promotional_text || '—', color: 'text-orange-500' },
+                    { icon: FileText, label: 'Promo', value: promoForTenant(item.promotional_text), color: 'text-orange-500' },
                     { icon: Calendar, label: 'Created', value: formatDate(item.created_at), color: 'text-gray-500' },
                   ]} actions={
                     <>
