@@ -5,10 +5,10 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
-// Validate Somali phone format: 9 digits starting with 61, 77, or 68
+// Validate the same Somali phone prefixes accepted by storefront login
 const isValidSomaliPhone = (phone: string | null): boolean => {
   if (!phone) return false;
-  return /^(61|77|68)\d{7}$/.test(phone);
+  return /^(61|77|62|68)\d{7}$/.test(phone);
 };
 
 const readLocal = (key: string): string | null => {
