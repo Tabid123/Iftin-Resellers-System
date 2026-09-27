@@ -178,15 +178,61 @@ export const PackagesCustomView = ({ isSo }: { isSo: boolean }) => {
       activeCountQuery = activeCountQuery.or(`package_name.ilike.%${q}%,data_amount.ilike.%${q}%,ussd_code.ilike.%${q}%`);
     }
 
-    const [pkgRes, provRes, catRes, rulesRes, activeRes] = await Promise.all([
+    const [pkgRes, provRes, catRes, rulesRes, activeRes, deliveryRes] = await Promise.all([
       pkgQuery,
       supabase.from('providers_config').select('id,provider_name,provider_logo,evoucher_rate').order('display_order'),
       supabase.from('package_categories').select('id,provider_id,category_name,category_image,display_order').order('display_order'),
       supabase.from('package_delivery_rules').select('source_package_id,target_package_id,delivery_count').eq('is_active', true),
       activeCountQuery,
+      supabase.from('delivery_instructions').select('package_id,ussd_code,code_template'),
     ]);
 
-    const pkgs = pkgRes.data || [];
+    // Flow packages (*101*, *870*, *866*) must always be manageable from the
+    // admin Packages page. Storefront RPCs can expose them even when their
+    // display_order puts them beyond the first 100-row admin page, so pin the
+    // linked package rows onto page 1 and deduplicate them with the normal page.
+    const flowInstructionTextByPackage = new Map<string, string>();
+    for (const row of (deliveryRes.data || []) as any[]) {
+      const packageId = String(row.package_id || '');
+      if (!packageId) continue;
+      const text = `${row.ussd_code || ''} ${row.code_template || ''}`;
+      if (!/\*(?:101|870|866)(?:\*|#)/i.test(text)) continue;
+      flowInstructionTextByPackage.set(
+        packageId,
+        `${flowInstructionTextByPackage.get(packageId) || ''} ${text}`.trim(),
+      );
+    }
+
+    let flowPackages: any[] = [];
+    if (page === 0 && flowInstructionTextByPackage.size > 0) {
+      let flowQuery = supabase
+        .from('data_packages_config')
+        .select('id,package_name,data_amount,selling_price,secret_prices,cost_price,validity_days,provider_id,category_id,ussd_code,connection_type_label,is_active,display_order,hide_cost_price,is_discovery_root')
+        .in('id', Array.from(flowInstructionTextByPackage.keys()));
+      if (providerFilter !== 'all') flowQuery = flowQuery.eq('provider_id', providerFilter);
+      const { data: flowData } = await flowQuery;
+      flowPackages = flowData || [];
+
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        flowPackages = flowPackages.filter((pkg: any) => {
+          const instructionText = flowInstructionTextByPackage.get(String(pkg.id)) || '';
+          return String(pkg.package_name || '').toLowerCase().includes(q)
+            || String(pkg.data_amount || '').toLowerCase().includes(q)
+            || String(pkg.ussd_code || '').toLowerCase().includes(q)
+            || instructionText.toLowerCase().includes(q);
+        });
+      }
+    }
+
+    const pagePkgs = pkgRes.data || [];
+    const seenPackageIds = new Set<string>();
+    const pkgs = [...flowPackages, ...pagePkgs].filter((pkg: any) => {
+      const id = String(pkg.id);
+      if (seenPackageIds.has(id)) return false;
+      seenPackageIds.add(id);
+      return true;
+    });
     const targetIds = Array.from(new Set((rulesRes.data || []).map((r: any) => r.target_package_id).filter(Boolean)));
     const { data: targetPackages } = targetIds.length
       ? await supabase.from('data_packages_config').select('id,cost_price').in('id', targetIds)
@@ -208,7 +254,7 @@ export const PackagesCustomView = ({ isSo }: { isSo: boolean }) => {
   }, [page, providerFilter, search]);
   useEffect(() => { void loadPackages(); }, [loadPackages]);
   useEffect(() => { setPage(0); }, [providerFilter, search]);
-  useRealtimeRefresh(['data_packages_config', 'providers_config', 'package_categories'], loadPackages, 800, { notify: true, lang: isSo ? 'so' : 'en' });
+  useRealtimeRefresh(['data_packages_config', 'providers_config', 'package_categories', 'delivery_instructions'], loadPackages, 800, { notify: true, lang: isSo ? 'so' : 'en' });
 
   const togglePackage = async (id: string, currentStatus: boolean) => {
     await supabase.from('data_packages_config').update({ is_active: !currentStatus }).eq('id', id);
