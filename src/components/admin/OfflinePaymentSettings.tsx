@@ -26,13 +26,16 @@ const OfflinePaymentSettings = () => {
   const [hasPrefixChanges, setHasPrefixChanges] = useState(false);
 
   const { data: settings = [], isLoading } = useQuery({
-    queryKey: ['offlinePaymentSettings'],
+    queryKey: ['offlinePaymentSettings', tenantId],
+    enabled: Boolean(tenantId),
     queryFn: async () => {
+      if (!tenantId) return [];
       const { data, error } = await supabase
         .from('app_settings')
         .select('*')
+        .eq('tenant_id', tenantId)
         .in('setting_key', ['payment_number', 'payment_prefix']);
-      
+
       if (error) throw error;
       return data as AppSetting[];
     },
@@ -59,26 +62,18 @@ const OfflinePaymentSettings = () => {
       value: string;
       description: string;
     }) => {
-      const existing = settings.find((s) => s.setting_key === key);
-
-      if (existing) {
-        const { error } = await supabase
-          .from('app_settings')
-          .update({ text_value: value })
-          .eq('id', existing.id);
-        if (error) throw error;
-        return;
-      }
-
       if (!tenantId) throw new Error('Tenant lama helin');
 
       const { error } = await supabase
         .from('app_settings')
-        .insert({ tenant_id: tenantId, setting_key: key, text_value: value, description });
+        .upsert(
+          { tenant_id: tenantId, setting_key: key, text_value: value, description },
+          { onConflict: 'tenant_id,setting_key' },
+        );
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['offlinePaymentSettings'] });
+      queryClient.invalidateQueries({ queryKey: ['offlinePaymentSettings', tenantId] });
       queryClient.invalidateQueries({ queryKey: ['appSettings'] });
       toast.success('Settings la kaydisey si guul leh!');
     },
