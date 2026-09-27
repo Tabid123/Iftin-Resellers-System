@@ -20,7 +20,6 @@ interface Props {
  * - ready / platform → render children
  */
 const WEB_SPLASH_MS = 1500;
-const NATIVE_SPLASH_MS = 1500;
 
 export const TenantGate: React.FC<Props> = ({ children }) => {
   const state = useTenant();
@@ -76,34 +75,51 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
     buildLogo
   );
 
-  // TenantGate is the second startup stage. On Android its 1.5s timer starts
-  // only after the native 1.5s splash has completed, so the two stages never
-  // consume each other's display time.
+  // TenantGate is the second startup stage. Native Android explicitly signals
+  // when its own 1.5s splash is finished; only then does this 1.5s timer start.
   React.useEffect(() => {
-    if (!hasTenantIdentity || startupSplashStartedRef.current) return;
-    startupSplashStartedRef.current = true;
+    if (!hasTenantIdentity) return;
 
-    let nativeRemainingMs = 0;
-    if (nativeHandoff) {
-      const queryStart = Number(nativeParams?.get("nativeSplashStartedAt") || 0);
-      const documentStart =
-        typeof performance !== "undefined" && Number.isFinite(performance.timeOrigin)
-          ? performance.timeOrigin
-          : Date.now();
-      const nativeStartedAt =
-        Number.isFinite(queryStart) && queryStart > 0 ? queryStart : documentStart;
-      nativeRemainingMs = Math.max(
-        0,
-        NATIVE_SPLASH_MS - Math.max(0, Date.now() - nativeStartedAt),
-      );
+    let timer: number | undefined;
+    const startWebSplashTimer = () => {
+      if (startupSplashStartedRef.current) return;
+      startupSplashStartedRef.current = true;
+      timer = window.setTimeout(() => {
+        setShowStartupSplash(false);
+      }, WEB_SPLASH_MS);
+    };
+
+    if (!nativeHandoff) {
+      startWebSplashTimer();
+      return () => {
+        if (timer) window.clearTimeout(timer);
+      };
     }
 
-    const timer = window.setTimeout(() => {
-      setShowStartupSplash(false);
-    }, nativeRemainingMs + WEB_SPLASH_MS);
+    const nativeWindow = window as typeof window & {
+      __IFTIN_NATIVE_SPLASH_COMPLETE__?: boolean;
+    };
 
-    return () => window.clearTimeout(timer);
-  }, [hasTenantIdentity, nativeHandoff, nativeParams]);
+    if (nativeWindow.__IFTIN_NATIVE_SPLASH_COMPLETE__) {
+      startWebSplashTimer();
+      return () => {
+        if (timer) window.clearTimeout(timer);
+      };
+    }
+
+    const handleNativeSplashComplete = () => startWebSplashTimer();
+    window.addEventListener("iftin-native-splash-complete", handleNativeSplashComplete);
+
+    // Safety fallback only: the native activity normally signals immediately
+    // after 1.5s, but never leave the customer trapped if a WebView event is lost.
+    const fallback = window.setTimeout(startWebSplashTimer, 5000);
+
+    return () => {
+      window.removeEventListener("iftin-native-splash-complete", handleNativeSplashComplete);
+      window.clearTimeout(fallback);
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [hasTenantIdentity, nativeHandoff]);
 
   // TenantGate stays visible while identity is resolving. Once resolved it
   // still completes its own timed stage before revealing the tenant app.
