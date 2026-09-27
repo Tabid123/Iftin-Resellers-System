@@ -16,5 +16,16 @@ jobs:
           bun-version: latest
       - name: Install dependencies
         run: bun install --frozen-lockfile
+      - name: Guard splash and route transitions
+        run: |
+          set -e
+          grep -Fq 'earlyNativeLiveHandoffScript' src/routes/__root.tsx
+          if grep -Fq 'function NativeLiveStartupGate' src/routes/__root.tsx; then
+            echo "::error::Background NativeLiveStartupGate must not return; it causes duplicate splash/reload after interaction."
+            exit 1
+          fi
+          grep -Fq 'defaultPendingMs: 60_000' src/router.tsx
+          grep -Fq 'WEB_SPLASH_MS = 1500' src/components/TenantGate.tsx
+
       - name: Build
         run: bun run build
