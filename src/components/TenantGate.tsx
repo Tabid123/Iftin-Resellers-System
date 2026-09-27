@@ -1,4 +1,5 @@
 import React from "react";
+import { useLocation } from "@tanstack/react-router";
 import { useTenant } from "@/contexts/TenantContext";
 import { ResellerCodeGate } from "@/components/ResellerCodeGate";
 import { AlertCircle, Lock, MessageCircle, Wallet, WifiOff } from "lucide-react";
@@ -31,13 +32,15 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
   }
 
   const state = useTenant();
+  const location = useLocation();
   const [showStartupSplash, setShowStartupSplash] = React.useState(true);
   const startupSplashStartedRef = React.useRef(false);
 
+  // Router location is available during SSR too. Reading only window.location
+  // made /t/<slug> look like the generic app on the server, so the browser
+  // briefly painted the default storefront before hydration resolved tenant.
   const routeTenantSlug =
-    typeof window !== "undefined"
-      ? window.location.pathname.match(/^\/t\/([^/]+)(?=\/|$)/)?.[1] ?? null
-      : null;
+    location.pathname.match(/^\/t\/([^/]+)(?=\/|$)/)?.[1] ?? null;
 
   const nativeParams =
     typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
@@ -45,6 +48,10 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
   // Native startup already has a branded handoff surface. Do not put a second
   // timed web splash behind it, which otherwise appears when the overlay lifts.
   const nativeHandoff = nativeBranding || isNativeApp();
+  // A normal web tenant link should open directly into that tenant. It must
+  // never show the generic/default storefront or the timed web splash first.
+  // Native builds keep their existing handoff/splash behaviour unchanged.
+  const directWebTenantRoute = Boolean(routeTenantSlug) && !nativeHandoff;
   const nativeSplashLogo = nativeBranding ? nativeParams?.get("brandLogo") || null : null;
   const nativeSplashName = nativeBranding ? nativeParams?.get("brandName") || null : null;
   const nativeSplashColor = nativeBranding ? nativeParams?.get("brandColor") || null : null;
@@ -83,21 +90,28 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
     buildLogo
   );
 
-  // TenantGate is the only web splash. Start its timer once per page load;
-  // later tenant/logo/name refreshes must never restart the splash.
+  // TenantGate remains the startup splash for native/non-path startup only.
+  // /t/<slug> web links deliberately skip it and reveal the app only after the
+  // correct tenant identity has resolved.
   React.useEffect(() => {
-    if (!hasTenantIdentity || startupSplashStartedRef.current) return;
+    if (directWebTenantRoute || !hasTenantIdentity || startupSplashStartedRef.current) return;
     startupSplashStartedRef.current = true;
     const timer = window.setTimeout(() => {
       setShowStartupSplash(false);
     }, WEB_SPLASH_MS);
     return () => window.clearTimeout(timer);
-  }, [hasTenantIdentity]);
+  }, [directWebTenantRoute, hasTenantIdentity]);
 
-  // Never render a separate solid-colour transition screen. Tenant routes
-  // use the single branded splash below; non-tenant startup stays on the
-  // normal app surface while identity resolves.
-  if (hasTenantIdentity && (state.status === "loading" || (!nativeHandoff && showStartupSplash))) {
+  // Critical tenant-link gate: while /t/<slug> is still resolving, render
+  // nothing from the generic storefront. This prevents both the default app
+  // flash and any unscoped/default data from appearing before tenant scoping.
+  if (directWebTenantRoute && state.status === "loading") {
+    return null;
+  }
+
+  // Native/non-path startup keeps the existing branded splash. Direct web
+  // tenant links skip this block entirely.
+  if (!directWebTenantRoute && hasTenantIdentity && (state.status === "loading" || (!nativeHandoff && showStartupSplash))) {
     return (
       <div
         id="tenant-web-splash"
