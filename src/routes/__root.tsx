@@ -154,13 +154,23 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 // Apply the last-known tenant colours before first paint so no default
 // (Najax) colours flash while the tenant record loads.
 const bakedTenantSlug = ((import.meta.env.VITE_TENANT_SLUG as string | undefined) || "").trim().toLowerCase();
+const bakedTenantName = ((import.meta.env.VITE_TENANT_NAME as string | undefined) || "").trim();
+const bakedTenantLogo = ((import.meta.env.VITE_TENANT_LOGO_URL as string | undefined) || "").trim();
+const bakedTenantSplashColor = ((import.meta.env.VITE_SPLASH_COLOR as string | undefined) || "").trim();
 
 const earlyNativeLiveHandoffScript = bakedTenantSlug
   ? `(function(){try{
 var h=window.location.hostname;
 if(h!=="localhost"&&h!=="127.0.0.1")return;
 if(navigator.onLine===false)return;
-var live="https://iftinagents.com/t/"+${JSON.stringify(bakedTenantSlug)}+(window.location.search||"");
+var p=new URLSearchParams(window.location.search||"");
+p.set("nativeSplash","1");
+p.set("nativeSplashStartedAt",String(Date.now()));
+var n=${JSON.stringify(bakedTenantName)};if(n)p.set("brandName",n);
+var l=${JSON.stringify(bakedTenantLogo)};if(l)p.set("brandLogo",l);
+var c=${JSON.stringify(bakedTenantSplashColor)};if(c)p.set("brandColor",c);
+var q=p.toString();
+var live="https://iftinagents.com/t/"+${JSON.stringify(bakedTenantSlug)}+(q?"?"+q:"")+(window.location.hash||"");
 window.location.replace(live);
 }catch(e){}})();`
   : "";
