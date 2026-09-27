@@ -36,6 +36,10 @@ export const getRouter = () => {
     scrollRestoration: true,
     defaultPreload: false,
     defaultPreloadStaleTime: 0,
+    // Keep the current page mounted while the next route is prepared. The
+    // default pending threshold could otherwise expose an empty root outlet
+    // for ~1s during OTP -> Offline Mode navigation.
+    defaultPendingMs: 60_000,
   });
 
   return router;
