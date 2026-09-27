@@ -77,18 +77,6 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
     buildLogo
   );
 
-  // Fresh web tenant links may have no cache yet. Do not paint any generic
-  // platform/default loading surface while the tenant RPC resolves. Once the
-  // real tenant arrives, the branded TenantGate below becomes the first app UI.
-  if (
-    routeTenantSlug &&
-    !nativeHandoff &&
-    state.status === "loading" &&
-    !hasTenantIdentity
-  ) {
-    return null;
-  }
-
   // TenantGate is the second startup stage. Native Android explicitly signals
   // when its own 1.5s splash is finished; only then does this 1.5s timer start.
   React.useEffect(() => {
@@ -134,6 +122,18 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
       if (timer) window.clearTimeout(timer);
     };
   }, [hasTenantIdentity, nativeHandoff]);
+
+  // Fresh web tenant links may have no cache yet. Do not paint any generic
+  // platform/default loading surface while the tenant RPC resolves. Once the
+  // real tenant arrives, the branded TenantGate below becomes the first app UI.
+  if (
+    routeTenantSlug &&
+    !nativeHandoff &&
+    state.status === "loading" &&
+    !hasTenantIdentity
+  ) {
+    return null;
+  }
 
   // TenantGate stays visible while identity is resolving. Once resolved it
   // still completes its own timed stage before revealing the tenant app.
