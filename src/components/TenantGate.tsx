@@ -20,17 +20,9 @@ interface Props {
  * - ready / platform → render children
  */
 const WEB_SPLASH_MS = 1500;
+const NATIVE_SPLASH_MS = 1500;
 
 export const TenantGate: React.FC<Props> = ({ children }) => {
-  // The packaged Android HTML is server-rendered during CI. If we emit the
-  // branded TenantGate splash into that static HTML, Android paints it even
-  // though the <head> immediately redirects online APKs to the live tenant.
-  // Suppress only that build-time SSR frame; client hydration still owns the
-  // normal TenantGate splash for packaged offline startup.
-  if (typeof window === "undefined" && import.meta.env.VITE_CAPACITOR_BUILD === "true") {
-    return null;
-  }
-
   const state = useTenant();
   const location = useLocation();
   const [showStartupSplash, setShowStartupSplash] = React.useState(true);
@@ -45,8 +37,6 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
   const nativeParams =
     typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
   const nativeBranding = nativeParams?.get("nativeSplash") === "1";
-  // Native startup already has a branded handoff surface. Do not put a second
-  // timed web splash behind it, which otherwise appears when the overlay lifts.
   const nativeHandoff = nativeBranding || isNativeApp();
   const nativeSplashLogo = nativeBranding ? nativeParams?.get("brandLogo") || null : null;
   const nativeSplashName = nativeBranding ? nativeParams?.get("brandName") || null : null;
@@ -86,21 +76,38 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
     buildLogo
   );
 
-  // TenantGate is the web tenant gate: /t/<slug> renders this branded splash
-  // while the tenant resolves, then reveals only that tenant's storefront.
+  // TenantGate is the second startup stage. On Android its 1.5s timer starts
+  // only after the native 1.5s splash has completed, so the two stages never
+  // consume each other's display time.
   React.useEffect(() => {
     if (!hasTenantIdentity || startupSplashStartedRef.current) return;
     startupSplashStartedRef.current = true;
+
+    let nativeRemainingMs = 0;
+    if (nativeHandoff) {
+      const queryStart = Number(nativeParams?.get("nativeSplashStartedAt") || 0);
+      const documentStart =
+        typeof performance !== "undefined" && Number.isFinite(performance.timeOrigin)
+          ? performance.timeOrigin
+          : Date.now();
+      const nativeStartedAt =
+        Number.isFinite(queryStart) && queryStart > 0 ? queryStart : documentStart;
+      nativeRemainingMs = Math.max(
+        0,
+        NATIVE_SPLASH_MS - Math.max(0, Date.now() - nativeStartedAt),
+      );
+    }
+
     const timer = window.setTimeout(() => {
       setShowStartupSplash(false);
-    }, WEB_SPLASH_MS);
-    return () => window.clearTimeout(timer);
-  }, [hasTenantIdentity]);
+    }, nativeRemainingMs + WEB_SPLASH_MS);
 
-  // The branded TenantGate splash is the only web startup surface for tenant
-  // links. Because routeTenantSlug is now resolved from the router during SSR,
-  // the generic/default storefront never gets a chance to paint first.
-  if (hasTenantIdentity && (state.status === "loading" || (!nativeHandoff && showStartupSplash))) {
+    return () => window.clearTimeout(timer);
+  }, [hasTenantIdentity, nativeHandoff, nativeParams]);
+
+  // TenantGate stays visible while identity is resolving. Once resolved it
+  // still completes its own timed stage before revealing the tenant app.
+  if (hasTenantIdentity && (state.status === "loading" || showStartupSplash)) {
     return (
       <div
         id="tenant-web-splash"
