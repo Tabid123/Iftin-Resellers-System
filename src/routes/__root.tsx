@@ -7,7 +7,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, type ReactNode } from "react";
 import { warmPages } from "@/lib/lazyPages";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -228,37 +228,17 @@ function NativeLiveStartupGate({ children }: { children: ReactNode }) {
     Capacitor.isNativePlatform() &&
     (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
-  useEffect(() => {
+  // Native handoff is a startup-only decision. Do it before the browser paints
+  // the packaged React tree so it can never fire later while the user is
+  // typing a phone number or OTP and cause another splash/reload.
+  useLayoutEffect(() => {
     if (!packagedNative) return;
 
     const slug = buildTenantSlug();
     if (!slug || typeof navigator === "undefined" || navigator.onLine === false) return;
 
-    const controller = new AbortController();
-    let settled = false;
     const liveUrl = `https://iftinagents.com/t/${encodeURIComponent(slug)}${window.location.search || ""}`;
-
-    // Keep the packaged tenant UI visible while checking the live storefront.
-    // Never cover startup with a blank/brand-colour screen.
-    fetch(liveUrl, {
-      method: "GET",
-      mode: "no-cors",
-      cache: "no-store",
-      signal: controller.signal,
-    })
-      .then(() => {
-        if (settled) return;
-        settled = true;
-        window.location.replace(liveUrl);
-      })
-      .catch(() => {
-        settled = true;
-      });
-
-    return () => {
-      settled = true;
-      controller.abort();
-    };
+    window.location.replace(liveUrl);
   }, [packagedNative]);
 
   return <>{children}</>;
