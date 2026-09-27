@@ -3131,20 +3131,15 @@ export type Database = {
         Args: { p_search?: string; p_start?: string; p_status?: string }
         Returns: Json
       }
-      get_admin_customers_page:
-        | {
-            Args: { p_limit?: number; p_offset?: number; p_search?: string }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_filter?: string
-              p_limit?: number
-              p_offset?: number
-              p_search?: string
-            }
-            Returns: Json
-          }
+      get_admin_customers_page: {
+        Args: {
+          p_filter?: string
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+        }
+        Returns: Json
+      }
       get_admin_dashboard_counts: {
         Args: { p_end?: string; p_start: string }
         Returns: Json
