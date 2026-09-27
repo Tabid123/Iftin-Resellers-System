@@ -54,6 +54,7 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
 
   const hasTenantIdentity = Boolean(
     tenant ||
+    routeTenantSlug ||
     cachedName ||
     cachedLogo ||
     buildName ||
@@ -71,13 +72,9 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
     return () => window.clearTimeout(timer);
   }, [hasTenantIdentity]);
 
-  // While the tenant is still unresolved, block child routes but render no
-  // generic logo/spinner. The first branded screen the user sees is the
-  // tenant-owned splash below.
-  if (state.status === "loading" && !hasTenantIdentity) {
-    return <div className="fixed inset-0 z-[9999] bg-primary" aria-hidden="true" />;
-  }
-
+  // Never render a separate solid-colour transition screen. Tenant routes
+  // use the single branded splash below; non-tenant startup stays on the
+  // normal app surface while identity resolves.
   if (hasTenantIdentity && (state.status === "loading" || showStartupSplash)) {
     return (
       <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-primary">
