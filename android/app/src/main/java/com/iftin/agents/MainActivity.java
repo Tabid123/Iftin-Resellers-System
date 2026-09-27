@@ -167,9 +167,4 @@ public class MainActivity extends BridgeActivity {
             .start();
     }
 
-    @Override
-    protected void onDestroy() {
-        startupHandler.removeCallbacksAndMessages(null);
-        super.onDestroy();
-    }
 }
