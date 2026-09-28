@@ -1,8 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { PageSuspense, lazyPage } from "@/lib/lazyPages";
+import { readVerifiedPhone } from "@/lib/verifiedPhone";
 const Index = lazyPage("Index");
-
-const isVerifiedPhone = (phone: string | null) => !!phone && /^(61|77|62|68|71|64)\d{7}$/.test(phone);
 
 const hasOfflineRegistration = () => {
   if (typeof window === "undefined") return false;
@@ -16,8 +15,8 @@ const hasOfflineRegistration = () => {
 export const Route = createFileRoute("/")({
   beforeLoad: () => {
     if (typeof window === "undefined") return;
-    const phone = localStorage.getItem("verifiedPhone");
-    if (!isVerifiedPhone(phone)) return;
+    const phone = readVerifiedPhone();
+    if (!phone) return;
     throw redirect({
       to: hasOfflineRegistration() ? "/providers" : "/offline-mode",
       replace: true,
