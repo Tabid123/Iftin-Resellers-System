@@ -47,8 +47,16 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
         /* ignore */
       }
       navigate('/', { replace: true });
-    } else if (!hasOffline && location.pathname !== '/offline-mode') {
-      navigate('/offline-mode', { replace: true });
+    } else if (!hasOffline && !location.pathname.endsWith('/offline-mode')) {
+      const tenantMatch = location.pathname.match(/^\/t\/([^/]+)(?=\/|$)/);
+      if (tenantMatch) {
+        navigate('/t/$slug/offline-mode', {
+          params: { slug: tenantMatch[1] },
+          replace: true,
+        } as any);
+      } else {
+        navigate('/offline-mode', { replace: true });
+      }
     }
   }, [navigate, hasAccess, hasOffline, location.pathname]);
 
