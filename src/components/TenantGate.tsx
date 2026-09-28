@@ -5,6 +5,7 @@ import { ResellerCodeGate } from "@/components/ResellerCodeGate";
 import { AlertCircle, Lock, MessageCircle, Wallet, WifiOff } from "lucide-react";
 import { normalizeSupportPhone } from "@/hooks/useSupportPhone";
 import { isNativeApp } from "@/lib/nativeTenant";
+import { TenantSplash } from "@/components/TenantSplash";
 
 
 
@@ -171,55 +172,23 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
     };
   }, [hasTenantIdentity, nativeHandoff]);
 
-  // A first visit has no cached tenant identity. Keep the tenant gate visible
-  // while the slug lookup resolves instead of exposing the empty root outlet.
-  // The slug is the only identity we can safely display before the RPC returns.
+  // Hold the same web splash while a fresh tenant identity resolves.
   if (
     routeTenantSlug &&
     !nativeHandoff &&
     state.status === "loading" &&
     !hasTenantIdentity
   ) {
-    return (
-      <div
-        id="tenant-web-splash"
-        className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-slate-900 text-white"
-        role="status"
-        aria-label="Tenant-ka waa la furayaa"
-      >
-        <span className="text-xl font-bold capitalize">{routeTenantSlug.replace(/[-_]+/g, " ")}</span>
-        <div className="mt-8 h-9 w-9 animate-spin rounded-full border-[3px] border-white/30 border-t-white" />
-      </div>
-    );
+    return <TenantSplash name={routeTenantSlug} pendingIdentity />;
   }
 
-  // TenantGate stays visible while identity is resolving. Once resolved it
-  // still completes its own timed stage before revealing the tenant app.
   if (hasTenantIdentity && (state.status === "loading" || showStartupSplash)) {
     return (
-      <div
-        id="tenant-web-splash"
-        className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-primary"
-        style={
-          tenant?.primary_color
-            ? { backgroundColor: tenant.primary_color }
-            : nativeSplashColor && !tenant
-              ? { backgroundColor: nativeSplashColor }
-              : undefined
-        }
-      >
-        {splashLogo ? (
-          <img
-            src={splashLogo}
-            alt={splashName}
-            className="h-36 w-36 rounded-2xl object-cover shadow-lg"
-            onError={(event) => {
-              event.currentTarget.style.display = "none";
-            }}
-          />
-        ) : null}
-        <div className="mt-8 h-9 w-9 animate-spin rounded-full border-[3px] border-accent/30 border-t-accent" />
-      </div>
+      <TenantSplash
+        logo={splashLogo}
+        name={splashName}
+        color={tenant?.primary_color || nativeSplashColor}
+      />
     );
   }
 
