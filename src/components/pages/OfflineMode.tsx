@@ -18,6 +18,7 @@ import somlinkLogo from '@/assets/providers/somlink-logo.png';
 import CachedImage from '@/components/CachedImage';
 import PhoneNumberInput from '@/components/PhoneNumberInput';
 import { playAudioPrompt, primeAudioPrompts } from '@/lib/audioPrompts';
+import { markOfflineRegistrationSkipped, readStorefrontSessionValue, saveOfflineRegistrationSession } from '@/lib/storefrontSession';
 
 
 // Full provider map for receiver phone (all providers supported)
@@ -70,8 +71,8 @@ const OfflineMode = () => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [detectedProvider, setDetectedProvider] = useState<{ id: string; name: string; logo: string } | null>(null);
   const [detectedSenderProvider, setDetectedSenderProvider] = useState<{ id: string; name: string; logo: string } | null>(null);
-  const savedSenderPhone = localStorage.getItem('offlineSenderPhone') || '';
-  const savedReceiverPhone = localStorage.getItem('offlineReceiverPhone') || '';
+  const savedSenderPhone = readStorefrontSessionValue('offlineSenderPhone') || '';
+  const savedReceiverPhone = readStorefrontSessionValue('offlineReceiverPhone') || '';
 
   useEffect(() => {
     primeAudioPrompts();
@@ -79,8 +80,8 @@ const OfflineMode = () => {
   }, []);
 
   useEffect(() => {
-    const currentSender = localStorage.getItem('offlineSenderPhone') || '';
-    const currentReceiver = localStorage.getItem('offlineReceiverPhone') || '';
+    const currentSender = readStorefrontSessionValue('offlineSenderPhone') || '';
+    const currentReceiver = readStorefrontSessionValue('offlineReceiverPhone') || '';
     if (currentSender && !senderPhone) setSenderPhone(currentSender);
     if (currentReceiver && !receiverPhone) setReceiverPhone(currentReceiver);
   }, []);
@@ -142,8 +143,7 @@ const OfflineMode = () => {
       }
 
       // Session-only values used by the ordering flow (not a registration store).
-      localStorage.setItem('offlineSenderPhone', senderPhone);
-      localStorage.setItem('offlineReceiverPhone', receiverPhone);
+      saveOfflineRegistrationSession(senderPhone, receiverPhone);
 
       toast({
         title: "Lagu guuleystay",
@@ -277,7 +277,7 @@ const OfflineMode = () => {
 
         <button
           onClick={() => {
-            localStorage.setItem('hasSkippedOfflineRegistration', 'true');
+            markOfflineRegistrationSkipped();
             navigate('/providers');
           }}
           className="w-full rounded-xl border border-border text-muted-foreground font-medium text-sm transition-all hover:bg-muted/50 active:scale-[0.98] py-2.5"
