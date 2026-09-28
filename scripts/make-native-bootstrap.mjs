@@ -29,6 +29,7 @@ fs.writeFileSync(packagedPath, packagedHtml);
 const js = (value) => JSON.stringify(value).replace(/</g, "\\u003c");
 const liveParams = new URLSearchParams({
   nativeSplash: "1",
+  tenantGateShown: "1",
   brandName: appName,
   brandColor: splashColor,
 });
