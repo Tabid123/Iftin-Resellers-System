@@ -17,6 +17,7 @@ import {
 import { useSupportPhone } from '@/hooks/useSupportPhone';
 import { useTenant } from '@/contexts/TenantContext';
 import { BottomNavigation } from '@/components/BottomNavigation';
+import { clearVerifiedPhone } from '@/lib/verifiedPhone';
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -37,7 +38,7 @@ const Profile = () => {
     '';
 
   const handleLogout = () => {
-    localStorage.removeItem('verifiedPhone');
+    clearVerifiedPhone();
     localStorage.removeItem('userPhone');
     localStorage.removeItem('verifiedPhoneNumber');
     localStorage.removeItem('userPhoneNumber');
@@ -70,6 +71,7 @@ const Profile = () => {
     } catch {
       /* storage unavailable */
     }
+    clearVerifiedPhone();
     toast.success('Account-ka waa la tirtiray');
     navigate('/', { replace: true });
   };
