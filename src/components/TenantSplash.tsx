@@ -4,15 +4,14 @@ type TenantSplashProps = {
   logo?: string | null;
   name?: string | null;
   color?: string | null;
-  pendingIdentity?: boolean;
 };
 
 /** One web splash surface for tenant resolution and lazy page loading. */
-export function TenantSplash({ logo, name, color, pendingIdentity = false }: TenantSplashProps) {
+export function TenantSplash({ logo, name, color }: TenantSplashProps) {
   return (
     <div
       id="tenant-web-splash"
-      className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center ${pendingIdentity ? "bg-slate-900 text-white" : "bg-primary"}`}
+      className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-primary"
       style={color ? { backgroundColor: color } : undefined}
       role="status"
       aria-label="Tenant-ka waa la furayaa"
@@ -26,10 +25,8 @@ export function TenantSplash({ logo, name, color, pendingIdentity = false }: Ten
             event.currentTarget.style.display = "none";
           }}
         />
-      ) : pendingIdentity && name ? (
-        <span className="text-xl font-bold capitalize">{name.replace(/[-_]+/g, " ")}</span>
       ) : null}
-      <div className={`mt-8 h-9 w-9 animate-spin rounded-full border-[3px] ${pendingIdentity ? "border-white/30 border-t-white" : "border-accent/30 border-t-accent"}`} />
+      <div className="mt-8 h-9 w-9 animate-spin rounded-full border-[3px] border-accent/30 border-t-accent" />
     </div>
   );
 }
