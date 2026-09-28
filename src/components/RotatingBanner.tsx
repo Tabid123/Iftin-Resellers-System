@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { onStorefront } from '@/lib/storefrontEvents';
 import { activeWorkspaceId, workspaceStorage } from '@/lib/workspaceKeys';
+import { tenantOfflineBootstrap } from '@/generated/tenantOfflineBootstrap';
 
 interface Banner {
   id: string;
@@ -21,6 +22,23 @@ function readBannerCache(workspaceId: string | null): Banner[] {
   if (!workspaceId) return [];
   const parsed = workspaceStorage.getJson<Banner[]>(BANNER_RESOURCE, [], workspaceId);
   return Array.isArray(parsed) ? parsed : [];
+}
+
+
+function packagedBannerFor(item: Banner | null | undefined): string | null {
+  if (!item) return null;
+  const packaged = (tenantOfflineBootstrap as any)?.banners;
+  if (!Array.isArray(packaged)) return null;
+
+  const exact = packaged.find((banner: any) => String(banner?.id || '') === String(item.id || ''));
+  if (exact?.banner_image) return String(exact.banner_image);
+
+  const byOrder = packaged.find(
+    (banner: any) =>
+      banner?.media_type !== 'video' &&
+      Number(banner?.display_order ?? -1) === Number(item.display_order ?? -2),
+  );
+  return byOrder?.banner_image ? String(byOrder.banner_image) : null;
 }
 
 const RotatingBanner = () => {
@@ -158,7 +176,20 @@ const RotatingBanner = () => {
                 setLastGoodImage(item.banner_image);
                 setBannerReady(true);
               }}
-              onError={() => {
+              onError={(event) => {
+                const packaged = packagedBannerFor(item);
+                const target = event.currentTarget;
+
+                // Runtime sync stores the freshest remote URL. When the device
+                // later goes offline that URL may be unreachable even though
+                // this same banner was bundled into the tenant APK. Fall back
+                // to the packaged copy instead of leaving an empty banner box.
+                if (packaged && target.src !== new URL(packaged, window.location.href).href) {
+                  target.src = packaged;
+                  setLastGoodImage(packaged);
+                  return;
+                }
+
                 setBannerReady(false);
                 if (banners.length > 1) {
                   setCurrentBanner((prev) => (prev + 1) % banners.length);
