@@ -1,5 +1,6 @@
 const VERIFIED_PHONE_KEY = 'verifiedPhone';
 const VERIFIED_PHONE_SESSION_KEY = 'iftin:verifiedPhone';
+const LOGGED_OUT_SESSION_KEY = 'iftin:loggedOut';
 
 export const SOMALI_PHONE_RE = /^(61|77|62|68|71|64)\d{7}$/;
 
@@ -15,12 +16,19 @@ export function saveVerifiedPhone(phone: string): string | null {
   if (!normalized || typeof window === 'undefined') return normalized;
 
   try { localStorage.setItem(VERIFIED_PHONE_KEY, normalized); } catch {}
-  try { sessionStorage.setItem(VERIFIED_PHONE_SESSION_KEY, normalized); } catch {}
+  try {
+    sessionStorage.setItem(VERIFIED_PHONE_SESSION_KEY, normalized);
+    sessionStorage.removeItem(LOGGED_OUT_SESSION_KEY);
+  } catch {}
   return normalized;
 }
 
 export function readVerifiedPhone(): string | null {
   if (typeof window === 'undefined') return null;
+
+  try {
+    if (sessionStorage.getItem(LOGGED_OUT_SESSION_KEY) === '1') return null;
+  } catch {}
 
   let local: string | null = null;
   let session: string | null = null;
@@ -43,5 +51,8 @@ export function readVerifiedPhone(): string | null {
 export function clearVerifiedPhone(): void {
   if (typeof window === 'undefined') return;
   try { localStorage.removeItem(VERIFIED_PHONE_KEY); } catch {}
-  try { sessionStorage.removeItem(VERIFIED_PHONE_SESSION_KEY); } catch {}
+  try {
+    sessionStorage.removeItem(VERIFIED_PHONE_SESSION_KEY);
+    sessionStorage.setItem(LOGGED_OUT_SESSION_KEY, '1');
+  } catch {}
 }
