@@ -78,13 +78,6 @@ serve(async (req) => {
       }
     }
 
-    // Credentials and connection controls are platform-owned.
-    // Tenant owners may inspect status, but only a super_admin may save,
-    // test, activate/deactivate, or delete Somlink credentials.
-    if (action !== 'status' && isSuperAdmin !== true) {
-      return json({ error: 'super_admin_required' }, 403);
-    }
-
     if (action === 'status') {
       const [{ data, error }, isRuntimeReady] = await Promise.all([
         admin.rpc('somlink_admin_status', { p_tenant_id: tenantId }),
