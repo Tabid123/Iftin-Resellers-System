@@ -16,7 +16,14 @@ const splashColor = String(process.env.SPLASH_COLOR || "#0F4C81").trim();
 
 if (!slug) throw new Error("TENANT_SLUG is required");
 
-const packagedHtml = fs.readFileSync(indexPath, "utf8");
+let packagedHtml = fs.readFileSync(indexPath, "utf8");
+
+// packaged-app.html is only an APK fallback file; it is not an application
+// route. Before React/TanStack boots, rewrite the browser history to the real
+// tenant offline route so the router never sees "/packaged-app.html" and
+// renders its 404 page.
+const offlineRouteScript = `<script>(function(){try{if(location.pathname==="/packaged-app.html"){history.replaceState(null,"","/t/${encodeURIComponent(slug)}/offline-mode"+(location.search||"")+(location.hash||""));}}catch(e){}})();<\/script>`;
+packagedHtml = packagedHtml.replace("<head>", "<head>" + offlineRouteScript);
 fs.writeFileSync(packagedPath, packagedHtml);
 
 const js = (value) => JSON.stringify(value).replace(/</g, "\\u003c");
