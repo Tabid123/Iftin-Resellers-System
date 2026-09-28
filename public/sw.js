@@ -94,12 +94,20 @@ self.addEventListener('fetch', (event) => {
   if (url.hostname.includes('supabase') && url.pathname.includes('/storage/')) {
     event.respondWith(
       fetch(request, { cache: 'no-store' }).then(response => {
-          if (response && response.ok) {
+          // <img> requests to a cross-origin public Supabase object can be
+          // returned as an opaque response (status 0 / ok=false). Opaque image
+          // responses are still perfectly valid to replay from Cache Storage,
+          // so cache them too; otherwise banners disappear as soon as the user
+          // goes offline.
+          if (response && (response.ok || response.type === 'opaque')) {
             const clone = response.clone();
             caches.open(getCacheName(IMAGE_CACHE_PREFIX)).then(cache => cache.put(request, clone));
           }
           return response;
-        }).catch(() => caches.match(request).then(cachedResponse => cachedResponse || new Response(null, { status: 404 })))
+        }).catch(() =>
+          caches.match(request)
+            .then(cachedResponse => cachedResponse || new Response(null, { status: 404 }))
+        )
     );
     return;
   }
