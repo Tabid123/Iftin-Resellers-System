@@ -19,10 +19,22 @@ if (!slug) throw new Error("TENANT_SLUG is required");
 let packagedHtml = fs.readFileSync(indexPath, "utf8");
 
 // packaged-app.html is only an APK fallback file; it is not an application
-// route. Before React/TanStack boots, rewrite the browser history to the real
-// tenant offline route so the router never sees "/packaged-app.html" and
-// renders its 404 page.
-const offlineRouteScript = `<script>(function(){try{if(location.pathname==="/packaged-app.html"){history.replaceState(null,"","/t/${encodeURIComponent(slug)}/offline-mode"+(location.search||"")+(location.hash||""));}}catch(e){}})();<\/script>`;
+// route. Before React/TanStack boots, restore storefront session values from
+// Android SharedPreferences and route returning verified users to Providers.
+const offlineRouteScript = `<script>(function(){try{
+  if(location.pathname!=="/packaged-app.html")return;
+  var n=window.IftinNativeSession;
+  function ng(k){try{return n&&typeof n.get==="function"?String(n.get(k)||""):""}catch(e){return ""}}
+  function seed(k){var v=ng(k);if(v){try{localStorage.setItem(k,v)}catch(e){}}return v}
+  var loggedOut=ng("loggedOut")==="1";
+  var verified=loggedOut?"":seed("verifiedPhone");
+  seed("offlineSenderPhone");seed("offlineReceiverPhone");seed("hasSkippedOfflineRegistration");
+  var digits=String(verified||"").replace(/\\D/g,"");
+  if(digits.indexOf("252")===0)digits=digits.slice(3);
+  var ok=/^(61|77|62|68|71|64)\\d{7}$/.test(digits);
+  var target=ok?"/t/${encodeURIComponent(slug)}/providers":"/t/${encodeURIComponent(slug)}/";
+  history.replaceState(null,"",target+(location.search||"")+(location.hash||""));
+}catch(e){try{history.replaceState(null,"","/t/${encodeURIComponent(slug)}/")}catch(_){}}})();<\/script>`;
 packagedHtml = packagedHtml.replace("<head>", "<head>" + offlineRouteScript);
 fs.writeFileSync(packagedPath, packagedHtml);
 
@@ -71,7 +83,7 @@ const bootstrap = `<!doctype html>
   </script>
 </head>
 <body>
-  <div class="s" aria-label=${js(appName)}>
+  <div id="tenant-web-splash" class="s" aria-label=${js(appName)}>
     ${logoUrl ? `<img class="logo" src="${logoUrl.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}" alt="">` : ""}
     <div class="spin" aria-hidden="true"></div>
   </div>
