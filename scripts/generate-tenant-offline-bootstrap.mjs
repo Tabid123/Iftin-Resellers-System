@@ -196,7 +196,7 @@ for (const [object, field] of fields) {
       : contentType.includes('svg') ? '.svg'
       : contentType.includes('gif') ? '.gif'
       : contentType.includes('jpeg') || contentType.includes('jpg') ? '.jpg'
-      : path.extname(new URL(url).pathname).slice(0, 8) || '.img';
+      : path.extname(new URL(fetchUrl).pathname).slice(0, 8) || '.img';
     const name = `${crypto.createHash('sha256').update(fetchUrl).digest('hex').slice(0, 20)}${ext}`;
     await fs.writeFile(path.join(assetsDir, name), bytes);
     object[field] = `/offline-assets/tenant-bootstrap/${name}`;
