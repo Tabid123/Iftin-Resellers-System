@@ -202,9 +202,40 @@ self.addEventListener('fetch', (event) => {
 });
 
 // Listen for messages from client
+async function cacheImageUrls(urls) {
+  if (!Array.isArray(urls) || !urls.length) return;
+  const cache = await caches.open(getCacheName(IMAGE_CACHE_PREFIX));
+
+  await Promise.allSettled(
+    urls.slice(0, 250).map(async (raw) => {
+      try {
+        const url = new URL(String(raw), self.location.origin);
+        if (!/^https?:$/.test(url.protocol)) return;
+
+        const request = new Request(url.toString(), {
+          method: 'GET',
+          mode: url.origin === self.location.origin ? 'same-origin' : 'no-cors',
+          cache: 'no-store',
+          credentials: 'omit',
+        });
+
+        const response = await fetch(request);
+        if (response && (response.ok || response.type === 'opaque')) {
+          await cache.put(request, response.clone());
+        }
+      } catch {
+        // A single bad image must never prevent the remaining artwork from caching.
+      }
+    })
+  );
+}
+
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
+  }
+  if (event.data && event.data.type === 'CACHE_IMAGES') {
+    event.waitUntil(cacheImageUrls(event.data.urls));
   }
   if (event.data && event.data.type === 'SET_VERSION') {
     const newVersion = event.data.version;
