@@ -178,12 +178,19 @@ window.location.replace(live);
 const earlyNativeHandoffBackgroundScript = `(function(){try{
 var p=new URLSearchParams(window.location.search||"");
 if(p.get("nativeSplash")!=="1"||p.get("tenantGateShown")!=="1")return;
-var c=p.get("brandColor")||"";
-if(!c)return;
+var c=p.get("brandColor")||"#0F4C81";
+var l=p.get("brandLogo")||"";
 document.documentElement.style.background=c;
 var s=document.createElement("style");
 s.id="iftin-native-handoff-bg";
-s.textContent="html,body{background:"+c+"!important;}";
+var logo=l
+  ? "background-image:url("+JSON.stringify(l)+");background-repeat:no-repeat;background-position:center calc(50% - 48px);background-size:144px 144px;"
+  : "";
+s.textContent=
+"html,body{background:"+c+"!important;}"+
+"body:before{content:\\"\\";position:fixed;inset:0;z-index:2147483646;background-color:"+c+";"+logo+"}"+
+"body:after{content:\\"\\";position:fixed;z-index:2147483647;left:50%;top:calc(50% + 92px);width:36px;height:36px;margin-left:-18px;border-radius:9999px;border:3px solid rgba(255,255,255,.28);border-top-color:#fff;animation:iftinNativeHandoffSpin .8s linear infinite;}"+
+"@keyframes iftinNativeHandoffSpin{to{transform:rotate(360deg)}}";
 document.head.appendChild(s);
 }catch(e){}})();`;
 
