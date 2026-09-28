@@ -22,7 +22,7 @@ const CachedImage = ({ src, alt, bundledName, kind = 'provider', providerName, f
   const imageName = bundledName ?? (typeof alt === 'string' ? alt : null);
   const bundled = skipBundled ? null : getLocalImage(kind, imageName, src, providerName);
 
-  const initial = kind === 'provider' && bundled ? bundled : (src ?? bundled ?? null);
+  const initial = bundled ?? src ?? null;
   const [resolved, setResolved] = useState<string | null>(initial);
   const [failed, setFailed] = useState(false);
 
@@ -30,7 +30,10 @@ const CachedImage = ({ src, alt, bundledName, kind = 'provider', providerName, f
     let cancelled = false;
     setFailed(false);
 
-    if (kind === 'provider' && bundled && src && /^https?:/i.test(src)) {
+    if (bundled && src && /^https?:/i.test(src) && bundled !== src) {
+      // Paint the local asset immediately, then upgrade to the tenant's remote
+      // artwork once it has fully decoded. This avoids blank cards while the
+      // network is still fetching images on the first visit.
       setResolved(bundled);
       const img = new Image();
       img.decoding = 'async';
