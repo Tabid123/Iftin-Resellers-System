@@ -1,15 +1,8 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { PageSuspense, lazyPage } from "@/lib/lazyPages";
 import { readVerifiedPhone } from "@/lib/verifiedPhone";
+import { hasOfflineRegistrationSession } from "@/lib/storefrontSession";
 const Index = lazyPage("Index");
-
-const hasOfflineRegistration = () => {
-  if (typeof window === "undefined") return false;
-  if (localStorage.getItem("hasSkippedOfflineRegistration") === "true") return true;
-  const sender = localStorage.getItem("offlineSenderPhone");
-  const receiver = localStorage.getItem("offlineReceiverPhone");
-  return !!sender && !!receiver && sender.length === 9 && receiver.length >= 7;
-};
 
 
 export const Route = createFileRoute("/t/$slug/")({
@@ -18,7 +11,7 @@ export const Route = createFileRoute("/t/$slug/")({
     const phone = readVerifiedPhone();
     if (!phone) return;
     throw redirect({
-      to: hasOfflineRegistration() ? "/t/$slug/providers" : "/t/$slug/offline-mode",
+      to: hasOfflineRegistrationSession() ? "/t/$slug/providers" : "/t/$slug/offline-mode",
       params: { slug: params.slug },
       replace: true,
     });
