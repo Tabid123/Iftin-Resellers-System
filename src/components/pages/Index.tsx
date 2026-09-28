@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from '@/lib/router-compat';
 import { readVerifiedPhone } from '@/lib/verifiedPhone';
+import { hasOfflineRegistrationSession } from '@/lib/storefrontSession';
+import { useTenant } from '@/contexts/TenantContext';
+import { TenantSplash } from '@/components/TenantSplash';
 import HeroSection from '@/components/HeroSection';
 import PhoneInput from '@/components/PhoneInput';
 import Footer from '@/components/Footer';
 
 const Index = () => {
   const navigate = useNavigate();
+  const tenantState = useTenant();
+  const tenant = tenantState.status === 'ready' || tenantState.status === 'suspended' ? tenantState.tenant : null;
   const [showLogin, setShowLogin] = useState(false);
   // Route beforeLoad owns all returning-user redirects. Keeping a second
   // check after hydration is also needed: server-side beforeLoad cannot read
@@ -16,11 +21,7 @@ const Index = () => {
       sessionStorage.setItem('appInitialized', 'true');
       const verifiedPhone = readVerifiedPhone();
       if (verifiedPhone) {
-        const sender = localStorage.getItem('offlineSenderPhone');
-        const receiver = localStorage.getItem('offlineReceiverPhone');
-        const registered = Boolean(sender && receiver && sender.length === 9 && receiver.length >= 7);
-        const skipped = localStorage.getItem('hasSkippedOfflineRegistration') === 'true';
-        navigate(registered || skipped ? '/providers' : '/offline-mode', { replace: true });
+        navigate(hasOfflineRegistrationSession() ? '/providers' : '/offline-mode', { replace: true });
       } else if (verifiedPhone) {
         localStorage.removeItem('verifiedPhone');
         setShowLogin(true);
@@ -35,7 +36,15 @@ const Index = () => {
 
   // SSR cannot read the visitor's saved number. Never render the login form
   // until the browser has checked it, or returning visitors see it flash.
-  if (!showLogin) return null;
+  if (!showLogin) {
+    return (
+      <TenantSplash
+        logo={tenant?.logo_url || (import.meta.env.VITE_TENANT_LOGO_URL as string | undefined) || null}
+        name={tenant?.name || (import.meta.env.VITE_TENANT_NAME as string | undefined) || ''}
+        color={tenant?.primary_color || (import.meta.env.VITE_SPLASH_COLOR as string | undefined) || null}
+      />
+    );
+  }
 
   return (
     <div className="iftin-auth-page min-h-screen bg-background flex flex-col items-center justify-center px-5 py-6 gap-4">
