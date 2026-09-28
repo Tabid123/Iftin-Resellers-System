@@ -178,7 +178,7 @@ jobs:
 
       - name: Stamp Android web bundle
         run: |
-          printf '{"commit":"%s","tenant":"%s","bannerCache":"tenant-scoped","numericKeyboard":"native-webview-numeric","nativePush":"onesignal","offlineBootstrap":"packaged-v1"}\n' "${GITHUB_SHA}" "${TENANT_SLUG}" > public/apk-build.json
+          printf '{"commit":"%s","tenant":"%s","bannerCache":"tenant-scoped","numericKeyboard":"native-webview-numeric","nativePush":"onesignal","offlineBootstrap":"packaged-v1","nativeSession":"shared-prefs-v2","startupHandoff":"tenant-web-splash-v2"}\n' "${GITHUB_SHA}" "${TENANT_SLUG}" > public/apk-build.json
 
       - name: Build web bundle
         run: bun run build
@@ -259,12 +259,20 @@ jobs:
             grep -Fq '"numericKeyboard":"native-webview-numeric"' "$ASSETS/public/apk-build.json" || fail "numericKeyboard stamp missing"
             grep -Fq '"nativePush":"onesignal"' "$ASSETS/public/apk-build.json" || fail "native push stamp missing"
             grep -Fq '"offlineBootstrap":"packaged-v1"' "$ASSETS/public/apk-build.json" || fail "offline bootstrap stamp missing"
+            grep -Fq '"nativeSession":"shared-prefs-v2"' "$ASSETS/public/apk-build.json" || fail "native storefront session stamp missing"
+            grep -Fq '"startupHandoff":"tenant-web-splash-v2"' "$ASSETS/public/apk-build.json" || fail "startup handoff stamp missing"
           fi
 
           grep -Fq 'name="iftin-native-bootstrap" content="v1"' "$ASSETS/public/index.html" \
             || fail "native startup bootstrap missing from packaged index.html"
           test -s "$ASSETS/public/packaged-app.html" \
             || fail "packaged offline app fallback missing"
+          grep -Fq 'IftinNativeSession' "$ASSETS/public/packaged-app.html" \
+            || fail "packaged fallback does not restore native verified session"
+          grep -Fq '/providers' "$ASSETS/public/packaged-app.html" \
+            || fail "packaged fallback does not route verified users to providers"
+          grep -Fq 'id="tenant-web-splash"' "$ASSETS/public/index.html" \
+            || fail "native bootstrap is missing the web splash handoff marker"
           grep -Fq "tenant-bootstrap.js" "$ASSETS/public/packaged-app.html" \
             || fail "offline bootstrap is not loaded by packaged fallback"
           if grep -Eq '/assets/index-[A-Za-z0-9_-]+\\.js' "$ASSETS/public/index.html"; then
@@ -279,6 +287,12 @@ jobs:
             || fail "Android keyboard must resize the native WebView"
           grep -Fq 'SOFT_INPUT_ADJUST_RESIZE' android/app/src/main/java/com/iftin/agents/MainActivity.java \
             || fail "Android activity does not enforce keyboard resize"
+          grep -Fq 'IftinNativeSession' android/app/src/main/java/com/iftin/agents/MainActivity.java \
+            || fail "Android storefront session bridge missing"
+          grep -Fq 'startStorefrontSessionSync' android/app/src/main/java/com/iftin/agents/MainActivity.java \
+            || fail "Android storefront session sync missing"
+          grep -Fq 'SYSTEM_SPLASH_SAFETY_MS' android/app/src/main/java/com/iftin/agents/MainActivity.java \
+            || fail "native-to-web splash handoff guard missing"
           grep -Eq '"launchShowDuration"[[:space:]]*:[[:space:]]*1500' capacitor.config.json \
             || fail "tenant native splash is not 1500ms"
           grep -Eq '"launchFadeOutDuration"[[:space:]]*:[[:space:]]*0' capacitor.config.json \
