@@ -128,7 +128,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // NETWORK-FIRST for HTML — always get the latest, fallback to cache
+  // NETWORK-FIRST for HTML — always get the latest, but never surface a
+  // network/CDN 404 while the device is offline or recovering connectivity.
+  // Fall back to the exact cached route first, then the cached app shell.
   if (request.headers.get('accept')?.includes('text/html')) {
     event.respondWith(
       fetch(request, { cache: 'no-store' })
@@ -136,8 +138,16 @@ self.addEventListener('fetch', (event) => {
           if (networkResponse && networkResponse.ok) {
             const cache = await caches.open(getCacheName(DYNAMIC_CACHE_PREFIX));
             await cache.put(request, networkResponse.clone());
+            return networkResponse;
           }
-          return networkResponse;
+
+          const exact = await caches.match(request);
+          if (exact) return exact;
+          const shell = await caches.match('/');
+          if (shell) return shell;
+          const offline = await caches.match('/offline.html');
+          if (offline) return offline;
+          return networkResponse || new Response('Offline', { status: 503 });
         })
         .catch(() => {
           return caches.match(request)
