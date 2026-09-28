@@ -1,4 +1,4 @@
-import { nativeSessionAvailable, readNativeSession, removeNativeSession, writeNativeSession } from '@/lib/nativeStorefrontSession';
+import { readNativeSession, removeNativeSession, writeNativeSession } from '@/lib/nativeStorefrontSession';
 
 const VERIFIED_PHONE_KEY = 'verifiedPhone';
 const VERIFIED_PHONE_SESSION_KEY = 'iftin:verifiedPhone';
@@ -30,25 +30,17 @@ export function saveVerifiedPhone(phone: string): string | null {
 export function readVerifiedPhone(): string | null {
   if (typeof window === 'undefined') return null;
 
-  if (nativeSessionAvailable()) {
-    if (readNativeSession('loggedOut') === '1') return null;
+  // Always ask the Android bridge first. WebView Java interfaces are not
+  // guaranteed to behave like normal enumerable JS objects, so capability
+  // detection can incorrectly report "unavailable" even when get() works.
+  const nativeLoggedOut = readNativeSession('loggedOut');
+  if (nativeLoggedOut === '1') return null;
 
-    const nativePhone = normalizeVerifiedPhone(readNativeSession(VERIFIED_PHONE_KEY));
-    if (nativePhone) return nativePhone;
-
-    // One-time migration for users who verified on the live web origin before
-    // this native bridge existed.
-    let local: string | null = null;
-    let session: string | null = null;
-    try { local = localStorage.getItem(VERIFIED_PHONE_KEY); } catch {}
-    try { session = sessionStorage.getItem(VERIFIED_PHONE_SESSION_KEY); } catch {}
-    const migrated = normalizeVerifiedPhone(local) || normalizeVerifiedPhone(session);
-    if (migrated) {
-      writeNativeSession(VERIFIED_PHONE_KEY, migrated);
-      writeNativeSession('loggedOut', '0');
-      return migrated;
-    }
-    return null;
+  const nativePhone = normalizeVerifiedPhone(readNativeSession(VERIFIED_PHONE_KEY));
+  if (nativePhone) {
+    try { localStorage.setItem(VERIFIED_PHONE_KEY, nativePhone); } catch {}
+    try { sessionStorage.setItem(VERIFIED_PHONE_SESSION_KEY, nativePhone); } catch {}
+    return nativePhone;
   }
 
   try {
@@ -62,16 +54,15 @@ export function readVerifiedPhone(): string | null {
 
   const normalized = normalizeVerifiedPhone(local) || normalizeVerifiedPhone(session);
   if (normalized) {
-    try {
-      if (local !== normalized) localStorage.setItem(VERIFIED_PHONE_KEY, normalized);
-    } catch {}
-    try {
-      if (session !== normalized) sessionStorage.setItem(VERIFIED_PHONE_SESSION_KEY, normalized);
-    } catch {}
+    try { localStorage.setItem(VERIFIED_PHONE_KEY, normalized); } catch {}
+    try { sessionStorage.setItem(VERIFIED_PHONE_SESSION_KEY, normalized); } catch {}
+    // Migrates verified users from the live iftinagents.com origin into Android
+    // native storage, which packaged localhost can read on the next offline boot.
+    writeNativeSession(VERIFIED_PHONE_KEY, normalized);
+    writeNativeSession('loggedOut', '0');
   }
   return normalized;
 }
-
 
 export function clearVerifiedPhone(): void {
   if (typeof window === 'undefined') return;
