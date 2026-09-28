@@ -171,16 +171,26 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
     };
   }, [hasTenantIdentity, nativeHandoff]);
 
-  // Fresh web tenant links may have no cache yet. Do not paint any generic
-  // platform/default loading surface while the tenant RPC resolves. Once the
-  // real tenant arrives, the branded TenantGate below becomes the first app UI.
+  // A first visit has no cached tenant identity. Keep the tenant gate visible
+  // while the slug lookup resolves instead of exposing the empty root outlet.
+  // The slug is the only identity we can safely display before the RPC returns.
   if (
     routeTenantSlug &&
     !nativeHandoff &&
     state.status === "loading" &&
     !hasTenantIdentity
   ) {
-    return null;
+    return (
+      <div
+        id="tenant-web-splash"
+        className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-slate-900 text-white"
+        role="status"
+        aria-label="Tenant-ka waa la furayaa"
+      >
+        <span className="text-xl font-bold capitalize">{routeTenantSlug.replace(/[-_]+/g, " ")}</span>
+        <div className="mt-8 h-9 w-9 animate-spin rounded-full border-[3px] border-white/30 border-t-white" />
+      </div>
+    );
   }
 
   // TenantGate stays visible while identity is resolving. Once resolved it
