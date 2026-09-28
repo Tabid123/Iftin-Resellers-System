@@ -172,14 +172,10 @@ export const TenantGate: React.FC<Props> = ({ children }) => {
     };
   }, [hasTenantIdentity, nativeHandoff]);
 
-  // Hold the same web splash while a fresh tenant identity resolves.
-  if (
-    routeTenantSlug &&
-    !nativeHandoff &&
-    state.status === "loading" &&
-    !hasTenantIdentity
-  ) {
-    return <TenantSplash name={routeTenantSlug} pendingIdentity />;
+  // Wait for the real tenant identity. Android keeps its native artwork
+  // visible until this branded web splash exists, so no placeholder precedes it.
+  if (routeTenantSlug && state.status === "loading" && !hasTenantIdentity) {
+    return null;
   }
 
   if (hasTenantIdentity && (state.status === "loading" || showStartupSplash)) {
