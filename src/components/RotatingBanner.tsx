@@ -165,7 +165,7 @@ const RotatingBanner = () => {
               key={item.banner_image}
               src={item.banner_image}
               alt={item.alt_text || 'Promotional banner'}
-              className={`relative h-full w-full object-cover transition-none ${bannerReady ? 'opacity-100' : 'opacity-0'}`}
+              className="relative h-full w-full object-cover"
               width={1200}
               height={400}
               sizes="(max-width: 768px) 100vw, 1200px"
