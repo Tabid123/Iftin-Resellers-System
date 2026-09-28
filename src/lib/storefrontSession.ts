@@ -1,5 +1,4 @@
 import {
-  nativeSessionAvailable,
   readNativeSession,
   removeNativeSession,
   writeNativeSession,
@@ -27,18 +26,15 @@ function removeLocal(key: string) {
 }
 
 export function readStorefrontSessionValue(key: string): string | null {
-  if (nativeSessionAvailable()) {
-    const nativeValue = readNativeSession(key);
-    if (nativeValue) return nativeValue;
+  const nativeValue = readNativeSession(key);
+  if (nativeValue) return nativeValue;
 
-    const localValue = readLocal(key);
-    if (localValue) {
-      writeNativeSession(key, localValue);
-      return localValue;
-    }
-    return null;
+  const localValue = readLocal(key);
+  if (localValue) {
+    writeNativeSession(key, localValue);
+    return localValue;
   }
-  return readLocal(key);
+  return null;
 }
 
 export function writeStorefrontSessionValue(key: string, value: string): void {
