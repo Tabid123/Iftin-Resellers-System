@@ -32,7 +32,7 @@ public class MainActivity extends BridgeActivity {
 
         SplashScreen splashScreen = SplashScreen.installSplashScreen(this);
         splashScreen.setKeepOnScreenCondition(
-            () -> SystemClock.uptimeMillis() - launchStartedAt < SYSTEM_SPLASH_MS || !webSurfaceReady
+            () -> SystemClock.uptimeMillis() - launchStartedAt < SYSTEM_SPLASH_MS
         );
 
         super.onCreate(savedInstanceState);
