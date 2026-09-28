@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from '@/lib/router-compat';
 import { readVerifiedPhone } from '@/lib/verifiedPhone';
-import { hasOfflineRegistrationSession } from '@/lib/storefrontSession';
 import { useTenant } from '@/contexts/TenantContext';
 import { TenantSplash } from '@/components/TenantSplash';
 import HeroSection from '@/components/HeroSection';
@@ -21,7 +20,7 @@ const Index = () => {
       sessionStorage.setItem('appInitialized', 'true');
       const verifiedPhone = readVerifiedPhone();
       if (verifiedPhone) {
-        navigate(hasOfflineRegistrationSession() ? '/providers' : '/offline-mode', { replace: true });
+        navigate('/providers', { replace: true });
       } else if (verifiedPhone) {
         localStorage.removeItem('verifiedPhone');
         setShowLogin(true);
