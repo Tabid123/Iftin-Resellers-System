@@ -38,3 +38,10 @@ export function readVerifiedPhone(): string | null {
   }
   return normalized;
 }
+
+
+export function clearVerifiedPhone(): void {
+  if (typeof window === 'undefined') return;
+  try { localStorage.removeItem(VERIFIED_PHONE_KEY); } catch {}
+  try { sessionStorage.removeItem(VERIFIED_PHONE_SESSION_KEY); } catch {}
+}
