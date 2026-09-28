@@ -1,7 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { PageSuspense, lazyPage } from "@/lib/lazyPages";
 import { readVerifiedPhone } from "@/lib/verifiedPhone";
-import { hasOfflineRegistrationSession } from "@/lib/storefrontSession";
 const Index = lazyPage("Index");
 
 
@@ -11,7 +10,7 @@ export const Route = createFileRoute("/t/$slug/")({
     const phone = readVerifiedPhone();
     if (!phone) return;
     throw redirect({
-      to: hasOfflineRegistrationSession() ? "/t/$slug/providers" : "/t/$slug/offline-mode",
+      to: "/t/$slug/providers",
       params: { slug: params.slug },
       replace: true,
     });
