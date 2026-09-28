@@ -6,7 +6,7 @@ import Footer from '@/components/Footer';
 
 const isValidSomaliPhone = (phone: string | null): boolean => {
   if (!phone) return false;
-  return /^(61|77|62|68)\d{7}$/.test(phone);
+  return /^(61|77|62|68|71|64)\\d{7}$/.test(phone);
 };
 
 const Index = () => {
