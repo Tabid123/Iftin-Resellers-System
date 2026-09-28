@@ -16,6 +16,7 @@ import {
   type IftinCatalog,
 } from '@/lib/iftinCatalog';
 import { activeWorkspaceId, workspaceQueryKey, workspaceStorage } from '@/lib/workspaceKeys';
+import { precacheStorefrontImages } from '@/lib/storefrontImageCache';
 
 /**
  * Resource names, not storage keys. The real saved name always goes through
@@ -123,6 +124,14 @@ export const useOfflineCache = () => {
       workspaceStorage.setJson(CACHE_RESOURCES.paymentProviders, paymentProviders, id);
       workspaceStorage.setJson(CACHE_RESOURCES.popularPackages, popularPackages, id);
       workspaceStorage.set(CACHE_RESOURCES.timestamp, Date.now().toString(), id);
+
+      precacheStorefrontImages(
+        providers,
+        categories,
+        packages,
+        paymentProviders,
+        popularPackages,
+      );
 
       return true;
     },
@@ -320,6 +329,20 @@ export const useOfflineCache = () => {
         }
 
         workspaceStorage.set(CACHE_RESOURCES.timestamp, Date.now().toString(), id);
+
+        const bannersForImages =
+          bannersResult.status === 'fulfilled' && Array.isArray(bannersResult.value)
+            ? bannersResult.value
+            : workspaceStorage.getJson<any[]>(CACHE_RESOURCES.banners, [], id);
+
+        precacheStorefrontImages(
+          providers,
+          uniqueCategories,
+          mergedPackages,
+          paymentProvidersResult.status === 'fulfilled' ? paymentProvidersResult.value : [],
+          featuredPackagesResult.status === 'fulfilled' ? featuredPackagesResult.value : [],
+          bannersForImages,
+        );
       } catch {
         // Keep the last known workspace cache visible.
       }
