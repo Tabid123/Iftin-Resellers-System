@@ -1,4 +1,7 @@
 import * as React from 'react';
+import { useTenant } from '@/contexts/TenantContext';
+import { TenantSplash } from '@/components/TenantSplash';
+import iftinLogo from '@/assets/iftin-agents-logo.png';
 import Index from '@/components/pages/Index';
 import ProviderSelection from '@/components/pages/ProviderSelection';
 import CategorySelection from '@/components/pages/CategorySelection';
@@ -55,17 +58,17 @@ export function warmPages() {
 }
 
 function PageLoading() {
+  const state = useTenant();
+  const tenant = state.status === 'ready' || state.status === 'suspended' ? state.tenant : null;
+
+  // Keep TenantGate's branded web splash on screen until the lazy page is ready.
+  // No separate white loading page is inserted between splash and page.
   return (
-    <div
-      className="flex min-h-screen items-center justify-center bg-background text-primary"
-      role="status"
-      aria-label="Bogga waa la furayaa"
-    >
-      <div className="flex flex-col items-center gap-3">
-        <div className="h-9 w-9 animate-spin rounded-full border-[3px] border-current border-r-transparent" />
-        <span className="text-sm font-medium">Bogga waa la furayaa…</span>
-      </div>
-    </div>
+    <TenantSplash
+      logo={tenant?.logo_url || (state.status === 'platform' ? iftinLogo : null)}
+      name={tenant?.name || (state.status === 'platform' ? 'Iftin Agents' : null)}
+      color={tenant?.primary_color}
+    />
   );
 }
 
