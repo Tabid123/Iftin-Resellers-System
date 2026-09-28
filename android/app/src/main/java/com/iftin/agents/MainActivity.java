@@ -1,11 +1,13 @@
 package com.iftin.agents;
 
 import android.os.Bundle;
+import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.view.WindowManager;
 import android.webkit.WebView;
+import android.webkit.JavascriptInterface;
 
 import androidx.core.splashscreen.SplashScreen;
 
@@ -40,6 +42,10 @@ public class MainActivity extends BridgeActivity {
 
         if (bridge != null && bridge.getWebView() != null) {
             bridge.getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false);
+            bridge.getWebView().addJavascriptInterface(
+                new NativeStorefrontSession(),
+                "IftinNativeSession"
+            );
         }
 
         signalTenantGateAfterNativeSplash();
@@ -78,6 +84,38 @@ public class MainActivity extends BridgeActivity {
                 );
             }
         }, delay);
+    }
+
+    private boolean isAllowedSessionKey(String key) {
+        return "verifiedPhone".equals(key)
+            || "offlineSenderPhone".equals(key)
+            || "offlineReceiverPhone".equals(key)
+            || "hasSkippedOfflineRegistration".equals(key)
+            || "loggedOut".equals(key);
+    }
+
+    private class NativeStorefrontSession {
+        private SharedPreferences prefs() {
+            return getSharedPreferences("iftin_storefront_session", MODE_PRIVATE);
+        }
+
+        @JavascriptInterface
+        public String get(String key) {
+            if (!isAllowedSessionKey(key)) return "";
+            return prefs().getString(key, "");
+        }
+
+        @JavascriptInterface
+        public void set(String key, String value) {
+            if (!isAllowedSessionKey(key)) return;
+            prefs().edit().putString(key, value == null ? "" : value).apply();
+        }
+
+        @JavascriptInterface
+        public void remove(String key) {
+            if (!isAllowedSessionKey(key)) return;
+            prefs().edit().remove(key).apply();
+        }
     }
 
     @Override
