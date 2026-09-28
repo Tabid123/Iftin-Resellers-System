@@ -1,16 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from "@/lib/router-compat";
+import { readVerifiedPhone } from "@/lib/verifiedPhone";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
 // Validate the same Somali phone prefixes accepted by storefront login
-const isValidSomaliPhone = (phone: string | null): boolean => {
-  if (!phone) return false;
-  return /^(61|77|62|68|71|64)\d{7}$/.test(phone);
-};
-
 const readLocal = (key: string): string | null => {
   if (typeof window === 'undefined') return null;
   try {
@@ -32,20 +28,14 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   const location = useLocation();
   const [checked, setChecked] = useState(false);
 
-  const verifiedPhone = readLocal('verifiedPhone');
-  const hasAccess = isValidSomaliPhone(verifiedPhone);
+  const verifiedPhone = readVerifiedPhone();
+  const hasAccess = Boolean(verifiedPhone);
   const hasSkipped = readLocal('hasSkippedOfflineRegistration') === 'true';
   const hasOffline = hasOfflineRegistration() || hasSkipped;
 
   useEffect(() => {
     setChecked(true);
     if (!hasAccess) {
-      try {
-        localStorage.removeItem('verifiedPhone');
-        localStorage.removeItem('isGuestUser');
-      } catch {
-        /* ignore */
-      }
       navigate('/', { replace: true });
     } else if (!hasOffline && !location.pathname.endsWith('/offline-mode')) {
       const tenantMatch = location.pathname.match(/^\/t\/([^/]+)(?=\/|$)/);
