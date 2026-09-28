@@ -176,9 +176,17 @@ const fields = [
 let bundledImageCount = 0;
 for (const [object, field] of fields) {
   const url = String(object?.[field] || '').trim();
-  if (!/^https?:\/\//i.test(url)) continue;
+  if (!url) continue;
+
+  // Storefront records may contain either absolute artwork URLs or same-origin
+  // paths such as /storage/banners/.... Resolve relative paths against the live
+  // tenant host before downloading them into the APK's offline asset bundle.
+  const fetchUrl = /^https?:\/\//i.test(url)
+    ? url
+    : new URL(url.startsWith('/') ? url : '/' + url, 'https://iftinagents.com').toString();
+
   try {
-    const response = await fetch(url);
+    const response = await fetch(fetchUrl);
     if (!response.ok) continue;
     const bytes = new Uint8Array(await response.arrayBuffer());
     if (!bytes.length || bytes.length > 4 * 1024 * 1024) continue;
@@ -189,12 +197,12 @@ for (const [object, field] of fields) {
       : contentType.includes('gif') ? '.gif'
       : contentType.includes('jpeg') || contentType.includes('jpg') ? '.jpg'
       : path.extname(new URL(url).pathname).slice(0, 8) || '.img';
-    const name = `${crypto.createHash('sha256').update(url).digest('hex').slice(0, 20)}${ext}`;
+    const name = `${crypto.createHash('sha256').update(fetchUrl).digest('hex').slice(0, 20)}${ext}`;
     await fs.writeFile(path.join(assetsDir, name), bytes);
     object[field] = `/offline-assets/tenant-bootstrap/${name}`;
     bundledImageCount += 1;
   } catch (error) {
-    console.warn(`Could not bundle offline image ${url}:`, error?.message || error);
+    console.warn(`Could not bundle offline image ${fetchUrl}:`, error?.message || error);
   }
 }
 
