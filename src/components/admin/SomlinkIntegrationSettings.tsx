@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { supabase } from '@/integrations/supabase/client';
+import { invokeEdgeFunction } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { toast } from '@/hooks/use-toast';
 
@@ -51,8 +51,9 @@ export default function SomlinkIntegrationSettings() {
     if (!tenantId) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('somlink-integration', {
-        body: { action: 'status', tenant_id: tenantId },
+      const { data, error } = await invokeEdgeFunction<any>('somlink-integration', {
+        action: 'status',
+        tenant_id: tenantId,
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -78,14 +79,12 @@ export default function SomlinkIntegrationSettings() {
     if (!walletPhone.trim()) throw new Error('Gali Somlink wallet phone');
     if (!status.configured && !password) throw new Error('Gali Somlink password');
 
-    const { data, error } = await supabase.functions.invoke('somlink-integration', {
-      body: {
-        action: 'save',
-        tenant_id: tenantId,
-        wallet_phone: walletPhone.trim(),
-        password: password || undefined,
-        is_active: requestedActive,
-      },
+    const { data, error } = await invokeEdgeFunction<any>('somlink-integration', {
+      action: 'save',
+      tenant_id: tenantId,
+      wallet_phone: walletPhone.trim(),
+      password: password || undefined,
+      is_active: requestedActive,
     });
     if (error) throw error;
     if (data?.error) throw new Error(data.error);
@@ -120,8 +119,10 @@ export default function SomlinkIntegrationSettings() {
       // Save any edited wallet/password first. Credential changes automatically
       // disable the integration until this test succeeds.
       await saveCredentials(false, true);
-      const { data, error } = await supabase.functions.invoke('somlink-integration', {
-        body: { action: 'test', tenant_id: tenantId, activate: true },
+      const { data, error } = await invokeEdgeFunction<any>('somlink-integration', {
+        action: 'test',
+        tenant_id: tenantId,
+        activate: true,
       });
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || 'Somlink connection failed');
