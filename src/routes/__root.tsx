@@ -175,6 +175,18 @@ window.location.replace(live);
 }catch(e){}})();`
   : "";
 
+const earlyNativeHandoffBackgroundScript = `(function(){try{
+var p=new URLSearchParams(window.location.search||"");
+if(p.get("nativeSplash")!=="1"||p.get("tenantGateShown")!=="1")return;
+var c=p.get("brandColor")||"";
+if(!c)return;
+document.documentElement.style.background=c;
+var s=document.createElement("style");
+s.id="iftin-native-handoff-bg";
+s.textContent="html,body{background:"+c+"!important;}";
+document.head.appendChild(s);
+}catch(e){}})();`;
+
 const earlyTenantBrandScript = `(function(){try{
 var s=localStorage.getItem('najax.tenant_slug');if(!s)return;
 var t=JSON.parse(localStorage.getItem('najax.tenant_cache.'+s)||'null');if(!t)return;
@@ -195,6 +207,7 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        <script dangerouslySetInnerHTML={{ __html: earlyNativeHandoffBackgroundScript }} />
         {earlyNativeLiveHandoffScript ? (
           <script dangerouslySetInnerHTML={{ __html: earlyNativeLiveHandoffScript }} />
         ) : null}
