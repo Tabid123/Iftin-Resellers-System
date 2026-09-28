@@ -18,6 +18,7 @@ import { useSupportPhone } from '@/hooks/useSupportPhone';
 import { useTenant } from '@/contexts/TenantContext';
 import { BottomNavigation } from '@/components/BottomNavigation';
 import { clearVerifiedPhone } from '@/lib/verifiedPhone';
+import { clearOfflineRegistrationSession } from '@/lib/storefrontSession';
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -48,6 +49,7 @@ const Profile = () => {
     localStorage.removeItem('hasSkippedOfflineRegistration');
     localStorage.removeItem('offlineSenderPhone');
     localStorage.removeItem('offlineReceiverPhone');
+    clearOfflineRegistrationSession();
     toast.success('Waa laga baxay guul ahaan');
     navigate('/', { replace: true });
   };
@@ -72,6 +74,7 @@ const Profile = () => {
       /* storage unavailable */
     }
     clearVerifiedPhone();
+    clearOfflineRegistrationSession();
     toast.success('Account-ka waa la tirtiray');
     navigate('/', { replace: true });
   };
