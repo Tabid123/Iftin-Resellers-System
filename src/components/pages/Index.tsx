@@ -1,13 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from '@/lib/router-compat';
+import { readVerifiedPhone } from '@/lib/verifiedPhone';
 import HeroSection from '@/components/HeroSection';
 import PhoneInput from '@/components/PhoneInput';
 import Footer from '@/components/Footer';
-
-const isValidSomaliPhone = (phone: string | null): boolean => {
-  if (!phone) return false;
-  return /^(61|77|62|68|71|64)\d{7}$/.test(phone);
-};
 
 const Index = () => {
   const navigate = useNavigate();
@@ -18,8 +14,8 @@ const Index = () => {
   useEffect(() => {
     try {
       sessionStorage.setItem('appInitialized', 'true');
-      const verifiedPhone = localStorage.getItem('verifiedPhone');
-      if (isValidSomaliPhone(verifiedPhone)) {
+      const verifiedPhone = readVerifiedPhone();
+      if (verifiedPhone) {
         const sender = localStorage.getItem('offlineSenderPhone');
         const receiver = localStorage.getItem('offlineReceiverPhone');
         const registered = Boolean(sender && receiver && sender.length === 9 && receiver.length >= 7);
