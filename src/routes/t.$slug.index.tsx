@@ -2,7 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { PageSuspense, lazyPage } from "@/lib/lazyPages";
 const Index = lazyPage("Index");
 
-const isVerifiedPhone = (phone: string | null) => !!phone && /^(61|77|62|68|71|64)\\d{7}$/.test(phone);
+const isVerifiedPhone = (phone: string | null) => !!phone && /^(61|77|62|68|71|64)\d{7}$/.test(phone);
 
 const hasOfflineRegistration = () => {
   if (typeof window === "undefined") return false;
