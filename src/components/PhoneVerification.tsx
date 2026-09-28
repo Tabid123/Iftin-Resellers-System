@@ -16,6 +16,7 @@ import somnetLogo from '@/assets/providers/somnet-logo.png';
 import amtelLogo from '@/assets/providers/amtel-logo.png';
 import somlinkLogo from '@/assets/providers/somlink-logo.png';
 import { playAudioPrompt, primeAudioPrompts } from '@/lib/audioPrompts';
+import { saveVerifiedPhone } from '@/lib/verifiedPhone';
 
 interface PhoneVerificationProps {
   isOpen: boolean;
@@ -147,7 +148,7 @@ const PhoneVerification = ({ isOpen, onClose, onSuccess, paymentProvider, packag
         console.error('Error saving verified phone:', error);
       }
 
-      localStorage.setItem('verifiedPhone', phoneNumber);
+      saveVerifiedPhone(phoneNumber);
       localStorage.setItem('userPhoneNumber', phoneNumber);
       setUserPhone(phoneNumber);
 
