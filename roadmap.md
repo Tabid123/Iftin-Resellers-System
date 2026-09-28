@@ -16,6 +16,7 @@
 # Current work
 
 - [x] Restore returning tenant website visitors from their saved verified phone after the page hydrates; keep offline registration step when incomplete.
+- [x] Keep the login form hidden until saved-phone restoration finishes, so returning visitors never see it flash.
 - [x] Consolidate tenant APK startup into one native handoff; suppress its duplicate web splash and wait for a rendered app surface.
 - [ ] Confirm the handoff on a newly built Android APK; blocked until an APK is rebuilt and tested on a phone.
 - [ ] Verify installed Delivery APK version with device-side evidence; blocked until a phone is connected, so add server-visible version telemetry.
