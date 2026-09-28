@@ -54,6 +54,21 @@ export function warmPages() {
   // Customer navigation pages are already present. Nothing to warm here.
 }
 
+function PageLoading() {
+  return (
+    <div
+      className="flex min-h-screen items-center justify-center bg-background text-primary"
+      role="status"
+      aria-label="Bogga waa la furayaa"
+    >
+      <div className="flex flex-col items-center gap-3">
+        <div className="h-9 w-9 animate-spin rounded-full border-[3px] border-current border-r-transparent" />
+        <span className="text-sm font-medium">Bogga waa la furayaa…</span>
+      </div>
+    </div>
+  );
+}
+
 export function PageSuspense({ children }: { children: React.ReactNode }) {
-  return <React.Suspense fallback={null}>{children}</React.Suspense>;
+  return <React.Suspense fallback={<PageLoading />}>{children}</React.Suspense>;
 }
