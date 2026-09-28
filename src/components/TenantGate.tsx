@@ -47,6 +47,15 @@ function splashAlreadyCompleted(): boolean {
   if (typeof window === "undefined") return false;
   const splashWindow = window as SplashWindow;
   if (splashWindow.__IFTIN_TENANT_SPLASH_COMPLETE__) return true;
+
+  // The packaged native bootstrap is itself the single branded web-splash
+  // stage. When it hands off to the live tenant document, do not replay the
+  // same TenantGate splash a second time.
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("tenantGateShown") === "1") return true;
+  } catch {}
+
   const key = nativeLaunchSplashKey();
   if (!key) return false;
   try {
