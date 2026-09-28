@@ -8,6 +8,7 @@ import { useNavigate } from "@/lib/router-compat";
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, ShieldCheck } from 'lucide-react';
 import { playAudioPrompt, primeAudioPrompts } from '@/lib/audioPrompts';
+import { saveVerifiedPhone } from '@/lib/verifiedPhone';
 
 const PhoneInput = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -163,7 +164,7 @@ const PhoneInput = () => {
         console.error('Error saving verified phone:', error);
       }
       
-      localStorage.setItem('verifiedPhone', phoneNumber);
+      saveVerifiedPhone(phoneNumber);
       localStorage.setItem('userPhone', phoneNumber);
       localStorage.removeItem('verificationCode');
       localStorage.removeItem('codeTimestamp');
