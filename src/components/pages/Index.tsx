@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from '@/lib/router-compat';
 import HeroSection from '@/components/HeroSection';
 import PhoneInput from '@/components/PhoneInput';
@@ -11,6 +11,7 @@ const isValidSomaliPhone = (phone: string | null): boolean => {
 
 const Index = () => {
   const navigate = useNavigate();
+  const [showLogin, setShowLogin] = useState(false);
   // Route beforeLoad owns all returning-user redirects. Keeping a second
   // check after hydration is also needed: server-side beforeLoad cannot read
   // localStorage, and the initial client navigation may reuse that SSR result.
@@ -26,11 +27,19 @@ const Index = () => {
         navigate(registered || skipped ? '/providers' : '/offline-mode', { replace: true });
       } else if (verifiedPhone) {
         localStorage.removeItem('verifiedPhone');
+        setShowLogin(true);
+      } else {
+        setShowLogin(true);
       }
     } catch {
       // Storage may be unavailable in restricted browser contexts.
+      setShowLogin(true);
     }
   }, [navigate]);
+
+  // SSR cannot read the visitor's saved number. Never render the login form
+  // until the browser has checked it, or returning visitors see it flash.
+  if (!showLogin) return null;
 
   return (
     <div className="iftin-auth-page min-h-screen bg-background flex flex-col items-center justify-center px-5 py-6 gap-4">
