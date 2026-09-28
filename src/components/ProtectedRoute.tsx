@@ -8,7 +8,7 @@ interface ProtectedRouteProps {
 // Validate the same Somali phone prefixes accepted by storefront login
 const isValidSomaliPhone = (phone: string | null): boolean => {
   if (!phone) return false;
-  return /^(61|77|62|68|71|64)\\d{7}$/.test(phone);
+  return /^(61|77|62|68|71|64)\d{7}$/.test(phone);
 };
 
 const readLocal = (key: string): string | null => {
