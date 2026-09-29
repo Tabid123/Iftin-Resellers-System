@@ -19,3 +19,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh api --method POST             -H "Accept: application/vnd.github+json"             /repos/${{ github.repository }}/actions/workflows/build-tenant-android.yml/dispatches             -f ref=main             -f 'inputs[tenant_slug]=zara'             -f 'inputs[app_name]=Zara Data'             -f 'inputs[app_id]=com.iftin.zara'             -f 'inputs[logo_url]=https://cdn.phototourl.com/member/2026-09-28-402d3b41-8075-4861-8330-6593ff25e6a6.png'             -f 'inputs[splash_color]=#fcc536'             -f 'inputs[version_name]=1.0.0'             -f 'inputs[version_code]=1'
+
+# cors-free-updater-build-1790676921771
