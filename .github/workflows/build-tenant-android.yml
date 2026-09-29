@@ -293,8 +293,11 @@ jobs:
             || fail "Android storefront session bridge missing"
           grep -Fq 'startStorefrontSessionSync' android/app/src/main/java/com/iftin/agents/MainActivity.java \
             || fail "Android storefront session sync missing"
-          grep -Fq 'SYSTEM_SPLASH_SAFETY_MS' android/app/src/main/java/com/iftin/agents/MainActivity.java \
-            || fail "native-to-web splash handoff guard missing"
+          grep -Fq 'private static final long SYSTEM_SPLASH_MS = 1500L;' android/app/src/main/java/com/iftin/agents/MainActivity.java \
+            || fail "native splash duration guard is not exactly 1500ms"
+          if grep -Fq 'SYSTEM_SPLASH_SAFETY_MS' android/app/src/main/java/com/iftin/agents/MainActivity.java; then
+            fail "native splash must not extend beyond the exact 1500ms handoff"
+          fi
           grep -Fq 'id="tenant-app-ready"' src/routes/__root.tsx \
             || fail "tenant app ready marker missing"
           grep -Fq 'iftin-native-prehydrate-splash' src/routes/__root.tsx \
