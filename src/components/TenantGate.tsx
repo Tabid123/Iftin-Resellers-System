@@ -22,6 +22,7 @@ interface Props {
  */
 const WEB_SPLASH_MS = 1500;
 const NATIVE_SPLASH_DONE_PREFIX = "iftin:native-tenant-splash-done:";
+const NATIVE_SPLASH_SEEN_PREFIX = "iftin:native-tenant-splash-seen:";
 
 type SplashWindow = typeof window & {
   __IFTIN_NATIVE_SPLASH_COMPLETE__?: boolean;
@@ -43,10 +44,31 @@ function nativeLaunchSplashKey(): string | null {
   }
 }
 
+function currentTenantSlug(): string {
+  if (typeof window === "undefined") return "tenant";
+  return (
+    window.location.pathname.match(/^\/t\/([^/]+)(?=\/|$)/)?.[1] ||
+    "tenant"
+  );
+}
+
+function persistentNativeSplashKey(): string {
+  return `${NATIVE_SPLASH_SEEN_PREFIX}${currentTenantSlug()}`;
+}
+
 function splashAlreadyCompleted(): boolean {
   if (typeof window === "undefined") return false;
   const splashWindow = window as SplashWindow;
   if (splashWindow.__IFTIN_TENANT_SPLASH_COMPLETE__) return true;
+
+  // Native tenant APKs only need the deliberate 1.5s web splash on the first
+  // launch. On later launches the packaged tenant snapshot renders
+  // immediately and network refreshes happen in the background.
+  if (isNativeApp()) {
+    try {
+      if (localStorage.getItem(persistentNativeSplashKey()) === "1") return true;
+    } catch {}
+  }
 
   // The packaged native bootstrap is itself the single branded web-splash
   // stage. When it hands off to the live tenant document, do not replay the
@@ -69,6 +91,13 @@ function markSplashCompleted() {
   if (typeof window === "undefined") return;
   const splashWindow = window as SplashWindow;
   splashWindow.__IFTIN_TENANT_SPLASH_COMPLETE__ = true;
+
+  if (isNativeApp()) {
+    try {
+      localStorage.setItem(persistentNativeSplashKey(), "1");
+    } catch {}
+  }
+
   const key = nativeLaunchSplashKey();
   if (!key) return;
   try {
