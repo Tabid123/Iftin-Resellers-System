@@ -152,12 +152,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 // Apply the last-known tenant colours before first paint so no default
-// (Najax) colours flash while the tenant record loads.
-const bakedTenantSlug = ((import.meta.env.VITE_TENANT_SLUG as string | undefined) || "").trim().toLowerCase();
-const bakedTenantName = ((import.meta.env.VITE_TENANT_NAME as string | undefined) || "").trim();
-const bakedTenantLogo = ((import.meta.env.VITE_TENANT_LOGO_URL as string | undefined) || "").trim();
-const bakedTenantSplashColor = ((import.meta.env.VITE_SPLASH_COLOR as string | undefined) || "").trim();
-
+// tenant colours flash while the packaged app hydrates.
 const earlyTenantBrandScript = `(function(){try{
 var s=localStorage.getItem('najax.tenant_slug');if(!s)return;
 var t=JSON.parse(localStorage.getItem('najax.tenant_cache.'+s)||'null');if(!t)return;
