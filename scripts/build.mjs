@@ -3,8 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const isCapacitorBuild = process.env.CAPACITOR_BUILD === 'true';
+const isLiveUpdateBuild = process.env.LIVE_UPDATE_BUILD === 'true';
 
-if (isCapacitorBuild) {
+if (isCapacitorBuild && !isLiveUpdateBuild) {
   await import('./generate-tenant-offline-bootstrap.mjs');
 
   // Add a machine-readable marker to the APK stamp without disturbing the
