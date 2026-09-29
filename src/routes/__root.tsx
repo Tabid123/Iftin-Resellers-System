@@ -38,7 +38,6 @@ import { useKeyboardInsets } from "@/hooks/useKeyboardInsets";
 import { useAndroidBackButton } from "@/hooks/useAndroidBackButton";
 import { useAutoOnlineRedirect } from "@/hooks/useAutoOnlineRedirect";
 import { useStorefrontRealtime } from "@/hooks/useStorefrontRealtime";
-import { useBuildUpdate } from "@/hooks/useBuildUpdate";
 import { onStorefront } from "@/lib/storefrontEvents";
 import { useQueryClient } from "@tanstack/react-query";
 import appCss from "../styles.css?url";
@@ -192,7 +191,6 @@ function AppContent() {
   useKeyboardInsets();
   useAutoOnlineRedirect();
   useStorefrontRealtime();
-  useBuildUpdate();
   const appQueryClient = useQueryClient();
 
   useEffect(() => {
