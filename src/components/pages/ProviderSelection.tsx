@@ -259,17 +259,6 @@ const ProviderSelection = () => {
           </div>
         )}
 
-        {/* Temporary website visibility test */}
-        <div className="px-4 mb-3">
-          <Button
-            type="button"
-            onClick={() => toast({ title: "Website Test", description: "Website update-ka cusub ayaa muuqda ✅" })}
-            className="w-full h-11 rounded-xl font-bold"
-          >
-            WEBSITE TEST ✅
-          </Button>
-        </div>
-
         {/* Providers Section */}
         <div className="px-4 space-y-4">
           <h2 className="text-base font-bold text-foreground">Dooro shirkada aa rabtid</h2>
