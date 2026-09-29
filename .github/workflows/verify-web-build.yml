@@ -19,11 +19,16 @@ jobs:
       - name: Guard splash and route transitions
         run: |
           set -e
-          grep -Fq 'earlyNativeLiveHandoffScript' src/routes/__root.tsx
+          if grep -Fq 'earlyNativeLiveHandoffScript' src/routes/__root.tsx; then
+            echo "::error::Native packaged startup must not redirect to the live website."
+            exit 1
+          fi
           if grep -Fq 'function NativeLiveStartupGate' src/routes/__root.tsx; then
             echo "::error::Background NativeLiveStartupGate must not return; it causes duplicate splash/reload after interaction."
             exit 1
           fi
+          grep -Fq 'iftin-native-prehydrate-splash' src/routes/__root.tsx
+          grep -Fq 'NATIVE_SPLASH_SEEN_PREFIX' src/components/TenantGate.tsx
           grep -Fq 'defaultPendingMs: 60_000' src/router.tsx
           grep -Fq 'WEB_SPLASH_MS = 1500' src/components/TenantGate.tsx
 
