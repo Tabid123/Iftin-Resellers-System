@@ -261,7 +261,7 @@ jobs:
             grep -Fq '"nativePush":"onesignal"' "$ASSETS/public/apk-build.json" || fail "native push stamp missing"
             grep -Fq '"offlineBootstrap":"packaged-v1"' "$ASSETS/public/apk-build.json" || fail "offline bootstrap stamp missing"
             grep -Fq '"nativeSession":"shared-prefs-v2"' "$ASSETS/public/apk-build.json" || fail "native storefront session stamp missing"
-            grep -Fq '"startupHandoff":"tenant-web-splash-v2"' "$ASSETS/public/apk-build.json" || fail "startup handoff stamp missing"
+            grep -Fq '"startupHandoff":"single-document-v3"' "$ASSETS/public/apk-build.json" || fail "startup handoff stamp missing"
           fi
 
           grep -Fq 'name="iftin-native-bootstrap" content="v2"' "$ASSETS/public/index.html" \
@@ -297,8 +297,8 @@ jobs:
             || fail "native-to-web splash handoff guard missing"
           grep -Fq 'id="tenant-app-ready"' src/routes/__root.tsx \
             || fail "tenant app ready marker missing"
-          grep -Fq 'style?.remove()' src/routes/__root.tsx \
-            || fail "native handoff overlay removal missing"
+          grep -Fq 'iftin-native-prehydrate-splash' src/routes/__root.tsx \
+            || fail "pre-hydration splash removal hook missing"
           grep -Eq '"launchShowDuration"[[:space:]]*:[[:space:]]*1500' capacitor.config.json \
             || fail "tenant native splash is not 1500ms"
           grep -Eq '"launchFadeOutDuration"[[:space:]]*:[[:space:]]*0' capacitor.config.json \
