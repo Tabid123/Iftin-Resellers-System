@@ -85,16 +85,21 @@ if (isCapacitorBuild) {
   }
 
   const snapshot = JSON.parse(fs.readFileSync(path.join(output, 'tenant-bootstrap.json'), 'utf8'));
-  const expectedSlug = String(process.env.TENANT_SLUG || process.env.VITE_TENANT_SLUG || '').trim().toLowerCase();
-  if (!snapshot?.tenant?.id || !snapshot?.tenant?.slug || String(snapshot.tenant.slug).toLowerCase() !== expectedSlug) {
-    console.error('Capacitor build verification failed: packaged tenant snapshot identity does not match this build');
-    process.exit(1);
-  }
 
-  console.log(
-    `Capacitor offline bootstrap verified: ${snapshot.providers?.length || 0} providers, ` +
-      `${snapshot.categories?.length || 0} categories`,
-  );
+  if (!isLiveUpdateBuild) {
+    const expectedSlug = String(process.env.TENANT_SLUG || process.env.VITE_TENANT_SLUG || '').trim().toLowerCase();
+    if (!snapshot?.tenant?.id || !snapshot?.tenant?.slug || String(snapshot.tenant.slug).toLowerCase() !== expectedSlug) {
+      console.error('Capacitor build verification failed: packaged tenant snapshot identity does not match this build');
+      process.exit(1);
+    }
+
+    console.log(
+      `Capacitor offline bootstrap verified: ${snapshot.providers?.length || 0} providers, ` +
+        `${snapshot.categories?.length || 0} categories`,
+    );
+  } else {
+    console.log('Generic Capacitor live-update bundle verified');
+  }
 }
 
 process.exit(0);
