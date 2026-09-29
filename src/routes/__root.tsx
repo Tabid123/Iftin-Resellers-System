@@ -158,42 +158,6 @@ const bakedTenantName = ((import.meta.env.VITE_TENANT_NAME as string | undefined
 const bakedTenantLogo = ((import.meta.env.VITE_TENANT_LOGO_URL as string | undefined) || "").trim();
 const bakedTenantSplashColor = ((import.meta.env.VITE_SPLASH_COLOR as string | undefined) || "").trim();
 
-const earlyNativeLiveHandoffScript = bakedTenantSlug
-  ? `(function(){try{
-var h=window.location.hostname;
-if(h!=="localhost"&&h!=="127.0.0.1")return;
-if(navigator.onLine===false)return;
-var p=new URLSearchParams(window.location.search||"");
-p.set("nativeSplash","1");
-p.set("nativeSplashStartedAt",String(Date.now()));
-var n=${JSON.stringify(bakedTenantName)};if(n)p.set("brandName",n);
-var l=${JSON.stringify(bakedTenantLogo)};if(l)p.set("brandLogo",l);
-var c=${JSON.stringify(bakedTenantSplashColor)};if(c)p.set("brandColor",c);
-var q=p.toString();
-var live="https://iftinagents.com/t/"+${JSON.stringify(bakedTenantSlug)}+(q?"?"+q:"")+(window.location.hash||"");
-window.location.replace(live);
-}catch(e){}})();`
-  : "";
-
-const earlyNativeHandoffBackgroundScript = `(function(){try{
-var p=new URLSearchParams(window.location.search||"");
-if(p.get("nativeSplash")!=="1"||p.get("tenantGateShown")!=="1")return;
-var c=p.get("brandColor")||"#0F4C81";
-var l=p.get("brandLogo")||"";
-document.documentElement.style.background=c;
-var s=document.createElement("style");
-s.id="iftin-native-handoff-bg";
-var logo=l
-  ? "background-image:url("+JSON.stringify(l)+");background-repeat:no-repeat;background-position:center calc(50% - 48px);background-size:144px 144px;"
-  : "";
-s.textContent=
-"html,body{background:"+c+"!important;}"+
-"body:before{content:\\"\\";position:fixed;inset:0;z-index:2147483646;background-color:"+c+";"+logo+"}"+
-"body:after{content:\\"\\";position:fixed;z-index:2147483647;left:50%;top:calc(50% + 92px);width:36px;height:36px;margin-left:-18px;border-radius:9999px;border:3px solid rgba(255,255,255,.28);border-top-color:#fff;animation:iftinNativeHandoffSpin .8s linear infinite;}"+
-"@keyframes iftinNativeHandoffSpin{to{transform:rotate(360deg)}}";
-document.head.appendChild(s);
-}catch(e){}})();`;
-
 const earlyTenantBrandScript = `(function(){try{
 var s=localStorage.getItem('najax.tenant_slug');if(!s)return;
 var t=JSON.parse(localStorage.getItem('najax.tenant_cache.'+s)||'null');if(!t)return;
@@ -214,10 +178,6 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
-        <script dangerouslySetInnerHTML={{ __html: earlyNativeHandoffBackgroundScript }} />
-        {earlyNativeLiveHandoffScript ? (
-          <script dangerouslySetInnerHTML={{ __html: earlyNativeLiveHandoffScript }} />
-        ) : null}
         <script dangerouslySetInnerHTML={{ __html: earlyTenantBrandScript }} />
         <script dangerouslySetInnerHTML={{ __html: chunkRecoveryScript }} />
       </head>
@@ -239,19 +199,23 @@ function AppContent() {
   const appQueryClient = useQueryClient();
 
   useEffect(() => {
-    // The native handoff splash is injected before React mounts so no plain
-    // tenant-colour frame can flash between documents. Remove that temporary
-    // overlay only after the real app surface has mounted and painted.
-    const clearNativeHandoffOverlay = () => {
-      const style = document.getElementById("iftin-native-handoff-bg");
-      style?.remove();
+    // index.html now contains a tiny branded pre-hydration splash. Keep it
+    // above React until the real storefront has mounted and painted, then
+    // remove it without navigating to a second document. This eliminates the
+    // native -> white -> web-splash flash.
+    const clearNativeStartupOverlay = () => {
+      document.getElementById("iftin-native-prehydrate-splash")?.remove();
+      document.getElementById("iftin-native-prehydrate-style")?.remove();
+
+      // Clean up remnants from APKs built before the single-document startup.
+      document.getElementById("iftin-native-handoff-bg")?.remove();
       document.documentElement.style.removeProperty("background");
     };
 
     let raf1 = 0;
     let raf2 = 0;
     raf1 = window.requestAnimationFrame(() => {
-      raf2 = window.requestAnimationFrame(clearNativeHandoffOverlay);
+      raf2 = window.requestAnimationFrame(clearNativeStartupOverlay);
     });
 
     return () => {
