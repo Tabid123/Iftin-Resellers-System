@@ -176,6 +176,9 @@ const PhoneInput = () => {
       });
       
       setIsVerifying(false);
+      try {
+        sessionStorage.setItem('iftin:offline-onboarding-navigation', String(Date.now()));
+      } catch {}
       navigate('/offline-mode');
     } else {
       toast({
