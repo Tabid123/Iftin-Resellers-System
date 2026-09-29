@@ -43,7 +43,7 @@ public class MainActivity extends BridgeActivity {
     private static final long SYSTEM_SPLASH_MS = 1500L;
     private static final long SYSTEM_SPLASH_SAFETY_MS = 2200L;
     private static final long SESSION_SYNC_MS = 750L;
-    private static final long LIVE_UPDATE_CHECK_DELAY_MS = 4500L;
+    private static final long LIVE_UPDATE_CHECK_DELAY_MS = 250L;
     private static final String LIVE_UPDATE_PREFS = "iftin_live_update";
     private static final String LIVE_UPDATE_VERSION_KEY = "version";
     private static final String LIVE_UPDATE_PATH_KEY = "path";
