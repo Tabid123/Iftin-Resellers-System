@@ -259,6 +259,17 @@ const ProviderSelection = () => {
           </div>
         )}
 
+        {/* Temporary APK visibility test */}
+        <div className="px-4 mb-3">
+          <Button
+            type="button"
+            onClick={() => toast({ title: "APK Test", description: "APK-ga cusub ayaa shaqeynaya ✅" })}
+            className="w-full h-11 rounded-xl font-bold"
+          >
+            APK TEST ✅
+          </Button>
+        </div>
+
         {/* Providers Section */}
         <div className="px-4 space-y-4">
           <h2 className="text-base font-bold text-foreground">Dooro shirkada aa rabtid</h2>
