@@ -60,7 +60,10 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void watchForWebSurface() {
-        startupHandler.post(new Runnable() {
+        long elapsed = SystemClock.uptimeMillis() - launchStartedAt;
+        long delay = Math.max(0L, SYSTEM_SPLASH_MS - elapsed);
+
+        startupHandler.postDelayed(new Runnable() {
             @Override
             public void run() {
                 if (webSurfaceReady) return;
@@ -71,7 +74,8 @@ public class MainActivity extends BridgeActivity {
                 }
 
                 webView.evaluateJavascript(
-                    "(function(){var ready=!!(document.getElementById('tenant-web-splash')||" +
+                    "(function(){var ready=!!(document.getElementById('iftin-native-prehydrate-splash')||" +
+                    "document.getElementById('tenant-web-splash')||" +
                     "document.getElementById('tenant-app-ready'));" +
                     "if(ready){window.__IFTIN_NATIVE_SPLASH_COMPLETE__=true;" +
                     "window.dispatchEvent(new Event('iftin-native-splash-complete'))}" +
@@ -85,7 +89,7 @@ public class MainActivity extends BridgeActivity {
                     }
                 );
             }
-        });
+        }, delay);
     }
 
     private void startStorefrontSessionSync() {
