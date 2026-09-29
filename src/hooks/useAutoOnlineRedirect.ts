@@ -21,25 +21,11 @@ export const useAutoOnlineRedirect = () => {
     
     // Detect transition: was offline -> now online
     if (wasOffline.current && isReallyOnline === true) {
-      // A successful first-time phone verification intentionally opens
-      // /offline-mode so the user can register offline numbers. Connectivity
-      // detection can settle from false -> true at the same moment; do not let
-      // that one transition skip the onboarding page.
-      let keepOfflineOnboarding = false;
-      try {
-        const markedAt = Number(
-          sessionStorage.getItem('iftin:offline-onboarding-navigation') || 0,
-        );
-        keepOfflineOnboarding =
-          location.pathname.endsWith('/offline-mode') &&
-          markedAt > 0 &&
-          Date.now() - markedAt < 5000;
-        if (keepOfflineOnboarding || (markedAt > 0 && Date.now() - markedAt >= 5000)) {
-          sessionStorage.removeItem('iftin:offline-onboarding-navigation');
-        }
-      } catch {}
+      const keepOfflineOnboarding =
+        location.pathname === '/offline-mode' &&
+        location.state?.fromPhoneVerification === true;
 
-      // Existing offline-mode behaviour remains unchanged for every other case.
+      // Existing offline-mode behaviour remains unchanged everywhere else.
       if (!keepOfflineOnboarding && OFFLINE_PAGES.includes(location.pathname)) {
         navigate('/providers', { replace: true });
       }
