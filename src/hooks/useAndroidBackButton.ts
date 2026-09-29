@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useNavigate, useLocation } from "@/lib/router-compat";
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
@@ -6,17 +6,16 @@ import { App } from '@capacitor/app';
 export const useAndroidBackButton = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [showExitDialog, setShowExitDialog] = useState(false);
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
     const backButtonListener = App.addListener('backButton', () => {
-      // Home pages - show exit confirmation
+      // Home pages - exit immediately without a confirmation dialog.
       if (location.pathname === '/' || location.pathname === '/providers') {
-        setShowExitDialog(true);
+        void App.exitApp();
       } else {
-        // Navigate back to previous page
+        // Navigate back to previous page.
         navigate(-1);
       }
     });
@@ -25,14 +24,4 @@ export const useAndroidBackButton = () => {
       backButtonListener.then(listener => listener.remove());
     };
   }, [location.pathname, navigate]);
-
-  const handleExitApp = () => {
-    App.exitApp();
-  };
-
-  const handleCancelExit = () => {
-    setShowExitDialog(false);
-  };
-
-  return { showExitDialog, handleExitApp, handleCancelExit };
 };
