@@ -16,78 +16,55 @@ const splashColor = String(process.env.SPLASH_COLOR || "#0F4C81").trim();
 
 if (!slug) throw new Error("TENANT_SLUG is required");
 
-let packagedHtml = fs.readFileSync(indexPath, "utf8");
+let splashLogoUrl = logoUrl;
+try {
+  const snapshotPath = path.join("public", "tenant-bootstrap.json");
+  const snapshot = JSON.parse(fs.readFileSync(snapshotPath, "utf8"));
+  if (snapshot?.tenant?.logo_url) splashLogoUrl = String(snapshot.tenant.logo_url);
+} catch {
+  // Build-time logo URL remains a fallback when the snapshot is absent.
+}
 
-// packaged-app.html is only an APK fallback file; it is not an application
-// route. Before React/TanStack boots, restore storefront session values from
-// Android SharedPreferences and route returning verified users to Providers.
-const offlineRouteScript = `<script>(function(){try{
-  if(location.pathname!=="/packaged-app.html")return;
-  var n=window.IftinNativeSession;
-  function ng(k){try{return n&&typeof n.get==="function"?String(n.get(k)||""):""}catch(e){return ""}}
-  function seed(k){var v=ng(k);if(v){try{localStorage.setItem(k,v)}catch(e){}}return v}
-  var loggedOut=ng("loggedOut")==="1";
-  var verified=loggedOut?"":seed("verifiedPhone");
-  seed("offlineSenderPhone");seed("offlineReceiverPhone");seed("hasSkippedOfflineRegistration");
-  var digits=String(verified||"").replace(/\\D/g,"");
-  if(digits.indexOf("252")===0)digits=digits.slice(3);
-  var ok=/^(61|77|62|68|71|64)\\d{7}$/.test(digits);
-  var target=ok?"/t/${encodeURIComponent(slug)}/providers":"/t/${encodeURIComponent(slug)}/";
-  history.replaceState(null,"",target+(location.search||"")+(location.hash||""));
-}catch(e){try{history.replaceState(null,"","/t/${encodeURIComponent(slug)}/")}catch(_){}}})();<\/script>`;
-packagedHtml = packagedHtml.replace("<head>", "<head>" + offlineRouteScript);
-fs.writeFileSync(packagedPath, packagedHtml);
+let appHtml = fs.readFileSync(indexPath, "utf8");
 
-const js = (value) => JSON.stringify(value).replace(/</g, "\\u003c");
-const liveParams = new URLSearchParams({
-  nativeSplash: "1",
-  tenantGateShown: "1",
-  brandName: appName,
-  brandColor: splashColor,
-});
-if (logoUrl) liveParams.set("brandLogo", logoUrl);
-const liveUrl = `https://iftinagents.com/t/${encodeURIComponent(slug)}?${liveParams.toString()}`;
+const escHtml = (value) =>
+  String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
 
-const bootstrap = `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="iftin-native-bootstrap" content="v1">
-  <title>${appName.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</title>
-  <style>
-    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:${splashColor};}
-    body{display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
-    .s{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2rem;width:100%;height:100%;background:${splashColor};}
-    .logo{width:9rem;height:9rem;border-radius:1rem;object-fit:cover;box-shadow:0 10px 24px rgba(0,0,0,.18);}
-    .spin{width:2.25rem;height:2.25rem;border-radius:9999px;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;animation:r .8s linear infinite;}
-    @keyframes r{to{transform:rotate(360deg)}}
-  </style>
-  <script>
-    (function(){
-      var live=${js(liveUrl)};
-      var done=false;
-      function local(){
-        if(done)return;done=true;
-        location.replace("/packaged-app.html");
-      }
-      // navigator.onLine is only a hint on Android. Do not hold the visible
-      // bootstrap splash while probing the live site: the probe can resolve
-      // even when the WebView cannot actually navigate/render the destination.
-      // Native APKs already contain a complete tenant snapshot, so boot the
-      // packaged app immediately. The packaged app performs its own online
-      // sync after React is visible.
-      local();
-    })();
-  </script>
-</head>
-<body>
-  <div id="tenant-web-splash" class="s" aria-label=${js(appName)}>
-    ${logoUrl ? `<img class="logo" src="${logoUrl.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}" alt="">` : ""}
-    <div class="spin" aria-hidden="true"></div>
-  </div>
-</body>
-</html>`;
+// Stay in one WebView document. The old index.html -> packaged-app.html
+// navigation caused a visible white paint between native and web splash.
+// Rewrite browser history only; React then boots from the packaged bundle.
+const nativeRouteScript = `<script>(function(){try{
+  var p=location.pathname;
+  if(p!=="/"&&p!=="/index.html"&&p!=="/packaged-app.html")return;
+  history.replaceState(null,"","/t/${encodeURIComponent(slug)}/"+(location.search||"")+(location.hash||""));
+}catch(e){}})();<\/script>`;
 
-fs.writeFileSync(indexPath, bootstrap);
-console.log(`Native bootstrap created for ${slug}; original packaged app saved as packaged-app.html`);
+const startupCss = `<style id="iftin-native-prehydrate-style">
+  html,body{margin:0;min-height:100%;background:${escHtml(splashColor)};}
+  #iftin-native-prehydrate-splash{position:fixed;inset:0;z-index:2147483646;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2rem;background:${escHtml(splashColor)};}
+  #iftin-native-prehydrate-splash img{width:9rem;height:9rem;border-radius:1rem;object-fit:cover;box-shadow:0 10px 24px rgba(0,0,0,.18);}
+  #iftin-native-prehydrate-splash .spin{width:2.25rem;height:2.25rem;border-radius:9999px;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;animation:iftin-prehydrate-spin .8s linear infinite;}
+  @keyframes iftin-prehydrate-spin{to{transform:rotate(360deg)}}
+</style>`;
+
+const startupOverlay = `<div id="iftin-native-prehydrate-splash" role="status" aria-label="${escHtml(appName)}">
+  ${splashLogoUrl ? `<img src="${escHtml(splashLogoUrl)}" alt="">` : ""}
+  <div class="spin" aria-hidden="true"></div>
+</div>`;
+
+appHtml = appHtml.replace(
+  "<head>",
+  `<head><meta name="iftin-native-bootstrap" content="v2">${startupCss}${nativeRouteScript}`,
+);
+appHtml = appHtml.replace(/<body([^>]*)>/i, (match, attrs) => `<body${attrs}>${startupOverlay}`);
+
+// Both files are the same single-document app. packaged-app.html remains only
+// for backwards compatibility; new APK launches never navigate to it.
+fs.writeFileSync(indexPath, appHtml);
+fs.writeFileSync(packagedPath, appHtml);
+
+console.log(`Native single-document startup prepared for ${slug}; no document handoff required`);
