@@ -4,6 +4,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { onStorefront } from '@/lib/storefrontEvents';
 import { activeWorkspaceId, workspaceStorage } from '@/lib/workspaceKeys';
 import { tenantOfflineBootstrap } from '@/generated/tenantOfflineBootstrap';
+import { bannerCacheKey, cacheBannerImage, readCachedBannerImage } from '@/lib/bannerImageCache';
 
 interface Banner {
   id: string;
@@ -55,6 +56,7 @@ const RotatingBanner = () => {
   const initialCachedBanner = readBannerCache(workspaceId).find((banner) => banner.media_type !== 'video')?.banner_image ?? null;
   const [bannerReady, setBannerReady] = useState(Boolean(initialCachedBanner));
   const [lastGoodImage, setLastGoodImage] = useState<string | null>(initialCachedBanner);
+  const [offlineImage, setOfflineImage] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => onStorefront('banners-changed', () => setReloadKey((n) => n + 1)), []);
@@ -119,6 +121,38 @@ const RotatingBanner = () => {
     return () => window.clearTimeout(timer);
   }, [banners, currentBanner]);
 
+  useEffect(() => {
+    if (!workspaceId || typeof navigator === 'undefined' || !navigator.onLine) return;
+    for (const banner of banners) {
+      if (!banner?.banner_image || banner.media_type === 'video') continue;
+      void cacheBannerImage(bannerCacheKey(workspaceId, banner), banner.banner_image);
+    }
+  }, [workspaceId, banners]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    setOfflineImage(null);
+
+    const item = banners[currentBanner];
+    if (!workspaceId || !item || item.media_type === 'video') return;
+
+    void readCachedBannerImage(bannerCacheKey(workspaceId, item)).then((url) => {
+      if (!url) return;
+      if (cancelled) {
+        URL.revokeObjectURL(url);
+        return;
+      }
+      objectUrl = url;
+      setOfflineImage(url);
+    });
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [workspaceId, banners, currentBanner]);
+
   if (!banners.length) {
     if (!isLoading) return null;
     return (
@@ -172,13 +206,18 @@ const RotatingBanner = () => {
               loading="eager"
               fetchPriority="high"
               decoding="async"
-              onLoad={() => {
-                setLastGoodImage(item.banner_image);
+              onLoad={(event) => {
+                setLastGoodImage(event.currentTarget.currentSrc || event.currentTarget.src || item.banner_image);
                 setBannerReady(true);
               }}
               onError={(event) => {
                 const packaged = packagedBannerFor(item);
                 const target = event.currentTarget;
+
+                if (offlineImage && target.src !== offlineImage) {
+                  target.src = offlineImage;
+                  return;
+                }
 
                 // Runtime sync stores the freshest remote URL. When the device
                 // later goes offline that URL may be unreachable even though
