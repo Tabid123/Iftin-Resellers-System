@@ -1,6 +1,8 @@
 import { Capacitor } from '@capacitor/core';
 
-const SW_URL = "/sw.js";
+const BUILD_VERSION =
+  (import.meta.env.VITE_BUILD_VERSION as string | undefined)?.trim() || "dev";
+const SW_URL = `/sw.js?v=${encodeURIComponent(BUILD_VERSION)}`;
 
 /**
  * Register the web/PWA service worker so the storefront can keep its app shell
@@ -14,7 +16,7 @@ export function registerServiceWorker(): void {
   if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
 
   void navigator.serviceWorker
-    .register(SW_URL, { scope: "/" })
+    .register(SW_URL, { scope: "/", updateViaCache: "none" })
     .then((registration) => registration.update())
     .catch((error) => {
       console.warn("[SW] Registration failed:", error);
