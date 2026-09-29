@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
+import { useConnectivity } from '@/contexts/ConnectivityContext';
 import { onStorefront } from '@/lib/storefrontEvents';
 import { activeWorkspaceId, workspaceStorage } from '@/lib/workspaceKeys';
 import { tenantOfflineBootstrap } from '@/generated/tenantOfflineBootstrap';
@@ -44,6 +45,7 @@ function packagedBannerFor(item: Banner | null | undefined): string | null {
 
 const RotatingBanner = () => {
   const tenantState = useTenant();
+  const { isReallyOnline } = useConnectivity();
   const tenant = tenantState.status === 'ready' || tenantState.status === 'suspended'
     ? tenantState.tenant
     : null;
@@ -165,6 +167,7 @@ const RotatingBanner = () => {
   const item = banners[currentBanner];
   if (!item) return null;
   const isVideo = item.media_type === 'video';
+  const displayedBannerImage = offlineImage && isReallyOnline !== true ? offlineImage : item.banner_image;
 
   return (
     <div className="w-full space-y-2">
@@ -196,8 +199,8 @@ const RotatingBanner = () => {
               <div className="absolute inset-0 bg-muted" aria-hidden="true" />
             )}
             <img
-              key={item.banner_image}
-              src={item.banner_image}
+              key={`${item.banner_image}:${offlineImage ? 'cached' : 'remote'}:${isReallyOnline === false ? 'offline' : 'online'}`}
+              src={displayedBannerImage}
               alt={item.alt_text || 'Promotional banner'}
               className="relative h-full w-full object-cover"
               width={1200}
