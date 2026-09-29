@@ -7,6 +7,7 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.view.WindowManager;
 import android.webkit.WebView;
+import android.webkit.WebSettings;
 import android.webkit.JavascriptInterface;
 
 import androidx.core.splashscreen.SplashScreen;
@@ -48,11 +49,25 @@ public class MainActivity extends BridgeActivity {
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
 
         if (bridge != null && bridge.getWebView() != null) {
-            bridge.getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false);
-            bridge.getWebView().addJavascriptInterface(
+            WebView webView = bridge.getWebView();
+            webView.getSettings().setMediaPlaybackRequiresUserGesture(false);
+            webView.addJavascriptInterface(
                 new NativeStorefrontSession(),
                 "IftinNativeSession"
             );
+
+            SharedPreferences prefs = getSharedPreferences("iftin_storefront_session", MODE_PRIVATE);
+            String liveBuildUrl = prefs.getString("liveBuildUrl", "");
+            if (
+                liveBuildUrl != null &&
+                liveBuildUrl.startsWith("https://iftinagents.com/t/")
+            ) {
+                // Prefer the last applied live build on subsequent launches.
+                // LOAD_CACHE_ELSE_NETWORK lets Android reuse the already-fetched
+                // page/assets and still reach the network when the cache misses.
+                webView.getSettings().setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
+                webView.loadUrl(liveBuildUrl);
+            }
         }
 
         watchForWebSurface();
@@ -171,6 +186,8 @@ public class MainActivity extends BridgeActivity {
             || "offlineSenderPhone".equals(key)
             || "offlineReceiverPhone".equals(key)
             || "hasSkippedOfflineRegistration".equals(key)
+            || "liveBuildVersion".equals(key)
+            || "liveBuildUrl".equals(key)
             || "loggedOut".equals(key);
     }
 
