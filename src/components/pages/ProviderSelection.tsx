@@ -232,6 +232,14 @@ const ProviderSelection = () => {
         </div>
       </div>
 
+      <button
+        type="button"
+        onClick={() => alert('Website update waa soo muuqday ✅')}
+        className="fixed bottom-24 right-4 z-[70] rounded-full border border-border bg-card px-4 py-2 text-sm font-bold text-foreground shadow-lg"
+      >
+        Tijaabo
+      </button>
+
       {/* Scrollable Content */}
       <div
         className="flex-1 overflow-y-auto"
