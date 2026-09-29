@@ -21,9 +21,16 @@ export const useAutoOnlineRedirect = () => {
     
     // Detect transition: was offline -> now online
     if (wasOffline.current && isReallyOnline === true) {
-      const keepOfflineOnboarding =
-        location.pathname === '/offline-mode' &&
-        location.state?.fromPhoneVerification === true;
+      let keepOfflineOnboarding = false;
+      if (location.pathname === '/offline-mode') {
+        try {
+          keepOfflineOnboarding =
+            sessionStorage.getItem('iftin:force-offline-onboarding-once') === '1';
+          if (keepOfflineOnboarding) {
+            sessionStorage.removeItem('iftin:force-offline-onboarding-once');
+          }
+        } catch {}
+      }
 
       // Existing offline-mode behaviour remains unchanged everywhere else.
       if (!keepOfflineOnboarding && OFFLINE_PAGES.includes(location.pathname)) {
