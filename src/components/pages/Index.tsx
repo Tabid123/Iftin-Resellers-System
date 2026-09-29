@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from '@/lib/router-compat';
 import { readVerifiedPhone } from '@/lib/verifiedPhone';
 import { useTenant } from '@/contexts/TenantContext';
@@ -12,18 +12,29 @@ const Index = () => {
   const tenantState = useTenant();
   const tenant = tenantState.status === 'ready' || tenantState.status === 'suspended' ? tenantState.tenant : null;
   const [showLogin, setShowLogin] = useState(false);
+  const initialRedirectChecked = useRef(false);
   // Route beforeLoad owns all returning-user redirects. Keeping a second
   // check after hydration is also needed: server-side beforeLoad cannot read
   // localStorage, and the initial client navigation may reuse that SSR result.
   useEffect(() => {
+    // The tenant-aware navigate callback changes as the route changes. Without
+    // this guard, the old login screen can run this effect once more after OTP
+    // verification and overwrite /offline-mode with /providers.
+    if (initialRedirectChecked.current) return;
+    initialRedirectChecked.current = true;
+
     try {
       sessionStorage.setItem('appInitialized', 'true');
+      const requiresOfflineOnboarding =
+        sessionStorage.getItem('iftin:force-offline-onboarding-once') === '1';
+      if (requiresOfflineOnboarding) {
+        navigate('/offline-mode', { replace: true });
+        return;
+      }
+
       const verifiedPhone = readVerifiedPhone();
       if (verifiedPhone) {
         navigate('/providers', { replace: true });
-      } else if (verifiedPhone) {
-        localStorage.removeItem('verifiedPhone');
-        setShowLogin(true);
       } else {
         setShowLogin(true);
       }
