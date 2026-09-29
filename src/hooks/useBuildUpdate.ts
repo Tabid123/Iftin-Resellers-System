@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { buildTenantSlug, isNativeApp } from '@/lib/nativeTenant';
+import { writeNativeSession } from '@/lib/nativeStorefrontSession';
 
 const LOCAL_BUILD_VERSION =
   (import.meta.env.VITE_BUILD_VERSION as string | undefined)?.trim() || '';
@@ -105,6 +106,13 @@ export function useBuildUpdate() {
           if (!key.startsWith('__')) url.searchParams.set(key, value);
         }
         url.searchParams.set('__appbuild', remoteVersion);
+
+        // Remember the live build we successfully chose before leaving the
+        // packaged localhost origin. Native startup can reuse this exact URL
+        // on the next launch instead of applying the same update again.
+        writeNativeSession('liveBuildVersion', remoteVersion);
+        writeNativeSession('liveBuildUrl', url.toString());
+
         window.location.replace(url.toString());
         return;
       }
