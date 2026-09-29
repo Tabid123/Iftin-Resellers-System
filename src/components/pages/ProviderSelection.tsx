@@ -259,6 +259,17 @@ const ProviderSelection = () => {
           </div>
         )}
 
+        {/* Temporary OTA verification button */}
+        <div className="px-4 mb-3">
+          <Button
+            type="button"
+            onClick={() => toast({ title: "OTA Test", description: "Live update-ka cusub ayaa gaaray APK-ga ✅" })}
+            className="w-full h-11 rounded-xl font-bold"
+          >
+            OTA TEST 2 ✅
+          </Button>
+        </div>
+
         {/* Providers Section */}
         <div className="px-4 space-y-4">
           <h2 className="text-base font-bold text-foreground">Dooro shirkada aa rabtid</h2>
