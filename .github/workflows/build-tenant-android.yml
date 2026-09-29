@@ -178,7 +178,7 @@ jobs:
 
       - name: Stamp Android web bundle
         run: |
-          printf '{"commit":"%s","tenant":"%s","bannerCache":"tenant-scoped","numericKeyboard":"native-webview-numeric","nativePush":"onesignal","offlineBootstrap":"packaged-v1","nativeSession":"shared-prefs-v2","startupHandoff":"tenant-web-splash-v2"}\n' "${GITHUB_SHA}" "${TENANT_SLUG}" > public/apk-build.json
+          printf '{"commit":"%s","tenant":"%s","bannerCache":"tenant-scoped","numericKeyboard":"native-webview-numeric","nativePush":"onesignal","offlineBootstrap":"packaged-v1","nativeSession":"shared-prefs-v2","startupHandoff":"single-document-v3"}\n' "${GITHUB_SHA}" "${TENANT_SLUG}" > public/apk-build.json
 
       - name: Build web bundle
         run: bun run build
@@ -228,7 +228,8 @@ jobs:
         run: |
           set -e
           node scripts/make-native-bootstrap.mjs
-          grep -Fq 'name="iftin-native-bootstrap" content="v1"' dist/index.html
+          grep -Fq 'name="iftin-native-bootstrap" content="v2"' dist/index.html
+          grep -Fq 'id="iftin-native-prehydrate-splash"' dist/index.html
           test -s dist/packaged-app.html
 
       - name: Sync Capacitor
@@ -263,20 +264,21 @@ jobs:
             grep -Fq '"startupHandoff":"tenant-web-splash-v2"' "$ASSETS/public/apk-build.json" || fail "startup handoff stamp missing"
           fi
 
-          grep -Fq 'name="iftin-native-bootstrap" content="v1"' "$ASSETS/public/index.html" \
-            || fail "native startup bootstrap missing from packaged index.html"
+          grep -Fq 'name="iftin-native-bootstrap" content="v2"' "$ASSETS/public/index.html" \
+            || fail "single-document native startup marker missing"
+          grep -Fq 'id="iftin-native-prehydrate-splash"' "$ASSETS/public/index.html" \
+            || fail "pre-hydration tenant splash missing"
+          grep -Fq 'history.replaceState' "$ASSETS/public/index.html" \
+            || fail "native tenant route is not rewritten in-place"
           test -s "$ASSETS/public/packaged-app.html" \
-            || fail "packaged offline app fallback missing"
-          grep -Fq 'IftinNativeSession' "$ASSETS/public/packaged-app.html" \
-            || fail "packaged fallback does not restore native verified session"
-          grep -Fq '/providers' "$ASSETS/public/packaged-app.html" \
-            || fail "packaged fallback does not route verified users to providers"
-          grep -Fq 'id="tenant-web-splash"' "$ASSETS/public/index.html" \
-            || fail "native bootstrap is missing the web splash handoff marker"
-          grep -Fq "tenant-bootstrap.js" "$ASSETS/public/packaged-app.html" \
-            || fail "offline bootstrap is not loaded by packaged fallback"
-          if grep -Eq '/assets/index-[A-Za-z0-9_-]+\\.js' "$ASSETS/public/index.html"; then
-            fail "native bootstrap must not start the React app before live handoff"
+            || fail "packaged compatibility app missing"
+          grep -Fq "tenant-bootstrap.js" "$ASSETS/public/index.html" \
+            || fail "offline tenant snapshot is not loaded by startup document"
+          if grep -Fq 'location.replace("/packaged-app.html")' "$ASSETS/public/index.html"; then
+            fail "cross-document packaged-app handoff must not exist"
+          fi
+          if grep -Fq 'window.location.replace(live)' src/routes/__root.tsx; then
+            fail "native packaged app must not redirect to the live website on startup"
           fi
           grep -Fq "offline_bootstrap_version" "$ASSETS/public/tenant-bootstrap.js" || fail "offline bootstrap cache seed missing"
           grep -Fq "\"slug\":\"${TENANT_SLUG}\"" "$ASSETS/public/tenant-bootstrap.json" || fail "offline snapshot belongs to the wrong tenant"
