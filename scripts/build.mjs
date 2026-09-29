@@ -14,6 +14,10 @@ fs.writeFileSync(
   path.resolve('public', 'build-version.json'),
   `${JSON.stringify({ version: buildVersion })}\n`,
 );
+fs.writeFileSync(
+  path.resolve('public', 'build-version.js'),
+  `window.__IFTIN_REMOTE_BUILD_VERSION__=${JSON.stringify(buildVersion)};\n`,
+);
 
 if (isCapacitorBuild) {
   await import('./generate-tenant-offline-bootstrap.mjs');
