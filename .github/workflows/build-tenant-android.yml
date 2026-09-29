@@ -293,6 +293,10 @@ jobs:
             || fail "Android storefront session sync missing"
           grep -Fq 'SYSTEM_SPLASH_SAFETY_MS' android/app/src/main/java/com/iftin/agents/MainActivity.java \
             || fail "native-to-web splash handoff guard missing"
+          grep -Fq 'id="tenant-app-ready"' src/routes/__root.tsx \
+            || fail "tenant app ready marker missing"
+          grep -Fq 'style?.remove()' src/routes/__root.tsx \
+            || fail "native handoff overlay removal missing"
           grep -Eq '"launchShowDuration"[[:space:]]*:[[:space:]]*1500' capacitor.config.json \
             || fail "tenant native splash is not 1500ms"
           grep -Eq '"launchFadeOutDuration"[[:space:]]*:[[:space:]]*0' capacitor.config.json \
