@@ -1,0 +1,115 @@
+name: Publish local live web update
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "public/**"
+      - "scripts/**"
+      - "vite.config.ts"
+      - "package.json"
+      - "bun.lock"
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Prepare generic native bootstrap
+        run: |
+          set -e
+          mkdir -p src/generated public
+          cat > src/generated/tenantOfflineBootstrap.ts <<'EOF'
+          // Generic OTA bundle: tenant identity/data comes from existing device storage.
+          export const tenantOfflineBootstrap = {
+            version: 1,
+            generated_at: "",
+            tenant: null,
+            providers: [],
+            categories: [],
+            packages: {},
+            paymentProviders: [],
+            deliveryInstructions: [],
+            appSettings: [],
+            featuredPackages: [],
+            popularPackages: [],
+            banners: []
+          } as const;
+          EOF
+          cat > public/tenant-bootstrap.js <<'EOF'
+          (() => {
+            // Keep the active tenant selected by the installed APK.
+            // The downloaded OTA bundle intentionally contains no tenant-owned data.
+          })();
+          EOF
+          printf '%s\n' '{"version":1,"generated_at":"","tenant":null,"providers":[],"categories":[],"packages":{},"paymentProviders":[],"deliveryInstructions":[],"appSettings":[],"featuredPackages":[],"popularPackages":[],"banners":[]}' > public/tenant-bootstrap.json
+
+      - name: Build static live-update bundle
+        env:
+          CAPACITOR_BUILD: "true"
+          LIVE_UPDATE_BUILD: "true"
+          VITE_CAPACITOR_BUILD: "true"
+          VITE_BUILD_VERSION: ${{ github.sha }}
+        run: bun run build
+
+      - name: Normalize static output
+        run: |
+          set -e
+          if [ -f dist/index.html ]; then
+            exit 0
+          fi
+          SRC=""
+          for d in .output/public dist/client dist/public build/client build; do
+            if [ -f "$d/index.html" ]; then SRC="$d"; break; fi
+          done
+          test -n "$SRC"
+          rm -rf dist_live
+          mkdir -p dist_live
+          cp -R "$SRC"/. dist_live/
+          rm -rf dist
+          mv dist_live dist
+
+      - name: Package and checksum bundle
+        run: |
+          set -e
+          test -s dist/index.html
+          rm -f live-update.zip
+          (cd dist && zip -qr ../live-update.zip .)
+          SHA256="$(sha256sum live-update.zip | awk '{print $1}')"
+          echo "LIVE_UPDATE_SHA256=$SHA256" >> "$GITHUB_ENV"
+          echo "Live update bundle: ${{ github.sha }} / $SHA256"
+
+      - name: Publish bundle and manifest
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -e
+          if [ -z "$SERVICE_KEY" ] || [ -z "$SUPABASE_URL" ]; then
+            echo "::error::Supabase publish secrets are required"
+            exit 1
+          fi
+
+          VERSION="${{ github.sha }}"
+          BUNDLE_OBJECT="apks/live-updates/$VERSION.zip"
+          PUBLIC_URL="$SUPABASE_URL/storage/v1/object/public/apks/live-updates/$VERSION.zip"
+
+          curl -fsS -X POST "$SUPABASE_URL/storage/v1/object/$BUNDLE_OBJECT"             -H "Authorization: Bearer $SERVICE_KEY"             -H "x-upsert: true"             -H "Content-Type: application/zip"             --data-binary "@live-update.zip"
+
+          cat > manifest.json <<EOF
+          {"version":"$VERSION","url":"$PUBLIC_URL","sha256":"$LIVE_UPDATE_SHA256","nativeVersionCode":1}
+          EOF
+
+          curl -fsS -X POST "$SUPABASE_URL/storage/v1/object/apks/live-updates/manifest.json"             -H "Authorization: Bearer $SERVICE_KEY"             -H "x-upsert: true"             -H "Content-Type: application/json"             --data-binary "@manifest.json"
+
+          echo "Published local live update $VERSION"
