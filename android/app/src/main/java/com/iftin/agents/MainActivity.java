@@ -10,6 +10,21 @@ import android.webkit.WebView;
 import android.webkit.JavascriptInterface;
 
 import androidx.core.splashscreen.SplashScreen;
+import androidx.core.content.pm.PackageInfoCompat;
+
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.security.MessageDigest;
+import java.util.Locale;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 import com.getcapacitor.BridgeActivity;
 
@@ -28,6 +43,12 @@ public class MainActivity extends BridgeActivity {
     private static final long SYSTEM_SPLASH_MS = 1500L;
     private static final long SYSTEM_SPLASH_SAFETY_MS = 2200L;
     private static final long SESSION_SYNC_MS = 750L;
+    private static final long LIVE_UPDATE_CHECK_DELAY_MS = 4500L;
+    private static final String LIVE_UPDATE_PREFS = "iftin_live_update";
+    private static final String LIVE_UPDATE_VERSION_KEY = "version";
+    private static final String LIVE_UPDATE_PATH_KEY = "path";
+    private static final String LIVE_UPDATE_MANIFEST_URL =
+        "https://bpkddmxpyeyxvjyebull.supabase.co/storage/v1/object/public/apks/live-updates/manifest.json";
 
     private final Handler startupHandler = new Handler(Looper.getMainLooper());
     private long launchStartedAt;
@@ -57,6 +78,205 @@ public class MainActivity extends BridgeActivity {
 
         watchForWebSurface();
         startStorefrontSessionSync();
+        startBackgroundLiveUpdateCheck();
+    }
+
+    private void startBackgroundLiveUpdateCheck() {
+        startupHandler.postDelayed(() -> new Thread(() -> {
+            try {
+                checkAndStageLiveUpdate();
+            } catch (Exception ignored) {
+                // OTA failure must never affect the running packaged app.
+            }
+        }, "iftin-live-update").start(), LIVE_UPDATE_CHECK_DELAY_MS);
+    }
+
+    private void checkAndStageLiveUpdate() throws Exception {
+        JSONObject manifest = readRemoteJson(LIVE_UPDATE_MANIFEST_URL);
+        String version = manifest.optString("version", "").trim();
+        String bundleUrl = manifest.optString("url", "").trim();
+        String expectedSha256 = manifest.optString("sha256", "").trim().toLowerCase(Locale.US);
+        long requiredNativeVersion = manifest.optLong("nativeVersionCode", 0L);
+
+        if (version.isEmpty() || bundleUrl.isEmpty()) return;
+        if (requiredNativeVersion > 0 && requiredNativeVersion != currentNativeVersionCode()) return;
+
+        SharedPreferences livePrefs = getSharedPreferences(LIVE_UPDATE_PREFS, MODE_PRIVATE);
+        SharedPreferences capPrefs = getSharedPreferences(
+            com.getcapacitor.plugin.WebView.WEBVIEW_PREFS_NAME,
+            MODE_PRIVATE
+        );
+
+        String installedVersion = livePrefs.getString(LIVE_UPDATE_VERSION_KEY, "");
+        String installedPath = livePrefs.getString(LIVE_UPDATE_PATH_KEY, "");
+        if (
+            version.equals(installedVersion) &&
+            installedPath != null &&
+            !installedPath.isEmpty() &&
+            new File(installedPath, "index.html").isFile() &&
+            installedPath.equals(
+                capPrefs.getString(com.getcapacitor.plugin.WebView.CAP_SERVER_PATH, "")
+            )
+        ) {
+            return;
+        }
+
+        File updateRoot = new File(getFilesDir(), "iftin_live_updates");
+        if (!updateRoot.exists() && !updateRoot.mkdirs()) return;
+
+        String safeVersion = version.replaceAll("[^A-Za-z0-9._-]", "_");
+        File finalDir = new File(updateRoot, safeVersion);
+        File tempDir = new File(updateRoot, safeVersion + ".tmp");
+        File zipFile = new File(getCacheDir(), "iftin-live-update-" + safeVersion + ".zip");
+
+        deleteRecursively(tempDir);
+        if (tempDir.exists() || (!tempDir.mkdirs() && !tempDir.isDirectory())) return;
+
+        downloadFile(bundleUrl, zipFile);
+        if (!expectedSha256.isEmpty() && !expectedSha256.equals(sha256(zipFile))) {
+            zipFile.delete();
+            deleteRecursively(tempDir);
+            return;
+        }
+
+        unzipSafely(zipFile, tempDir);
+        zipFile.delete();
+
+        if (!new File(tempDir, "index.html").isFile()) {
+            deleteRecursively(tempDir);
+            return;
+        }
+
+        deleteRecursively(finalDir);
+        if (!tempDir.renameTo(finalDir)) {
+            deleteRecursively(tempDir);
+            return;
+        }
+
+        // Capacitor reads this preference on the next process launch and serves
+        // the downloaded bundle locally through the same localhost origin.
+        capPrefs.edit()
+            .putString(com.getcapacitor.plugin.WebView.CAP_SERVER_PATH, finalDir.getAbsolutePath())
+            .apply();
+
+        livePrefs.edit()
+            .putString(LIVE_UPDATE_VERSION_KEY, version)
+            .putString(LIVE_UPDATE_PATH_KEY, finalDir.getAbsolutePath())
+            .apply();
+
+        cleanupOldLiveUpdates(updateRoot, finalDir);
+    }
+
+    private long currentNativeVersionCode() {
+        try {
+            return PackageInfoCompat.getLongVersionCode(
+                getPackageManager().getPackageInfo(getPackageName(), 0)
+            );
+        } catch (Exception ignored) {
+            return 0L;
+        }
+    }
+
+    private JSONObject readRemoteJson(String urlText) throws Exception {
+        HttpURLConnection connection = (HttpURLConnection) new URL(urlText).openConnection();
+        connection.setConnectTimeout(8000);
+        connection.setReadTimeout(8000);
+        connection.setUseCaches(false);
+        connection.setRequestProperty("Cache-Control", "no-cache");
+        try {
+            int status = connection.getResponseCode();
+            if (status < 200 || status >= 300) throw new Exception("HTTP " + status);
+            try (InputStream input = new BufferedInputStream(connection.getInputStream());
+                 ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                byte[] buffer = new byte[8192];
+                int read;
+                while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
+                return new JSONObject(output.toString("UTF-8"));
+            }
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    private void downloadFile(String urlText, File destination) throws Exception {
+        HttpURLConnection connection = (HttpURLConnection) new URL(urlText).openConnection();
+        connection.setConnectTimeout(10000);
+        connection.setReadTimeout(30000);
+        connection.setUseCaches(false);
+        try {
+            int status = connection.getResponseCode();
+            if (status < 200 || status >= 300) throw new Exception("HTTP " + status);
+            try (InputStream input = new BufferedInputStream(connection.getInputStream());
+                 FileOutputStream fileOutput = new FileOutputStream(destination);
+                 BufferedOutputStream output = new BufferedOutputStream(fileOutput)) {
+                byte[] buffer = new byte[16 * 1024];
+                int read;
+                while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
+            }
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    private String sha256(File file) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        try (InputStream input = new FileInputStream(file)) {
+            byte[] buffer = new byte[16 * 1024];
+            int read;
+            while ((read = input.read(buffer)) != -1) digest.update(buffer, 0, read);
+        }
+        StringBuilder out = new StringBuilder();
+        for (byte b : digest.digest()) out.append(String.format(Locale.US, "%02x", b));
+        return out.toString();
+    }
+
+    private void unzipSafely(File zipFile, File destination) throws Exception {
+        String destinationPath = destination.getCanonicalPath() + File.separator;
+        try (ZipInputStream zip = new ZipInputStream(new BufferedInputStream(new FileInputStream(zipFile)))) {
+            ZipEntry entry;
+            byte[] buffer = new byte[16 * 1024];
+            while ((entry = zip.getNextEntry()) != null) {
+                File out = new File(destination, entry.getName());
+                String outPath = out.getCanonicalPath();
+                if (!outPath.startsWith(destinationPath)) {
+                    throw new SecurityException("Blocked zip path");
+                }
+
+                if (entry.isDirectory()) {
+                    if (!out.exists() && !out.mkdirs()) throw new Exception("mkdir failed");
+                } else {
+                    File parent = out.getParentFile();
+                    if (parent != null && !parent.exists() && !parent.mkdirs()) {
+                        throw new Exception("mkdir failed");
+                    }
+                    try (FileOutputStream fileOutput = new FileOutputStream(out);
+                         BufferedOutputStream output = new BufferedOutputStream(fileOutput)) {
+                        int read;
+                        while ((read = zip.read(buffer)) != -1) output.write(buffer, 0, read);
+                    }
+                }
+                zip.closeEntry();
+            }
+        }
+    }
+
+    private void cleanupOldLiveUpdates(File root, File keep) {
+        File[] entries = root.listFiles();
+        if (entries == null) return;
+        for (File entry : entries) {
+            if (!entry.equals(keep)) deleteRecursively(entry);
+        }
+    }
+
+    private void deleteRecursively(File file) {
+        if (file == null || !file.exists()) return;
+        if (file.isDirectory()) {
+            File[] children = file.listFiles();
+            if (children != null) {
+                for (File child : children) deleteRecursively(child);
+            }
+        }
+        file.delete();
     }
 
     private void watchForWebSurface() {
