@@ -41,7 +41,6 @@ import org.json.JSONTokener;
  */
 public class MainActivity extends BridgeActivity {
     private static final long SYSTEM_SPLASH_MS = 1500L;
-    private static final long SYSTEM_SPLASH_SAFETY_MS = 2200L;
     private static final long SESSION_SYNC_MS = 750L;
     private static final long LIVE_UPDATE_CHECK_DELAY_MS = 250L;
     private static final String LIVE_UPDATE_PREFS = "iftin_live_update";
@@ -61,8 +60,7 @@ public class MainActivity extends BridgeActivity {
         SplashScreen splashScreen = SplashScreen.installSplashScreen(this);
         splashScreen.setKeepOnScreenCondition(() -> {
             long elapsed = SystemClock.uptimeMillis() - launchStartedAt;
-            return elapsed < SYSTEM_SPLASH_MS
-                || (!webSurfaceReady && elapsed < SYSTEM_SPLASH_SAFETY_MS);
+            return elapsed < SYSTEM_SPLASH_MS;
         });
 
         super.onCreate(savedInstanceState);
@@ -303,7 +301,7 @@ public class MainActivity extends BridgeActivity {
                     result -> {
                         if ("true".equals(result)) {
                             webSurfaceReady = true;
-                        } else if (SystemClock.uptimeMillis() - launchStartedAt < SYSTEM_SPLASH_SAFETY_MS) {
+                        } else if (!webSurfaceReady) {
                             startupHandler.postDelayed(this, 50L);
                         }
                     }
