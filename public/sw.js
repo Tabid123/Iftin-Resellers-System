@@ -1,3 +1,4 @@
+const SW_BUILD_VERSION = '__IFTIN_BUILD_VERSION__';
 // Cache version is auto-set by the app on first load via BUILD_VERSION message
 let CACHE_VERSION = '';
 const STATIC_CACHE_PREFIX = 'iftin-static-';
@@ -65,9 +66,28 @@ self.addEventListener('activate', (event) => {
   console.log('[SW] Activating service worker...');
   event.waitUntil(
     clearOldCaches()
-      .then(() => {
-        console.log('[SW] Service worker activated');
-        return self.clients.claim();
+      .then(() => self.clients.claim())
+      .then(async () => {
+        console.log('[SW] Service worker activated:', SW_BUILD_VERSION);
+
+        // Existing tabs may still be executing the previous JS bundle. Force a
+        // single cache-busted navigation when this new worker takes control.
+        const clients = await self.clients.matchAll({
+          type: 'window',
+          includeUncontrolled: true,
+        });
+        await Promise.allSettled(
+          clients.map((client) => {
+            try {
+              const url = new URL(client.url);
+              if (url.searchParams.get('__swbuild') === SW_BUILD_VERSION) return;
+              url.searchParams.set('__swbuild', SW_BUILD_VERSION);
+              return client.navigate(url.toString());
+            } catch {
+              return undefined;
+            }
+          }),
+        );
       })
   );
 });
