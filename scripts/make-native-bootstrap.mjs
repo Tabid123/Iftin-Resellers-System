@@ -71,14 +71,13 @@ const bootstrap = `<!doctype html>
         if(done)return;done=true;
         location.replace("/packaged-app.html");
       }
-      if(navigator.onLine===false){local();return;}
-      var controller=typeof AbortController!=="undefined"?new AbortController():null;
-       var timer=setTimeout(function(){try{controller&&controller.abort();}catch(e){} local();},2500);
-      fetch(live,{method:"GET",mode:"no-cors",cache:"no-store",signal:controller?controller.signal:undefined})
-        .then(function(){
-          if(done)return;done=true;clearTimeout(timer);location.replace(live);
-        })
-        .catch(function(){clearTimeout(timer);local();});
+      // navigator.onLine is only a hint on Android. Do not hold the visible
+      // bootstrap splash while probing the live site: the probe can resolve
+      // even when the WebView cannot actually navigate/render the destination.
+      // Native APKs already contain a complete tenant snapshot, so boot the
+      // packaged app immediately. The packaged app performs its own online
+      // sync after React is visible.
+      local();
     })();
   </script>
 </head>
