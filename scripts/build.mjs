@@ -4,6 +4,17 @@ import path from 'node:path';
 
 const isCapacitorBuild = process.env.CAPACITOR_BUILD === 'true';
 
+const buildVersion =
+  String(process.env.VITE_BUILD_VERSION || process.env.GITHUB_SHA || '').trim() ||
+  `web-${Date.now()}`;
+process.env.VITE_BUILD_VERSION = buildVersion;
+
+fs.mkdirSync(path.resolve('public'), { recursive: true });
+fs.writeFileSync(
+  path.resolve('public', 'build-version.json'),
+  `${JSON.stringify({ version: buildVersion })}\n`,
+);
+
 if (isCapacitorBuild) {
   await import('./generate-tenant-offline-bootstrap.mjs');
 
@@ -33,6 +44,27 @@ const result = spawnSync(viteBin, ['build'], {
 
 if (result.error) throw result.error;
 if ((result.status ?? 1) !== 0) process.exit(result.status ?? 1);
+
+// Make the service-worker bytes unique for every deployment so browsers that
+// still run an older storefront can discover the new build without a manual
+// cache clear.
+const serviceWorkerOutputs = [
+  path.resolve('dist', 'sw.js'),
+  path.resolve('dist', 'client', 'sw.js'),
+  path.resolve('dist', 'public', 'sw.js'),
+  path.resolve('.output', 'public', 'sw.js'),
+  path.resolve('build', 'sw.js'),
+  path.resolve('build', 'client', 'sw.js'),
+];
+for (const swPath of serviceWorkerOutputs) {
+  if (!fs.existsSync(swPath)) continue;
+  const sw = fs.readFileSync(swPath, 'utf8');
+  fs.writeFileSync(
+    swPath,
+    sw.replaceAll('__IFTIN_BUILD_VERSION__', buildVersion),
+    'utf8',
+  );
+}
 
 if (isCapacitorBuild) {
   const candidates = [
