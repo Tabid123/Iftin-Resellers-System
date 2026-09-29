@@ -176,7 +176,10 @@ const PhoneInput = () => {
       });
       
       setIsVerifying(false);
-      navigate('/offline-mode', { state: { fromPhoneVerification: true } });
+      try {
+        sessionStorage.setItem('iftin:force-offline-onboarding-once', '1');
+      } catch {}
+      navigate('/offline-mode');
     } else {
       toast({
         title: "Kood khaldan",
