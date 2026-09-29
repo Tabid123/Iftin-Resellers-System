@@ -238,13 +238,35 @@ function AppContent() {
   useStorefrontRealtime();
   const appQueryClient = useQueryClient();
 
+  useEffect(() => {
+    // The native handoff splash is injected before React mounts so no plain
+    // tenant-colour frame can flash between documents. Remove that temporary
+    // overlay only after the real app surface has mounted and painted.
+    const clearNativeHandoffOverlay = () => {
+      const style = document.getElementById("iftin-native-handoff-bg");
+      style?.remove();
+      document.documentElement.style.removeProperty("background");
+    };
+
+    let raf1 = 0;
+    let raf2 = 0;
+    raf1 = window.requestAnimationFrame(() => {
+      raf2 = window.requestAnimationFrame(clearNativeHandoffOverlay);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(raf1);
+      window.cancelAnimationFrame(raf2);
+    };
+  }, []);
+
   useEffect(() => onStorefront("tenant-config-changed", () => appQueryClient.invalidateQueries()), [appQueryClient]);
   const { showExitDialog, handleExitApp, handleCancelExit } = useAndroidBackButton();
 
   useEffect(() => initNativeBars(), []);
 
   return (
-    <>
+    <div id="tenant-app-ready">
       <TenantPwaMeta />
       <StatusBarColor />
       <Outlet />
@@ -261,7 +283,7 @@ function AppContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </div>
   );
 }
 
