@@ -79,10 +79,10 @@ export default function ResellersPage() {
   )
 
   return (
-    <div className="p-4 sm:p-6 space-y-4">
+    <div className="min-h-full space-y-6 px-4 py-6 sm:px-7 lg:px-8 lg:py-8">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl sm:text-2xl font-bold">Resellers</h1>
-        <Button asChild size="sm" className="shrink-0">
+        <h1 className="text-[26px] font-semibold tracking-tight text-[#0c1220]">Resellers</h1>
+        <Button asChild size="sm" className="shrink-0 rounded-full bg-[#0c1220] px-4 text-white hover:bg-[#172033]">
           <Link to="/admin/resellers/new"><Plus className="h-4 w-4 mr-1" /> Cusub</Link>
         </Button>
       </div>
@@ -96,7 +96,7 @@ export default function ResellersPage() {
           </div>
         )}
         {rows.map(r => (
-          <div key={r.id} className="rounded-lg border bg-card p-3 space-y-2">
+          <div key={r.id} className="space-y-2 rounded-xl border border-black/10 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.035)]">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="font-medium break-words">{r.name}</div>
@@ -120,10 +120,10 @@ export default function ResellersPage() {
       </div>
 
       {/* Desktop: table */}
-      <div className="hidden lg:block border rounded-lg overflow-hidden">
+      <div className="hidden overflow-hidden rounded-xl border border-black/10 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.035)] lg:block">
         <div className="w-full overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-muted">
+            <thead className="bg-[#f4f4f2]">
               <tr className="text-left">
                 <th className="p-3">Name</th>
                 <th className="p-3">Email &amp; Links</th>
