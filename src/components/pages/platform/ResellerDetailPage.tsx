@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { toast } from '@/hooks/use-toast'
-import { ArrowLeft, Loader2, Upload, X, KeyRound, Copy, Check, UserCog, Trash2 } from 'lucide-react'
+import { ArrowLeft, Bell, Loader2, Upload, X, KeyRound, Copy, Check, UserCog, Trash2 } from 'lucide-react'
 import ThemePreview from '@/components/platform/ThemePreview'
 import PartnerApiTab from '@/components/platform/PartnerApiTab'
 import WaafiPayIntegrationSettings from '@/components/admin/WaafiPayIntegrationSettings'
@@ -104,6 +104,16 @@ export default function ResellerDetailPage() {
   const [impersonating, setImpersonating] = useState(false)
   const [ownerEmail, setOwnerEmail] = useState<string | null>(null)
 
+  // Per-tenant OneSignal config (super-admin only)
+  const [pushAppId, setPushAppId] = useState('')
+  const [pushRestApiKey, setPushRestApiKey] = useState('')
+  const [pushEnabled, setPushEnabled] = useState(true)
+  const [pushConfigured, setPushConfigured] = useState(false)
+  const [pushHasRestKey, setPushHasRestKey] = useState(false)
+  const [pushUpdatedAt, setPushUpdatedAt] = useState<string | null>(null)
+  const [pushLoading, setPushLoading] = useState(false)
+  const [pushSaving, setPushSaving] = useState(false)
+
   useEffect(() => {
     (async () => {
       const { data } = await supabase.rpc('get_tenant_owner_emails')
@@ -112,6 +122,70 @@ export default function ResellerDetailPage() {
     })()
   }, [id])
 
+
+  const loadPushConfig = async () => {
+    setPushLoading(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('platform-tenant-push-config', {
+        body: { tenant_id: id, action: 'status' },
+      })
+      if (error || (data as any)?.error) throw new Error((data as any)?.error ?? error?.message)
+      const status = (data ?? {}) as any
+      setPushConfigured(Boolean(status.configured))
+      setPushAppId(String(status.onesignal_app_id ?? ''))
+      setPushEnabled(status.enabled !== false)
+      setPushHasRestKey(Boolean(status.has_rest_api_key))
+      setPushUpdatedAt(status.updated_at ?? null)
+      setPushRestApiKey('')
+    } catch (e: any) {
+      toast({ title: 'OneSignal xogtiisa lama soo qaadin', description: e.message, variant: 'destructive' })
+    } finally {
+      setPushLoading(false)
+    }
+  }
+
+  const savePushConfig = async () => {
+    const appId = pushAppId.trim()
+    const restKey = pushRestApiKey.trim()
+    if (!appId) {
+      toast({ title: 'OneSignal App ID geli', variant: 'destructive' })
+      return
+    }
+    if (!pushHasRestKey && !restKey) {
+      toast({ title: 'OneSignal REST API Key geli', variant: 'destructive' })
+      return
+    }
+
+    setPushSaving(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('platform-tenant-push-config', {
+        body: {
+          tenant_id: id,
+          action: 'save',
+          onesignal_app_id: appId,
+          rest_api_key: restKey,
+          enabled: pushEnabled,
+        },
+      })
+      if (error || (data as any)?.error) throw new Error((data as any)?.error ?? error?.message)
+      const saved = (data ?? {}) as any
+      setPushConfigured(Boolean(saved.configured))
+      setPushAppId(String(saved.onesignal_app_id ?? appId))
+      setPushEnabled(saved.enabled !== false)
+      setPushHasRestKey(Boolean(saved.has_rest_api_key))
+      setPushUpdatedAt(saved.updated_at ?? new Date().toISOString())
+      setPushRestApiKey('')
+      toast({ title: '✅ OneSignal waa la keydiyey' })
+    } catch (e: any) {
+      toast({ title: 'OneSignal lama keydin', description: e.message, variant: 'destructive' })
+    } finally {
+      setPushSaving(false)
+    }
+  }
+
+  useEffect(() => {
+    if (id) void loadPushConfig()
+  }, [id])
 
   const impersonate = async () => {
     setImpersonating(true)
@@ -619,6 +693,91 @@ export default function ResellerDetailPage() {
             </p>
           </div>
 
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bell className="h-5 w-5" />
+            OneSignal Notifications
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {pushLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              OneSignal xogtiisa waa la soo qaadayaa...
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={pushConfigured ? 'default' : 'secondary'}>
+                  {pushConfigured ? 'Configured' : 'Not configured'}
+                </Badge>
+                <Badge variant={pushHasRestKey ? 'default' : 'secondary'}>
+                  {pushHasRestKey ? 'REST key saved' : 'REST key missing'}
+                </Badge>
+                {pushUpdatedAt && (
+                  <span className="text-xs text-muted-foreground">
+                    Updated {new Date(pushUpdatedAt).toLocaleString()}
+                  </span>
+                )}
+              </div>
+
+              <div>
+                <Label>OneSignal App ID</Label>
+                <Input
+                  value={pushAppId}
+                  onChange={e => setPushAppId(e.target.value)}
+                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                  autoComplete="off"
+                />
+              </div>
+
+              <div>
+                <Label>OneSignal REST API Key</Label>
+                <Input
+                  type="password"
+                  value={pushRestApiKey}
+                  onChange={e => setPushRestApiKey(e.target.value)}
+                  placeholder={pushHasRestKey
+                    ? 'Key hore waa keydsan yahay — ka tag madhan si uusan isu beddelin'
+                    : 'Geli REST API Key'}
+                  autoComplete="new-password"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  REST API Key-ga dib looma soo bandhigayo; Supabase Vault ayaa lagu keydiyaa.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="font-medium">Notification status</div>
+                  <div className="text-xs text-muted-foreground">
+                    Tenant-kan u oggolow ama ka jooji OneSignal notification.
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant={pushEnabled ? 'default' : 'outline'}
+                  onClick={() => setPushEnabled(v => !v)}
+                >
+                  {pushEnabled ? 'Enabled' : 'Disabled'}
+                </Button>
+              </div>
+
+              <Button onClick={savePushConfig} disabled={pushSaving}>
+                {pushSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Keydi OneSignal
+              </Button>
+
+              <p className="text-xs text-muted-foreground">
+                App ID-ga wuxuu tenant APK-ga galayaa marka APK cusub la dhiso.
+                REST API Key-ga server-ka kaliya ayuu joogayaa.
+              </p>
+            </>
+          )}
         </CardContent>
       </Card>
 
