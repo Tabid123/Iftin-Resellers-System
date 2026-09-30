@@ -165,6 +165,31 @@ jobs:
           test -s public/tenant-bootstrap.json
           echo "Tenant storefront snapshot packaged for first-launch offline mode"
 
+      - name: Resolve tenant-specific OneSignal App ID
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -e
+          TENANT_ID="$(node -e 'const j=require("./public/tenant-bootstrap.json"); process.stdout.write(String(j?.tenant?.id||""))')"
+          if [ -z "$TENANT_ID" ]; then
+            echo "::error::Tenant id missing from offline bootstrap"
+            exit 1
+          fi
+
+          PUSH_JSON="$(curl -fsS "$SUPABASE_URL/rest/v1/tenant_push_config?tenant_id=eq.$TENANT_ID&select=onesignal_app_id,enabled&limit=1" \
+            -H "apikey: $SERVICE_KEY" \
+            -H "Authorization: Bearer $SERVICE_KEY")"
+
+          TENANT_ONESIGNAL_APP_ID="$(node -e 'const a=JSON.parse(process.argv[1]||"[]"); const r=a[0]; process.stdout.write(r&&r.enabled!==false?String(r.onesignal_app_id||""):"")' "$PUSH_JSON")"
+          echo "VITE_ONESIGNAL_APP_ID=$TENANT_ONESIGNAL_APP_ID" >> "$GITHUB_ENV"
+
+          if [ -n "$TENANT_ONESIGNAL_APP_ID" ]; then
+            echo "Tenant-specific OneSignal App ID configured for $TENANT_SLUG"
+          else
+            echo "No enabled tenant-specific OneSignal App ID for $TENANT_SLUG; native push will stay disabled in this APK"
+          fi
+
       - name: Package tenant voice prompts
         run: |
           set -e
@@ -190,7 +215,6 @@ jobs:
           VITE_TENANT_LOGO_URL: ${{ inputs.logo_url }}
           VITE_SPLASH_COLOR: ${{ inputs.splash_color }}
           VITE_BUILD_VERSION: ${{ github.sha }}
-          VITE_ONESIGNAL_APP_ID: ${{ secrets.ONESIGNAL_APP_ID }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
