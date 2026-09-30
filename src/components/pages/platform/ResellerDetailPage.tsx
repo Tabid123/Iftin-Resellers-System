@@ -28,9 +28,11 @@ export default function ResellerDetailPage() {
   const [payments, setPayments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [payForm, setPayForm] = useState({
-    amount: 0, payment_method: 'EVC', period_days: 30, notes: '',
+    amount: 0, payment_method: 'EVC', period_days: 365, notes: '',
   })
   const [saving, setSaving] = useState(false)
+  const [firstYearPrice, setFirstYearPrice] = useState('50')
+  const [renewalYearlyPrice, setRenewalYearlyPrice] = useState('')
 
   const [applyingTemplate, setApplyingTemplate] = useState(false)
   const [sourceTenants, setSourceTenants] = useState<any[]>([])
@@ -243,6 +245,8 @@ export default function ResellerDetailPage() {
       setLogoUrl(t.logo_url ?? null)
       setPeriodEnd(toDateInput(t.current_period_end))
       setTrialEnds(toDateInput((t as any).trial_ends_at))
+      setFirstYearPrice((t as any).first_year_price != null ? String((t as any).first_year_price) : '50')
+      setRenewalYearlyPrice((t as any).renewal_yearly_price != null ? String((t as any).renewal_yearly_price) : '')
     }
   }
   useEffect(() => { load() }, [id])
@@ -295,8 +299,8 @@ export default function ResellerDetailPage() {
     end.setDate(end.getDate() + 3)
     await update({
       trial_ends_at: end.toISOString(),
-      current_period_end: end.toISOString(),
-      status: 'active',
+      current_period_end: null,
+      status: 'trial',
     })
   }
 
@@ -333,7 +337,7 @@ export default function ResellerDetailPage() {
       })
       if (error || (data as any)?.error) throw new Error((data as any)?.error ?? error?.message)
       toast({ title: '✅ Lacag waa la qoray' })
-      setPayForm({ amount: 0, payment_method: 'EVC', period_days: 30, notes: '' })
+      setPayForm({ amount: 0, payment_method: 'EVC', period_days: 365, notes: '' })
       load()
     } catch (e: any) {
       toast({ title: 'Khalad', description: e.message, variant: 'destructive' })
@@ -382,6 +386,23 @@ export default function ResellerDetailPage() {
       'Xogta oo dhan',
     )
 
+  const saveYearlyPricing = async () => {
+    const year1 = Number(firstYearPrice)
+    const renewal = renewalYearlyPrice.trim() ? Number(renewalYearlyPrice) : null
+    if (!Number.isFinite(year1) || year1 < 0) {
+      toast({ title: 'Qiimaha sanadka 1aad sax', variant: 'destructive' })
+      return
+    }
+    if (renewal != null && (!Number.isFinite(renewal) || renewal < 150 || renewal > 200)) {
+      toast({ title: 'Renewal yearly waa inuu u dhexeeyaa $150 iyo $200', variant: 'destructive' })
+      return
+    }
+    await update({
+      first_year_price: year1,
+      renewal_yearly_price: renewal,
+    })
+  }
+
   const LinkRow = ({ label, value }: { label: string; value: string }) => (
     <div className="flex items-center justify-between gap-2 border rounded-md px-3 py-2">
       <div className="min-w-0">
@@ -427,6 +448,48 @@ export default function ResellerDetailPage() {
           <LinkRow label="Email (owner)" value={ownerEmail ?? 'Lama helin'} />
           <LinkRow label="Admin dashboard link" value={adminUrl} />
           <LinkRow label="Link-ga macaamiisha (public)" value={publicUrl} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Yearly Pricing</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Qiimahan reseller-kan ayuu gaar u yahay. Plan-ka legacy-ga ah ee monthly laguma xisaabinayo lacagta reseller-ka.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <Label>Sanadka 1aad ($ / yearly)</Label>
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={firstYearPrice}
+                onChange={e => setFirstYearPrice(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Sanadaha xiga ($ / yearly)</Label>
+              <Input
+                type="number"
+                min={150}
+                max={200}
+                step="0.01"
+                placeholder="150–200"
+                value={renewalYearlyPrice}
+                onChange={e => setRenewalYearlyPrice(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Haddii aan exact price weli la go'aamin, madhan ka tag — liiska wuxuu muujinayaa $150–$200/yearly.
+              </p>
+            </div>
+          </div>
+          <Button size="sm" onClick={saveYearlyPricing} disabled={saving}>
+            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Keydi yearly pricing
+          </Button>
         </CardContent>
       </Card>
 
