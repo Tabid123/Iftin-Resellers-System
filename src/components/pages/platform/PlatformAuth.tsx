@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '@/integrations/supabase/client'
+import { platformSupabase as supabase } from '@/integrations/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from '@/hooks/use-toast'
 import { Loader2 } from 'lucide-react'
-import iftinLogo from '@/assets/iftin-agents-logo.png'
+import iftinLogo from '@/assets/iftin-resellers-brand.jpg'
 
 export default function PlatformAuth({
   onSuccess,
@@ -61,11 +61,11 @@ export default function PlatformAuth({
         <CardHeader className="text-center space-y-2">
           <img
             src={iftinLogo}
-            alt="Iftin Agents"
+            alt="Iftin Resellers"
             className="mx-auto h-24 w-auto object-contain"
           />
           <CardTitle>
-            {needsBootstrap ? 'Samee Super Admin' : 'Iftin Agents — Admin Login'}
+            {needsBootstrap ? 'Samee Super Admin' : 'Iftin Resellers — Admin Login'}
           </CardTitle>
           {needsBootstrap && (
             <p className="text-xs text-muted-foreground">
