@@ -37,6 +37,12 @@ const statusVariant = (s: string): any =>
 const money = (value: number | null | undefined) =>
   value == null ? null : new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(Number(value))
 
+const daysLeft = (endDate: string | null | undefined) => {
+  if (!endDate) return null
+  const diff = new Date(endDate).getTime() - Date.now()
+  return Math.max(0, Math.ceil(diff / 86400000))
+}
+
 export default function ResellersPage() {
   const [rows, setRows] = useState<Row[]>([])
   const [loading, setLoading] = useState(true)
@@ -162,6 +168,7 @@ export default function ResellersPage() {
             {filteredRows.map((r) => {
               const status = effectiveStatus(r)
               const endDate = r.status === 'trial' ? r.trial_ends_at : r.current_period_end
+              const remainingDays = daysLeft(endDate)
               const firstYear = money(r.first_year_price)
               const renewal = money(r.renewal_yearly_price)
 
