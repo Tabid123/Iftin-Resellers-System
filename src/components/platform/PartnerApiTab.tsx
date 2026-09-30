@@ -11,7 +11,7 @@ import { Loader2, KeyRound, Trash2, PlugZap, BookOpen } from 'lucide-react'
 
 type Props = { tenant: any; onRefresh: () => void; client?: typeof supabase }
 
-const IFTIN_BASE = 'https://tsjqvhddjfuecwxpcuil.api.co/functions/v1'
+const IFTIN_BASE = 'https://tsjqvhddjfuecwxpcuil.supabase.co/functions/v1'
 const OUR_CALLBACK = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/iftin-callback`
 
 function DocBlock({ title, body }: { title: string; body: string }) {
