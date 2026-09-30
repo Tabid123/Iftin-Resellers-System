@@ -29,7 +29,8 @@ const EMPTY_STATUS: WaafiPayStatus = {
   credentials_valid: true,
 };
 
-export default function WaafiPayIntegrationSettings({ tenantId }: { tenantId: string }) {
+export default function WaafiPayIntegrationSettings({ tenantId, client }: { tenantId: string; client?: typeof supabase }) {
+  const api = client ?? supabase;
   const [status, setStatus] = useState<WaafiPayStatus>(EMPTY_STATUS);
   const [merchantUid, setMerchantUid] = useState('');
   const [apiUserId, setApiUserId] = useState('');
@@ -53,7 +54,7 @@ export default function WaafiPayIntegrationSettings({ tenantId }: { tenantId: st
 
   const callIntegration = useCallback(async (payload: Record<string, unknown>) => {
     if (!tenantId) throw new Error('Tenant lama helin');
-    const { data, error } = await supabase.functions.invoke('waafipay-integration', {
+    const { data, error } = await api.functions.invoke('waafipay-integration', {
       body: { tenant_id: tenantId, ...payload },
     });
     if (error || data?.error) {
