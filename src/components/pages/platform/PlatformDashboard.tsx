@@ -5,21 +5,21 @@ import { Users, DollarSign, Activity, AlertCircle } from 'lucide-react'
 
 export default function PlatformDashboard() {
   const [stats, setStats] = useState({
-    total: 0, active: 0, suspended: 0, mrr: 0,
+    total: 0, active: 0, suspended: 0, firstYearTotal: 0,
   })
 
   useEffect(() => {
     (async () => {
       const { data: tenants } = await supabase
         .from('tenants')
-        .select('status, plan_id, subscription_plans(price_monthly)')
+        .select('status, first_year_price')
       const list = (tenants ?? []) as any[]
       const active = list.filter(t => t.status === 'active').length
       const suspended = list.filter(t => t.status === 'suspended' || t.status === 'cancelled').length
-      const mrr = list
-        .filter(t => t.status === 'active')
-        .reduce((s, t) => s + (t.subscription_plans?.price_monthly ?? 0), 0)
-      setStats({ total: list.length, active, suspended, mrr })
+      const firstYearTotal = list
+        .filter(t => t.status !== 'trial')
+        .reduce((s, t) => s + Number(t.first_year_price ?? 0), 0)
+      setStats({ total: list.length, active, suspended, firstYearTotal })
     })()
   }, [])
 
@@ -27,7 +27,7 @@ export default function PlatformDashboard() {
     { label: 'Total Resellers', value: stats.total, icon: Users },
     { label: 'Active', value: stats.active, icon: Activity },
     { label: 'Suspended', value: stats.suspended, icon: AlertCircle },
-    { label: 'MRR ($)', value: stats.mrr, icon: DollarSign },
+    { label: 'Year 1 Pricing Total ($)', value: stats.firstYearTotal, icon: DollarSign },
   ]
 
   return (
