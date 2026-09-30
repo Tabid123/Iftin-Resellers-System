@@ -844,9 +844,9 @@ export default function ResellerDetailPage() {
         </CardContent>
       </Card>
 
-      {tenant && <WaafiPayIntegrationSettings tenantId={tenant.id} />}
+      {tenant && <WaafiPayIntegrationSettings tenantId={tenant.id} client={supabase} />}
 
-      {tenant && <PartnerApiTab tenant={tenant} onRefresh={load} />}
+      {tenant && <PartnerApiTab tenant={tenant} onRefresh={load} client={supabase} />}
 
       {/* Halis — tirtir reseller-ka */}
       <Card className="border-destructive/40">
