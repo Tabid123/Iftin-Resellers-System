@@ -21,11 +21,11 @@ export default function PlansPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-4 max-w-5xl">
-      <h1 className="text-xl sm:text-2xl font-bold">Plans</h1>
+    <div className="min-h-full space-y-6 px-4 py-6 sm:px-7 lg:px-8 lg:py-8">
+      <h1 className="text-[26px] font-semibold tracking-tight text-[#0c1220]">Plans</h1>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {plans.map(p => (
-          <Card key={p.id}>
+          <Card key={p.id} className="rounded-xl border-black/10 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.035)]">
             <CardHeader><CardTitle>{p.name}</CardTitle></CardHeader>
             <CardContent className="space-y-2 text-sm">
               <div><label className="text-xs text-muted-foreground">Price/month ($)</label>
