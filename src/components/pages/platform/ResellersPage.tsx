@@ -116,6 +116,7 @@ export default function ResellersPage() {
                   ['all', 'All'],
                   ['active', 'Active'],
                   ['trial', 'Trial'],
+                  ['expired', 'Expired'],
                   ['suspended', 'Suspended'],
                 ].map(([value, label]) => (
                   <button
