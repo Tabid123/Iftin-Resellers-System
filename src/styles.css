@@ -238,3 +238,92 @@ input, textarea, [contenteditable] {
   transform: translateZ(0);
   backface-visibility: hidden;
 }
+
+/* Iftin Resellers platform-only brand */
+.platform-shell,
+.platform-login-shell {
+  --background: 40 20% 97%;
+  --foreground: 218 38% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 218 38% 12%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 218 38% 12%;
+  --primary: 214 100% 43%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 214 24% 94%;
+  --secondary-foreground: 218 38% 16%;
+  --muted: 214 20% 95%;
+  --muted-foreground: 215 16% 45%;
+  --accent: 28 100% 50%;
+  --accent-foreground: 218 38% 12%;
+  --border: 214 18% 88%;
+  --input: 214 18% 88%;
+  --ring: 214 100% 43%;
+  --sidebar-primary: 214 100% 43%;
+  --sidebar-primary-foreground: 0 0% 100%;
+}
+
+.platform-shell.platform-dark {
+  --background: 219 43% 7%;
+  --foreground: 210 40% 98%;
+  --card: 218 35% 11%;
+  --card-foreground: 210 40% 98%;
+  --popover: 218 35% 11%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 211 100% 57%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 218 28% 16%;
+  --secondary-foreground: 210 40% 96%;
+  --muted: 218 28% 15%;
+  --muted-foreground: 215 18% 66%;
+  --accent: 28 100% 52%;
+  --accent-foreground: 219 43% 7%;
+  --border: 217 24% 21%;
+  --input: 217 24% 21%;
+  --ring: 211 100% 57%;
+  background: #080d18 !important;
+  color: #f8fafc !important;
+}
+
+.platform-shell.platform-dark main,
+.platform-shell.platform-dark [class*="bg-[#f7f6f3]"] {
+  background-color: #080d18 !important;
+}
+
+.platform-shell.platform-dark .bg-white,
+.platform-shell.platform-dark [class*="bg-[#fafafa]"],
+.platform-shell.platform-dark [class*="bg-[#f4f4f2]"],
+.platform-shell.platform-dark [class*="bg-[#f5f5f3]"],
+.platform-shell.platform-dark [class*="bg-[#f6f6f4]"] {
+  background-color: #111827 !important;
+}
+
+.platform-shell.platform-dark [class*="text-[#0c1220]"],
+.platform-shell.platform-dark .text-slate-950,
+.platform-shell.platform-dark .text-slate-900,
+.platform-shell.platform-dark .text-slate-800,
+.platform-shell.platform-dark .text-slate-700 {
+  color: #f8fafc !important;
+}
+
+.platform-shell.platform-dark .text-slate-600,
+.platform-shell.platform-dark .text-slate-500,
+.platform-shell.platform-dark .text-slate-400 {
+  color: #94a3b8 !important;
+}
+
+.platform-shell.platform-dark [class*="border-black/"],
+.platform-shell.platform-dark [class*="border-black"] {
+  border-color: rgba(148, 163, 184, 0.18) !important;
+}
+
+.platform-shell.platform-dark input,
+.platform-shell.platform-dark textarea,
+.platform-shell.platform-dark select {
+  color: #f8fafc;
+}
+
+.platform-shell.platform-dark input::placeholder,
+.platform-shell.platform-dark textarea::placeholder {
+  color: #64748b;
+}
