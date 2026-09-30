@@ -7,6 +7,18 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 
 const TENANT_STORAGE_KEY = 'iftin:tenant-id';
 
+function namespacedAuthStorage(namespace: string) {
+  const base = brokeredPreviewStorage() as any;
+  if (!base) return undefined;
+  const keyFor = (key: string) => `${namespace}:${key}`;
+  return {
+    getItem: (key: string) => base.getItem(keyFor(key)),
+    setItem: (key: string, value: string) => base.setItem(keyFor(key), value),
+    removeItem: (key: string) => base.removeItem(keyFor(key)),
+  };
+}
+
+
 type TenantChangeListener = (prev: string | null, next: string | null) => void;
 
 /**
@@ -81,6 +93,23 @@ const rawClient = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY,
 });
 
 export const supabase = rawClient as unknown as ReturnType<typeof createClient<any, 'public', any>>;
+
+/**
+ * Dedicated Super Admin client.
+ *
+ * The platform console must not share its persisted Auth session with tenant
+ * admin/storefront auth. Otherwise logging into a tenant admin in another tab
+ * replaces the super-admin token and immediately closes /admin.
+ */
+export const platformSupabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  auth: {
+    storage: namespacedAuthStorage('iftin:platform-auth'),
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: false,
+  },
+}) as unknown as ReturnType<typeof createClient<any, 'public', any>>;
+
 
 /**
  * Calls a public Edge Function without the storefront x-tenant-id header.
