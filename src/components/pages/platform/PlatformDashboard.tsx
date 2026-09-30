@@ -12,12 +12,22 @@ export default function PlatformDashboard() {
     (async () => {
       const { data: tenants } = await supabase
         .from('tenants')
-        .select('status, first_year_price')
+        .select('status, current_period_end, trial_ends_at, first_year_price')
       const list = (tenants ?? []) as any[]
-      const active = list.filter(t => t.status === 'active').length
+      const now = Date.now()
+      const isExpired = (tenant: any) => {
+        if (tenant.status === 'trial') {
+          return Boolean(tenant.trial_ends_at && new Date(tenant.trial_ends_at).getTime() <= now)
+        }
+        if (tenant.status === 'active') {
+          return Boolean(tenant.current_period_end && new Date(tenant.current_period_end).getTime() <= now)
+        }
+        return false
+      }
+      const active = list.filter(t => t.status === 'active' && !isExpired(t)).length
       const suspended = list.filter(t => t.status === 'suspended' || t.status === 'cancelled').length
       const firstYearTotal = list
-        .filter(t => t.status !== 'trial')
+        .filter(t => t.status === 'active' && !isExpired(t))
         .reduce((s, t) => s + Number(t.first_year_price ?? 0), 0)
       setStats({ total: list.length, active, suspended, firstYearTotal })
     })()
