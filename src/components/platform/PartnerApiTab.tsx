@@ -9,9 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from '@/hooks/use-toast'
 import { Loader2, KeyRound, Trash2, PlugZap, BookOpen } from 'lucide-react'
 
-type Props = { tenant: any; onRefresh: () => void }
+type Props = { tenant: any; onRefresh: () => void; client?: typeof supabase }
 
-const IFTIN_BASE = 'https://tsjqvhddjfuecwxpcuil.supabase.co/functions/v1'
+const IFTIN_BASE = 'https://tsjqvhddjfuecwxpcuil.api.co/functions/v1'
 const OUR_CALLBACK = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/iftin-callback`
 
 function DocBlock({ title, body }: { title: string; body: string }) {
@@ -23,7 +23,8 @@ function DocBlock({ title, body }: { title: string; body: string }) {
   )
 }
 
-export default function PartnerApiTab({ tenant, onRefresh }: Props) {
+export default function PartnerApiTab({ tenant, onRefresh, client }: Props) {
+  const api = client ?? supabase
   const [cred, setCred] = useState<any>({ configured: false })
   const [orders, setOrders] = useState<any[]>([])
   const [invoices, setInvoices] = useState<any[]>([])
@@ -34,7 +35,7 @@ export default function PartnerApiTab({ tenant, onRefresh }: Props) {
   const [catalog, setCatalog] = useState<any>(null)
 
   const callCred = async (payload: any) => {
-    const { data, error } = await supabase.functions.invoke('iftin-credential', {
+    const { data, error } = await api.functions.invoke('iftin-credential', {
       body: { tenant_id: tenant.id, ...payload },
     })
     if (error || (data as any)?.error) {
@@ -49,15 +50,15 @@ export default function PartnerApiTab({ tenant, onRefresh }: Props) {
       return
     }
     const [o, i] = await Promise.all([
-      supabase.from('partner_orders_ledger').select('*')
+      api.from('partner_orders_ledger').select('*')
         .eq('tenant_id', tenant.id).order('created_at', { ascending: false }).limit(50),
-      supabase.from('partner_invoices').select('*')
+      api.from('partner_invoices').select('*')
         .eq('tenant_id', tenant.id).order('invoice_date', { ascending: false }).limit(30),
     ])
     setOrders(o.data ?? []); setInvoices(i.data ?? [])
     // Credit state comes from Iftin's catalog — Iftin owns these numbers.
     try {
-      const { data: cat } = await supabase.functions.invoke(
+      const { data: cat } = await api.functions.invoke(
         `iftin-catalog?tenant_id=${tenant.id}`, { method: 'GET' },
       )
       setCatalog(cat ?? null)
@@ -75,7 +76,7 @@ export default function PartnerApiTab({ tenant, onRefresh }: Props) {
 
   const saveMode = async () => {
     setBusy(true)
-    const { error } = await supabase.from('tenants').update({ delivery_mode: mode }).eq('id', tenant.id)
+    const { error } = await api.from('tenants').update({ delivery_mode: mode }).eq('id', tenant.id)
     setBusy(false)
     if (error) return toast({ title: 'Khalad', description: error.message, variant: 'destructive' })
     toast({ title: '✅ Delivery mode la keydiyay' })
@@ -122,10 +123,10 @@ export default function PartnerApiTab({ tenant, onRefresh }: Props) {
 
   const markPaid = async (inv: any) => {
     if (!confirm(`Fatuurada ${inv.invoice_date} ($${inv.total_amount}) waa la bixiyay?`)) return
-    const { error } = await supabase.from('partner_invoices')
+    const { error } = await api.from('partner_invoices')
       .update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', inv.id)
     if (error) return toast({ title: 'Khalad', description: error.message, variant: 'destructive' })
-    await supabase.rpc('adjust_tenant_balance', {
+    await api.rpc('adjust_tenant_balance', {
       _tenant_id: tenant.id, _delta: -Number(inv.total_amount),
     })
     toast({ title: '✅ Fatuurada waa la xisaabtay' })
