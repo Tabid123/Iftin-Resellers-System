@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase, supabaseAllTenants } from '@/integrations/supabase/client'
+import { platformSupabase as supabase } from '@/integrations/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -25,7 +25,7 @@ type AppRow = {
 type TenantRow = { id: string; name: string }
 
 const db = supabase as any
-const platformStorage = supabaseAllTenants.storage
+const platformStorage = supabase.storage
 
 export default function AppsPage() {
   const [apps, setApps] = useState<AppRow[]>([])
