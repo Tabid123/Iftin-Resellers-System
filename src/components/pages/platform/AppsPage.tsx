@@ -313,7 +313,7 @@ export default function AppsPage() {
           <Button
             type="button"
             onClick={() => setShowUpload((value) => !value)}
-            className="h-9 rounded-full bg-[#0c1220] px-5 text-sm font-semibold text-white hover:bg-[#172033]"
+            className="h-9 rounded-full bg-[#0b5ed7] px-5 text-sm font-semibold text-white hover:bg-[#094fb6]"
           >
             <Plus className="mr-2 h-4 w-4" />
             Upload App
@@ -402,7 +402,7 @@ export default function AppsPage() {
             </div>
 
             <div className="mt-5">
-              <Button type="submit" disabled={saving} className="bg-[#0c1220] text-white hover:bg-[#172033]">
+              <Button type="submit" disabled={saving} className="bg-[#0b5ed7] text-white hover:bg-[#094fb6]">
                 {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
                 Daabac
               </Button>
@@ -420,7 +420,7 @@ export default function AppsPage() {
               >
                 Apps
                 <span className="ml-1.5 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-600">{groups.length}</span>
-                <span className="absolute inset-x-0 bottom-0 h-[3px] rounded-t-full bg-[#ff3366]" />
+                <span className="absolute inset-x-0 bottom-0 h-[3px] rounded-t-full bg-[#ff7a00]" />
               </button>
             </div>
 
@@ -614,7 +614,7 @@ export default function AppsPage() {
                           </label>
                         ))}
                       </div>
-                      <Button size="sm" className="mt-3 h-8 bg-[#0c1220] text-xs text-white" disabled={sharing} onClick={() => saveShare(group)}>
+                      <Button size="sm" className="mt-3 h-8 bg-[#0b5ed7] text-xs text-white" disabled={sharing} onClick={() => saveShare(group)}>
                         {sharing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
                         Kaydi
                       </Button>
