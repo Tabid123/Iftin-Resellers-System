@@ -103,6 +103,7 @@ export const supabase = rawClient as unknown as ReturnType<typeof createClient<a
  */
 export const platformSupabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
+    storageKey: 'iftin-platform-auth-token',
     storage: namespacedAuthStorage('iftin:platform-auth'),
     persistSession: true,
     autoRefreshToken: true,
