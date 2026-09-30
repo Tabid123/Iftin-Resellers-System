@@ -87,7 +87,7 @@ export default function ResellersPage() {
           <Button
             asChild
             size="sm"
-            className="h-9 rounded-full bg-[#0c1220] px-5 text-sm font-semibold text-white hover:bg-[#172033]"
+            className="h-9 rounded-full bg-[#0b5ed7] px-5 text-sm font-semibold text-white hover:bg-[#094fb6]"
           >
             <Link to="/admin/resellers/new">
               <Plus className="mr-2 h-4 w-4" />
@@ -104,7 +104,7 @@ export default function ResellersPage() {
                 <span className="ml-1.5 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-600">
                   {rows.length}
                 </span>
-                <span className="absolute inset-x-0 bottom-0 h-[3px] rounded-t-full bg-[#ff3366]" />
+                <span className="absolute inset-x-0 bottom-0 h-[3px] rounded-t-full bg-[#ff7a00]" />
               </button>
             </div>
 
