@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, invokeEdgeFunction } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { Building2, CreditCard, Loader2, Package, Plus, RefreshCw, Save, Trash2, Users } from 'lucide-react';
+import { Bell, Building2, CreditCard, KeyRound, Loader2, Package, Plus, RefreshCw, Save, Trash2, Users } from 'lucide-react';
 
 type Plan = {
   id: string;
@@ -52,6 +52,14 @@ type TenantSubscription = {
   notes: string | null;
   tenants?: { name: string; slug: string } | null;
   subscription_plans?: { name: string } | null;
+};
+
+type TenantPushStatus = {
+  configured: boolean;
+  onesignal_app_id: string;
+  enabled: boolean;
+  has_rest_api_key: boolean;
+  updated_at: string | null;
 };
 
 const emptyTenantForm = {
@@ -97,6 +105,13 @@ export function SuperAdminSaas() {
   const [planForm, setPlanForm] = useState(emptyPlanForm);
   const [planEdits, setPlanEdits] = useState<Record<string, Partial<Plan>>>({});
   const [paymentTenantId, setPaymentTenantId] = useState('');
+  const [pushTenantId, setPushTenantId] = useState('');
+  const [pushAppId, setPushAppId] = useState('');
+  const [pushRestApiKey, setPushRestApiKey] = useState('');
+  const [pushEnabled, setPushEnabled] = useState(true);
+  const [pushStatus, setPushStatus] = useState<TenantPushStatus | null>(null);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [pushSaving, setPushSaving] = useState(false);
 
   const stats = useMemo(() => {
     const activeTenants = tenants.filter((tenant) => tenant.status === 'active').length;
@@ -275,6 +290,78 @@ export function SuperAdminSaas() {
     loadData();
   };
 
+  const loadPushStatus = async (tenantId: string) => {
+    setPushTenantId(tenantId);
+    setPushRestApiKey('');
+    if (!tenantId) {
+      setPushStatus(null);
+      setPushAppId('');
+      setPushEnabled(true);
+      return;
+    }
+
+    setPushLoading(true);
+    const { data, error } = await invokeEdgeFunction<TenantPushStatus>(
+      'platform-tenant-push-config',
+      { tenant_id: tenantId, action: 'status' },
+    );
+    setPushLoading(false);
+
+    if (error || !data) {
+      toast({
+        title: isSo ? 'OneSignal xogtiisa lama soo qaadin' : 'Could not load OneSignal config',
+        description: error?.message,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setPushStatus(data);
+    setPushAppId(data.onesignal_app_id || '');
+    setPushEnabled(data.enabled !== false);
+  };
+
+  const savePushConfig = async () => {
+    if (!pushTenantId) {
+      toast({ title: isSo ? 'Tenant dooro' : 'Choose a tenant', variant: 'destructive' });
+      return;
+    }
+    if (!pushAppId.trim()) {
+      toast({ title: 'OneSignal App ID required', variant: 'destructive' });
+      return;
+    }
+    if (!pushStatus?.has_rest_api_key && !pushRestApiKey.trim()) {
+      toast({ title: 'REST API Key required', variant: 'destructive' });
+      return;
+    }
+
+    setPushSaving(true);
+    const { data, error } = await invokeEdgeFunction<TenantPushStatus & { success?: boolean }>(
+      'platform-tenant-push-config',
+      {
+        tenant_id: pushTenantId,
+        action: 'save',
+        onesignal_app_id: pushAppId.trim(),
+        rest_api_key: pushRestApiKey.trim(),
+        enabled: pushEnabled,
+      },
+    );
+    setPushSaving(false);
+
+    if (error || !data?.configured) {
+      toast({
+        title: isSo ? 'OneSignal lama keydin' : 'OneSignal config was not saved',
+        description: error?.message || 'Save failed',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setPushRestApiKey('');
+    setPushStatus(data);
+    toast({ title: isSo ? 'OneSignal waa la keydiyey' : 'OneSignal config saved' });
+  };
+
   const selectedPaymentTenant = tenants.find((tenant) => tenant.id === paymentTenantId);
 
   if (loading) {
@@ -335,6 +422,7 @@ export function SuperAdminSaas() {
           <TabsTrigger value="tenants">{isSo ? 'Tenants' : 'Tenants'}</TabsTrigger>
           <TabsTrigger value="plans">{isSo ? 'Plans' : 'Plans'}</TabsTrigger>
           <TabsTrigger value="payments">{isSo ? 'Lacag-bixin' : 'Payments'}</TabsTrigger>
+          <TabsTrigger value="onesignal">OneSignal</TabsTrigger>
         </TabsList>
 
         <TabsContent value="tenants" className="space-y-4">
@@ -530,6 +618,115 @@ export function SuperAdminSaas() {
                   ))}
                 </TableBody>
               </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="onesignal" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bell className="h-5 w-5" />
+                {isSo ? 'OneSignal tenant kasta' : 'Per-tenant OneSignal'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>Tenant</Label>
+                <Select
+                  value={pushTenantId || 'none'}
+                  onValueChange={(value) => void loadPushStatus(value === 'none' ? '' : value)}
+                >
+                  <SelectTrigger><SelectValue placeholder="Choose tenant" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">{isSo ? 'Tenant dooro' : 'Choose tenant'}</SelectItem>
+                    {tenants.map((tenant) => (
+                      <SelectItem key={tenant.id} value={tenant.id}>
+                        {tenant.name} /{tenant.slug}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {pushLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {isSo ? 'OneSignal xogtiisa waa la soo qaadayaa...' : 'Loading OneSignal config...'}
+                </div>
+              ) : pushTenantId ? (
+                <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={pushStatus?.configured ? 'default' : 'secondary'}>
+                      {pushStatus?.configured ? 'Configured' : 'Not configured'}
+                    </Badge>
+                    <Badge variant={pushStatus?.has_rest_api_key ? 'default' : 'secondary'}>
+                      {pushStatus?.has_rest_api_key ? 'REST key saved' : 'REST key missing'}
+                    </Badge>
+                    {pushStatus?.updated_at && (
+                      <span className="text-xs text-muted-foreground">
+                        Updated {new Date(pushStatus.updated_at).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>OneSignal App ID</Label>
+                    <Input
+                      value={pushAppId}
+                      onChange={(event) => setPushAppId(event.target.value)}
+                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                      autoComplete="off"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="flex items-center gap-2">
+                      <KeyRound className="h-4 w-4" />
+                      OneSignal REST API Key
+                    </Label>
+                    <Input
+                      type="password"
+                      value={pushRestApiKey}
+                      onChange={(event) => setPushRestApiKey(event.target.value)}
+                      placeholder={pushStatus?.has_rest_api_key ? 'Key hore waa keydsan yahay — ka tag madhan si uusan isu beddelin' : 'Geli REST API Key'}
+                      autoComplete="new-password"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {isSo
+                        ? 'REST API Key-ga dib looma soo bandhigayo; Supabase Vault ayaa lagu keydiyaa.'
+                        : 'The REST API key is never displayed again and is stored in Supabase Vault.'}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                    <div>
+                      <div className="font-medium">Native push enabled</div>
+                      <div className="text-xs text-muted-foreground">
+                        {isSo ? 'Tenant-kan u oggolow OneSignal notification.' : 'Allow OneSignal push for this tenant.'}
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant={pushEnabled ? 'default' : 'outline'}
+                      onClick={() => setPushEnabled((value) => !value)}
+                    >
+                      {pushEnabled ? 'Enabled' : 'Disabled'}
+                    </Button>
+                  </div>
+
+                  <Button onClick={savePushConfig} disabled={pushSaving} className="w-full md:w-auto">
+                    {pushSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    {isSo ? 'Keydi OneSignal' : 'Save OneSignal'}
+                  </Button>
+
+                  <p className="text-xs text-muted-foreground">
+                    {isSo
+                      ? 'App ID-ga cusub wuxuu tenant APK-ga galayaa marka APK cusub la dhiso. REST API Key-ga server-ka kaliya ayuu joogayaa.'
+                      : 'The App ID is baked into the tenant APK on the next build. The REST API key stays server-side only.'}
+                  </p>
+                </>
+              ) : null}
             </CardContent>
           </Card>
         </TabsContent>
