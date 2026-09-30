@@ -17,7 +17,11 @@ export default function ResellerNewPage() {
   const [sourceId, setSourceId] = useState('')
   const [form, setForm] = useState({
     name: '', slug: '', owner_email: '', owner_password: '',
-    plan_id: '', primary_color: '276 100% 20%', period_days: 30,
+    plan_id: '', primary_color: '276 100% 20%',
+    is_trial: false,
+    period_days: 365,
+    first_year_price: 50,
+    renewal_yearly_price: 150,
     support_phone: '',
     delivery_mode: 'android_device',
     iftin_api_key: '',
@@ -49,6 +53,14 @@ export default function ResellerNewPage() {
       // Slug waa subdomain kaliya (tusaale "marwan"), ma aha domain buuxa
       const slug = form.slug.toLowerCase().trim().split('.')[0].replace(/[^a-z0-9-]/g, '')
       if (slug.length < 2) throw new Error('Slug waa inuu noqdaa ugu yaraan 2 xaraf (tusaale: marwan)')
+      if (!form.is_trial) {
+        if (!Number.isFinite(form.first_year_price) || form.first_year_price < 0) {
+          throw new Error('Qiimaha sanadka 1aad geli')
+        }
+        if (!Number.isFinite(form.renewal_yearly_price) || form.renewal_yearly_price < 150 || form.renewal_yearly_price > 200) {
+          throw new Error('Qiimaha sanadaha xiga waa inuu u dhexeeyaa $150 iyo $200')
+        }
+      }
 
       const { data, error } = await supabase.functions.invoke('platform-create-tenant', {
         body: { ...form, slug },
@@ -156,32 +168,79 @@ export default function ResellerNewPage() {
                   onChange={e => setForm({ ...form, plan_id: e.target.value })}>
                   {plans.map(p => (
                     <option key={p.id} value={p.id}>
-                      {p.name} — ${p.price_monthly}/bil
+                      {p.name}
                     </option>
                   ))}
                 </select>
-              </div>
-              <div>
-                <Label>Period (maalmood)</Label>
-                <Input type="number" min={1} value={form.period_days}
-                  onChange={e => setForm({ ...form, period_days: +e.target.value })} />
-                <div className="flex gap-2 mt-2 flex-wrap">
-                  <Button type="button" size="sm"
-                    variant={form.period_days === 3 ? 'default' : 'outline'}
-                    onClick={() => setForm({ ...form, period_days: 3 })}>
-                    Demo trial — 3 maalmood
-                  </Button>
-                  <Button type="button" size="sm"
-                    variant={form.period_days === 30 ? 'default' : 'outline'}
-                    onClick={() => setForm({ ...form, period_days: 30 })}>
-                    30 maalmood
-                  </Button>
-                </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Qofkii demo ku weydiiya, dooro <b>3 maalmood</b> — waa trial-ka.
+                  Plan-ku wuxuu xakameeyaa features-ka; qiimaha reseller-ka hoos ayaa si gaar ah looga qorayaa.
+                </p>
+              </div>
+
+              <div>
+                <Label>Nooca reseller-ka</Label>
+                <select
+                  className="w-full h-10 rounded-md border bg-background px-3"
+                  value={form.is_trial ? 'trial' : 'paid'}
+                  onChange={e => {
+                    const trial = e.target.value === 'trial'
+                    setForm({
+                      ...form,
+                      is_trial: trial,
+                      period_days: trial ? 3 : 365,
+                    })
+                  }}
+                >
+                  <option value="paid">Paid — 1 sano</option>
+                  <option value="trial">Trial — 3 maalmood</option>
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Paid reseller-ku hal sano ayuu furanyahay. Trial-ku waa 3 maalmood.
                 </p>
               </div>
             </div>
+
+            {!form.is_trial ? (
+              <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-4 space-y-3">
+                <div>
+                  <div className="text-sm font-semibold">Yearly Pricing</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Qiimahan reseller-kan ayuu gaar u yahay; lama isticmaalayo qiimihii legacy-ga ahaa ee $20/month.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label>Qiimaha sanadka 1aad ($)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      required
+                      value={form.first_year_price}
+                      onChange={e => setForm({ ...form, first_year_price: +e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Default: $50 / yearly</p>
+                  </div>
+                  <div>
+                    <Label>Qiimaha sanadaha xiga ($ / yearly)</Label>
+                    <Input
+                      type="number"
+                      min={150}
+                      max={200}
+                      step="0.01"
+                      required
+                      value={form.renewal_yearly_price}
+                      onChange={e => setForm({ ...form, renewal_yearly_price: +e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Qiimaha la oggol yahay: $150–$200 / yearly</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                Trial reseller — 3 maalmood. Qiime Year 1 ama renewal lama qorayo ilaa paid laga dhigo.
+              </div>
+            )}
             <div className="rounded-lg border p-3 space-y-3 bg-muted/30">
               <div>
                 <Label>Ma rabtaa xogta shirkadaha iyo xirmooyinka in laguugu diyaariyo?</Label>
