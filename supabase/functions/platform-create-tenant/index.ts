@@ -80,8 +80,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    const effectivePeriodDays = trial ? 3 : Math.max(1, Number(period_days) || 365)
-    const periodEnd = new Date(Date.now() + effectivePeriodDays * 86400000).toISOString()
+    const createdAt = new Date()
+    const periodEndDate = new Date(createdAt)
+    if (trial) {
+      periodEndDate.setDate(periodEndDate.getDate() + 3)
+    } else {
+      periodEndDate.setFullYear(periodEndDate.getFullYear() + 1)
+    }
+    const periodEnd = periodEndDate.toISOString()
 
     // 1) tenant
     const { data: tenant, error: tErr } = await admin
