@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Loader2, LogOut, Users, Package, BarChart3, Smartphone, Menu, PanelLeftClose, Moon, Sun } from 'lucide-react'
 import PlatformAuth from './PlatformAuth'
-import iftinLogo from '@/assets/iftin-resellers-brand.jpg'
+import iftinLogo from '@/assets/iftin-resellers-icon.jpg'
 
 export default function PlatformLayout() {
   const navigate = useNavigate()
