@@ -17,6 +17,7 @@ interface Row {
   trial_ends_at: string | null
   first_year_price: number | null
   renewal_yearly_price: number | null
+  created_at: string
   subscription_plans?: { name: string } | null
 }
 
@@ -46,7 +47,7 @@ export default function ResellersPage() {
     (async () => {
       const { data } = await supabase
         .from('tenants')
-        .select('id, slug, name, status, logo_url, current_period_end, trial_ends_at, first_year_price, renewal_yearly_price, subscription_plans(name)')
+        .select('id, slug, name, status, logo_url, current_period_end, trial_ends_at, first_year_price, renewal_yearly_price, created_at, subscription_plans(name)')
         .order('created_at', { ascending: false })
       setRows((data ?? []) as any)
       setLoading(false)
@@ -59,6 +60,7 @@ export default function ResellersPage() {
       row.name,
       row.slug,
       row.subscription_plans?.name ?? '',
+      new Date(row.created_at).toLocaleString(),
     ].some((value) => value.toLowerCase().includes(q))
     const status = effectiveStatus(row)
     const matchesStatus = statusFilter === 'all' || status === statusFilter
@@ -206,7 +208,15 @@ export default function ResellersPage() {
                         <div className="mt-3 space-y-1.5 text-[11px] text-slate-500">
                           <div className="flex items-center gap-1.5">
                             <Users className="h-3.5 w-3.5 text-slate-400" />
-                            <span>{r.subscription_plans?.name ?? 'No plan'}</span>
+                            <span>
+                              Created: {new Date(r.created_at).toLocaleString('en-GB', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
                           </div>
                           <div className="flex items-center gap-1.5">
                             <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
