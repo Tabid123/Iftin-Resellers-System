@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from '@/hooks/use-toast'
 import { Loader2 } from 'lucide-react'
-import iftinLogo from '@/assets/iftin-resellers-brand.jpg'
+import iftinLogo from '@/assets/iftin-resellers-logo.jpg'
 
 export default function PlatformAuth({
   onSuccess,
@@ -62,7 +62,7 @@ export default function PlatformAuth({
           <img
             src={iftinLogo}
             alt="Iftin Resellers"
-            className="mx-auto h-24 w-auto object-contain"
+            className="mx-auto h-28 w-auto object-contain"
           />
           <CardTitle>
             {needsBootstrap ? 'Samee Super Admin' : 'Iftin Resellers — Admin Login'}
