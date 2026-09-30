@@ -144,6 +144,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 // Apply the last-known tenant colours before first paint so no default
 // tenant colours flash while the packaged app hydrates.
 const earlyTenantBrandScript = `(function(){try{
+if(location.pathname==='/admin'||location.pathname.indexOf('/admin/')===0)return;
 var s=localStorage.getItem('najax.tenant_slug');if(!s)return;
 var t=JSON.parse(localStorage.getItem('najax.tenant_cache.'+s)||'null');if(!t)return;
 function h(c){if(!c)return null;c=String(c).trim();if(c.charAt(0)!=='#')return c.replace(/^hsl\\(/i,'').replace(/\\)$/,'');
