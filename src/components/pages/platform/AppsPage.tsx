@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Loader2, Trash2, Upload, Smartphone, Eye, EyeOff, Plus, CheckCircle2 } from 'lucide-react'
+import { Loader2, Trash2, Upload, Smartphone, Eye, EyeOff, Plus, CheckCircle2, Search, Share2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 type AppRow = {
@@ -32,6 +32,9 @@ export default function AppsPage() {
   const [tenants, setTenants] = useState<TenantRow[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [platformFilter, setPlatformFilter] = useState('all')
+  const [showUpload, setShowUpload] = useState(false)
 
   const [name, setName] = useState('')
   const [version, setVersion] = useState('')
@@ -96,6 +99,7 @@ export default function AppsPage() {
       if (error) throw error
       toast.success('App-ka waa la daabacay')
       setName(''); setVersion(''); setDescription(''); setAllTenants(true); setTenantIds([]); setFile(null); setLinkUrl('')
+      setShowUpload(false)
       await load()
     } catch (err: any) {
       toast.error(err?.message || 'Khalad ayaa dhacay')
@@ -146,6 +150,25 @@ export default function AppsPage() {
     }
     return [...map.values()]
   })()
+
+  const filteredGroups = groups.filter((group) => {
+    const q = searchQuery.trim().toLowerCase()
+    const matchesSearch = !q || [group.name, group.version ?? '', group.platform]
+      .some((value) => value.toLowerCase().includes(q))
+    const matchesPlatform = platformFilter === 'all' || group.platform === platformFilter
+    return matchesSearch && matchesPlatform
+  })
+
+  const relativeUpdated = (value?: string | null) => {
+    if (!value) return 'Updated recently'
+    const diffMs = Math.max(0, Date.now() - new Date(value).getTime())
+    const minutes = Math.floor(diffMs / 60000)
+    if (minutes < 60) return 'Updated ' + Math.max(1, minutes) + ' min ago'
+    const hours = Math.floor(minutes / 60)
+    if (hours < 24) return 'Updated ' + hours + ' hr ago'
+    const days = Math.floor(hours / 24)
+    return 'Updated ' + days + ' day' + (days === 1 ? '' : 's') + ' ago'
+  }
 
   const toggle = async (group: AppGroup) => {
     const next = !group.anyActive
@@ -278,224 +301,330 @@ export default function AppsPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-5xl">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold">Apps</h1>
-        <p className="text-sm text-muted-foreground">
-          Apps-ka aad halkan ku daabacdo waxay ka muuqdaan tab-ka "Apps" ee dashboard-ka reseller-ka.
-        </p>
-      </div>
-
-      <form onSubmit={submit} className="rounded-lg border bg-card p-4 space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1">
-            <Label>Magaca app-ka</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Iftin Delivery" />
+    <div className="min-h-full px-4 py-6 sm:px-7 lg:px-8 lg:py-8">
+      <div className="mx-auto w-full max-w-[1500px]">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-[26px] font-semibold tracking-tight text-[#0c1220]">Apps</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Apps-ka reseller-yada ka maamul, daabac ama APK-ga cusub ku beddel.
+            </p>
           </div>
-          <div className="space-y-1">
-            <Label>Version</Label>
-            <Input value={version} onChange={(e) => setVersion(e.target.value)} placeholder="2.4" />
-          </div>
-          <div className="space-y-1">
-            <Label>Nooca</Label>
-            <select
-              className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-              value={platform}
-              onChange={(e) => setPlatform(e.target.value)}
-            >
-              <option value="android">Android (APK)</option>
-              <option value="ios">iOS</option>
-              <option value="windows">Windows</option>
-              <option value="other">Kale</option>
-            </select>
-          </div>
-          <div className="space-y-2">
-            <Label>Resellers-ka arki kara</Label>
-            <div className="rounded-md border bg-background p-3 space-y-2 max-h-48 overflow-y-auto">
-              <label className="flex items-center gap-2 text-sm font-medium">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4"
-                  checked={allTenants}
-                  onChange={(e) => { setAllTenants(e.target.checked); if (e.target.checked) setTenantIds([]) }}
-                />
-                Dhammaan resellers-ka
-              </label>
-              {tenants.map((t) => (
-                <label key={t.id} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4"
-                    disabled={allTenants}
-                    checked={tenantIds.includes(t.id)}
-                    onChange={() => toggleTenantId(t.id)}
-                  />
-                  {t.name}
-                </label>
-              ))}
-            </div>
-          </div>
+          <Button
+            type="button"
+            onClick={() => setShowUpload((value) => !value)}
+            className="h-9 rounded-full bg-[#0c1220] px-5 text-sm font-semibold text-white hover:bg-[#172033]"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Upload App
+          </Button>
         </div>
 
-        <div className="space-y-1">
-          <Label>Sharaxaad</Label>
-          <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1">
-            <Label>File (APK)</Label>
-            <Input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-          </div>
-          <div className="space-y-1">
-            <Label>Ama link dibadeed</Label>
-            <Input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" />
-          </div>
-        </div>
-
-        <Button type="submit" disabled={saving}>
-          {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />}
-          Daabac
-        </Button>
-      </form>
-
-      <div className="rounded-lg border bg-card divide-y">
-        {loading && (
-          <div className="p-6 flex justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>
-        )}
-        {!loading && apps.length === 0 && (
-          <div className="p-6 text-sm text-muted-foreground">Wali app lama daabicin.</div>
-        )}
-        {groups.map((group) => {
-          const remaining = tenants.filter((t) => !group.rows.some((r) => r.tenant_id === t.id))
-          return (
-            <div key={group.key} className="p-4 space-y-3">
-              <div className="flex flex-wrap items-center gap-3">
-                <Smartphone className="h-5 w-5 text-muted-foreground shrink-0" />
-                <div className="min-w-0 flex-1 basis-[55%]">
-                  <div className="font-medium truncate">
-                    {group.name} {group.version ? <span className="text-xs text-muted-foreground">v{group.version}</span> : null}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {group.platform}
-                    {group.anyActive ? '' : ' · qarsoon'}
-                  </div>
-                  {group.apk_updated_at && (
-                    <div className="mt-1 text-[11px] font-medium text-emerald-700">
-                      APK la beddelay: {new Date(group.rows[0].apk_updated_at ?? '').toLocaleString()}
-                    </div>
-                  )}
-                  {!group.isAllTenants && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {group.rows
-                        .filter((r) => r.tenant_id)
-                        .map((r) => {
-                          const tName = tenants.find((t) => t.id === r.tenant_id)?.name ?? 'Reseller'
-                          return (
-                            <span
-                              key={r.id}
-                              className="inline-flex items-center gap-1 rounded-full border bg-background px-2 py-0.5 text-xs"
-                            >
-                              {tName}
-                              <button
-                                type="button"
-                                onClick={() => removeTenant(r, tName)}
-                                className="text-red-600 hover:text-red-800"
-                                aria-label={`Ka saar ${tName}`}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
-                            </span>
-                          )
-                        })}
-                    </div>
-                  )}
-                  {group.isAllTenants && (
-                    <div className="text-xs text-muted-foreground mt-1">Dhammaan resellers-ka</div>
-                  )}
-                </div>
-                {!group.isAllTenants && remaining.length > 0 && (
-                  <Button variant="outline" size="sm" onClick={() => openShare(group)}>
-                    <Plus className="h-4 w-4 mr-1" /> Resellers ku dar
-                  </Button>
-                )}
-
-                {group.platform === 'android' && (
-                  <label className="inline-flex">
-                    <input
-                      type="file"
-                      accept=".apk,application/vnd.android.package-archive"
-                      className="hidden"
-                      disabled={replacingKey === group.key}
-                      onChange={(e) => {
-                        const nextFile = e.target.files?.[0] ?? null
-                        void replaceApkOnly(group, nextFile)
-                        e.currentTarget.value = ''
-                      }}
-                    />
-                    <span
-                      className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                      aria-disabled={replacingKey === group.key}
-                    >
-                      {replacingKey === group.key ? (
-                        <>
-                          <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                          Waa la rarayaa...
-                        </>
-                      ) : recentlyReplacedKey === group.key ? (
-                        <>
-                          <CheckCircle2 className="mr-1 h-4 w-4 text-emerald-600" />
-                          APK waa la beddelay
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="mr-1 h-4 w-4" />
-                          APK beddel
-                        </>
-                      )}
-                    </span>
-                  </label>
-                )}
-
-                <Button variant="outline" size="sm" onClick={() => toggle(group)}>
-                  {group.anyActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => remove(group)}>
-                  <Trash2 className="h-4 w-4 text-red-600" />
-                </Button>
+        {showUpload ? (
+          <form
+            onSubmit={submit}
+            className="mb-7 rounded-xl border border-black/10 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]"
+          >
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-slate-950">Upload app</h2>
+                <p className="mt-1 text-xs text-slate-500">Xogtii iyo logic-gii hore sidii ayay u shaqaynayaan.</p>
               </div>
-
-              {shareKey === group.key && (
-                <div className="rounded-md border bg-background p-3 space-y-2">
-                  <div className="text-xs text-muted-foreground">
-                    Resellers cusub dooro — file-ka dib looma rarayo.
-                  </div>
-                  <div className="max-h-40 overflow-y-auto space-y-1">
-                    {remaining.map((t) => (
-                      <label key={t.id} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4"
-                          checked={shareIds.includes(t.id)}
-                          onChange={() =>
-                            setShareIds((prev) =>
-                              prev.includes(t.id) ? prev.filter((x) => x !== t.id) : [...prev, t.id],
-                            )
-                          }
-                        />
-                        {t.name}
-                      </label>
-                    ))}
-                  </div>
-                  <Button size="sm" disabled={sharing} onClick={() => saveShare(group)}>
-                    {sharing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
-                    Kaydi
-                  </Button>
-                </div>
-              )}
+              <Button type="button" variant="ghost" size="sm" onClick={() => setShowUpload(false)}>
+                Xir
+              </Button>
             </div>
-          )
-        })}
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Magaca app-ka</Label>
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Iftin Delivery" className="bg-white" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Version</Label>
+                <Input value={version} onChange={(e) => setVersion(e.target.value)} placeholder="2.4" className="bg-white" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Nooca</Label>
+                <select
+                  className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm"
+                  value={platform}
+                  onChange={(e) => setPlatform(e.target.value)}
+                >
+                  <option value="android">Android (APK)</option>
+                  <option value="ios">iOS</option>
+                  <option value="windows">Windows</option>
+                  <option value="other">Kale</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Resellers-ka arki kara</Label>
+                <div className="max-h-48 space-y-2 overflow-y-auto rounded-md border bg-[#fafafa] p-3">
+                  <label className="flex items-center gap-2 text-sm font-medium">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4"
+                      checked={allTenants}
+                      onChange={(e) => { setAllTenants(e.target.checked); if (e.target.checked) setTenantIds([]) }}
+                    />
+                    Dhammaan resellers-ka
+                  </label>
+                  {tenants.map((t) => (
+                    <label key={t.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        disabled={allTenants}
+                        checked={tenantIds.includes(t.id)}
+                        onChange={() => toggleTenantId(t.id)}
+                      />
+                      {t.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-1.5">
+              <Label>Sharaxaad</Label>
+              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className="bg-white" />
+            </div>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>File (APK)</Label>
+                <Input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="bg-white" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Ama link dibadeed</Label>
+                <Input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" className="bg-white" />
+              </div>
+            </div>
+
+            <div className="mt-5">
+              <Button type="submit" disabled={saving} className="bg-[#0c1220] text-white hover:bg-[#172033]">
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                Daabac
+              </Button>
+            </div>
+          </form>
+        ) : null}
+
+        <div className="mb-7 border-b border-black/10">
+          <div className="flex min-w-0 flex-wrap items-end justify-between gap-4">
+            <div className="flex gap-7">
+              <button
+                type="button"
+                className="relative pb-3 text-sm font-semibold text-[#0c1220]"
+                onClick={() => setPlatformFilter('all')}
+              >
+                Apps
+                <span className="ml-1.5 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-600">{groups.length}</span>
+                <span className="absolute inset-x-0 bottom-0 h-[3px] rounded-t-full bg-[#ff3366]" />
+              </button>
+            </div>
+
+            <div className="flex flex-1 flex-wrap items-center justify-end gap-3 pb-3">
+              <div className="relative w-full max-w-[320px]">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by name, version, or platform"
+                  className="h-9 border-0 bg-transparent pl-9 shadow-none focus-visible:ring-0"
+                />
+              </div>
+              <div className="flex rounded-md bg-white p-1 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)]">
+                {[
+                  ['all', 'All'],
+                  ['android', 'Android'],
+                  ['ios', 'iOS'],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setPlatformFilter(value)}
+                    className={
+                      'rounded px-3 py-1.5 text-xs font-medium transition ' +
+                      (platformFilter === value
+                        ? 'bg-[#efefef] text-slate-950 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-900')
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex min-h-[260px] items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+          </div>
+        ) : filteredGroups.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-black/15 bg-white/60 px-6 py-14 text-center">
+            <Smartphone className="mx-auto mb-3 h-8 w-8 text-slate-300" />
+            <div className="text-sm font-medium text-slate-700">App lama helin.</div>
+            <div className="mt-1 text-xs text-slate-500">Search/filter-ka beddel ama app cusub soo geli.</div>
+          </div>
+        ) : (
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {filteredGroups.map((group) => {
+              const remaining = tenants.filter((t) => !group.rows.some((r) => r.tenant_id === t.id))
+              const sample = group.rows[0]
+              const updatedAt = group.apk_updated_at || sample.created_at
+
+              return (
+                <div
+                  key={group.key}
+                  className="overflow-hidden rounded-xl border border-black/10 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.035)]"
+                >
+                  <div className="flex min-h-[132px] gap-4 p-4">
+                    <div className="flex h-[92px] w-[92px] shrink-0 items-center justify-center overflow-hidden rounded-lg border border-black/10 bg-[#f6f6f4]">
+                      {sample.icon_url ? (
+                        <img src={sample.icon_url} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <Smartphone className="h-9 w-9 text-slate-300" />
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="truncate text-[14px] font-semibold text-[#0c1220]">{group.name}</div>
+                          <div className="mt-0.5 truncate text-[11px] text-slate-500">
+                            {group.platform}{group.version ? ' · v' + group.version : ''}
+                          </div>
+                        </div>
+                        <span
+                          className={
+                            'mt-0.5 h-2 w-2 shrink-0 rounded-full ' +
+                            (group.anyActive ? 'bg-emerald-500' : 'bg-slate-300')
+                          }
+                          title={group.anyActive ? 'Active' : 'Hidden'}
+                        />
+                      </div>
+
+                      <div className="mt-3 space-y-1 text-[11px] text-slate-500">
+                        <div>{relativeUpdated(updatedAt)}</div>
+                        <div>
+                          {group.isAllTenants
+                            ? 'Dhammaan resellers-ka'
+                            : group.rows.filter((r) => r.tenant_id).length + ' reseller'}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="h-7 rounded-full px-3 text-[11px]"
+                          onClick={() => toggle(group)}
+                        >
+                          {group.anyActive ? <EyeOff className="mr-1 h-3.5 w-3.5" /> : <Eye className="mr-1 h-3.5 w-3.5" />}
+                          {group.anyActive ? 'Hide' : 'Show'}
+                        </Button>
+
+                        {!group.isAllTenants && remaining.length > 0 ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 rounded-full p-0"
+                            onClick={() => openShare(group)}
+                            aria-label="Resellers ku dar"
+                          >
+                            <Share2 className="h-3.5 w-3.5" />
+                          </Button>
+                        ) : null}
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 rounded-full p-0 text-red-500 hover:text-red-600"
+                          onClick={() => remove(group)}
+                          aria-label="Tirtir app"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {group.platform === 'android' ? (
+                    <div className="border-t border-black/5 px-4 py-3">
+                      <label className="inline-flex">
+                        <input
+                          type="file"
+                          accept=".apk,application/vnd.android.package-archive"
+                          className="hidden"
+                          disabled={replacingKey === group.key}
+                          onChange={(e) => {
+                            const nextFile = e.target.files?.[0] ?? null
+                            void replaceApkOnly(group, nextFile)
+                            e.currentTarget.value = ''
+                          }}
+                        />
+                        <span
+                          className="inline-flex h-8 cursor-pointer items-center justify-center rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                          aria-disabled={replacingKey === group.key}
+                        >
+                          {replacingKey === group.key ? (
+                            <>
+                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                              Waa la rarayaa...
+                            </>
+                          ) : recentlyReplacedKey === group.key ? (
+                            <>
+                              <CheckCircle2 className="mr-1.5 h-3.5 w-3.5 text-emerald-600" />
+                              APK waa la beddelay
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="mr-1.5 h-3.5 w-3.5" />
+                              APK beddel
+                            </>
+                          )}
+                        </span>
+                      </label>
+                    </div>
+                  ) : null}
+
+                  {shareKey === group.key ? (
+                    <div className="border-t border-black/5 bg-[#fafafa] p-4">
+                      <div className="mb-2 text-xs font-medium text-slate-700">Resellers cusub ku dar</div>
+                      <div className="max-h-36 space-y-1 overflow-y-auto">
+                        {remaining.map((t) => (
+                          <label key={t.id} className="flex items-center gap-2 text-xs text-slate-700">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4"
+                              checked={shareIds.includes(t.id)}
+                              onChange={() =>
+                                setShareIds((prev) =>
+                                  prev.includes(t.id) ? prev.filter((x) => x !== t.id) : [...prev, t.id],
+                                )
+                              }
+                            />
+                            {t.name}
+                          </label>
+                        ))}
+                      </div>
+                      <Button size="sm" className="mt-3 h-8 bg-[#0c1220] text-xs text-white" disabled={sharing} onClick={() => saveShare(group)}>
+                        {sharing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                        Kaydi
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )
