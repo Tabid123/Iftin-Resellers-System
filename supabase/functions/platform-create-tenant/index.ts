@@ -45,7 +45,10 @@ Deno.serve(async (req) => {
       primary_color,
       support_phone,
       logo_url,
-      period_days = 30,
+      is_trial = false,
+      first_year_price = 50,
+      renewal_yearly_price = 150,
+      period_days,
       delivery_mode = 'android_device',
       delivery_tenant_id = null,
       credit_limit = 0,
@@ -65,6 +68,21 @@ Deno.serve(async (req) => {
     const reserved = ['admin', 'www', 'api', 'app', 'mail', 'status']
     if (reserved.includes(slug)) return json({ error: 'slug is reserved' }, 400)
 
+    const trial = is_trial === true
+    const firstYearPrice = Number(first_year_price ?? 50)
+    const renewalYearlyPrice = Number(renewal_yearly_price ?? 150)
+    if (!trial) {
+      if (!Number.isFinite(firstYearPrice) || firstYearPrice < 0) {
+        return json({ error: 'Qiimaha sanadka 1aad waa inuu noqdaa tiro sax ah' }, 400)
+      }
+      if (!Number.isFinite(renewalYearlyPrice) || renewalYearlyPrice < 150 || renewalYearlyPrice > 200) {
+        return json({ error: 'Qiimaha renewal-ka sanadkii waa inuu u dhexeeyaa $150 iyo $200' }, 400)
+      }
+    }
+
+    const effectivePeriodDays = trial ? 3 : Math.max(1, Number(period_days) || 365)
+    const periodEnd = new Date(Date.now() + effectivePeriodDays * 86400000).toISOString()
+
     // 1) tenant
     const { data: tenant, error: tErr } = await admin
       .from('tenants')
@@ -75,12 +93,15 @@ Deno.serve(async (req) => {
         support_phone: support_phone ? String(support_phone).replace(/\D/g, '').slice(-9) : null,
         logo_url: logo_url ?? null,
         plan_id: plan_id ?? null,
-        status: 'active',
+        status: trial ? 'trial' : 'active',
+        first_year_price: trial ? null : firstYearPrice,
+        renewal_yearly_price: trial ? null : renewalYearlyPrice,
+        trial_ends_at: trial ? periodEnd : null,
         delivery_mode: delivery_mode === 'api_partner' ? 'api_partner' : 'android_device',
         delivery_tenant_id: delivery_mode === 'api_partner' ? (delivery_tenant_id ?? null) : null,
         credit_limit: Number(credit_limit) || 0,
         daily_limit: Number(daily_limit) || 0,
-        current_period_end: new Date(Date.now() + period_days * 86400000).toISOString(),
+        current_period_end: trial ? null : periodEnd,
 
 
 
@@ -108,22 +129,19 @@ Deno.serve(async (req) => {
     })
     if (mErr) return json({ error: mErr.message }, 500)
 
-    // 4) initial subscription record (zero-amount activation)
+    // 4) initial subscription record uses the reseller's real yearly commercial
+    // price, not the legacy plan price_monthly field.
     if (plan_id) {
-      const { data: plan } = await admin
-        .from('subscription_plans')
-        .select('price_monthly')
-        .eq('id', plan_id)
-        .single()
       await admin.from('tenant_subscriptions').insert({
         tenant_id: tenant.id,
         plan_id,
         period_start: new Date().toISOString(),
-        period_end: tenant.current_period_end,
-        amount: plan?.price_monthly ?? 0,
-        payment_method: 'initial',
-        paid_at: new Date().toISOString(),
+        period_end: trial ? periodEnd : tenant.current_period_end,
+        amount: trial ? 0 : firstYearPrice,
+        payment_method: trial ? 'trial' : 'initial_yearly',
+        paid_at: trial ? null : new Date().toISOString(),
         recorded_by: claims.claims.sub,
+        notes: trial ? '3-day trial' : 'Year 1 reseller subscription',
       })
     }
 
