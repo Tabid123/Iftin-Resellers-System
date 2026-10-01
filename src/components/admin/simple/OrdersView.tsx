@@ -5,6 +5,7 @@ import { LazyFallback, EmptyState, SearchInput, formatPhone, formatDate, formatT
 import { CheckCircle, XCircle, RotateCcw, Clock, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { ResendOrderPrompt } from './ResendOrderPrompt';
+import { CompleteOrderPrompt } from './CompleteOrderPrompt';
 import { calculateOrderProfit, effectiveOrderCost, isDirectFlowCode } from '@/lib/iftinProfit';
 import { AdminPagination, ADMIN_PAGE_SIZE } from './AdminPagination';
 
@@ -70,6 +71,7 @@ export const OrdersView = ({ isSo }: { isSo: boolean }) => {
   const [filter, setFilter] = useState<'all' | 'pending' | 'delivered' | 'failed'>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [resendItem, setResendItem] = useState<any | null>(null);
+  const [completeItem, setCompleteItem] = useState<any | null>(null);
   const [page, setPage] = useState(0);
   const [totalRows, setTotalRows] = useState(0);
   const [summary, setSummary] = useState({ total: 0, pending: 0, delivered: 0, failed: 0 });
@@ -94,7 +96,7 @@ export const OrdersView = ({ isSo }: { isSo: boolean }) => {
        .order('created_at', { ascending: false })
        .range(from, to);
 
-      if (filter === 'pending') ordersQuery = ordersQuery.in('delivery_status', ['pending', 'processing']);
+      if (filter === 'pending') ordersQuery = ordersQuery.in('delivery_status', ['pending', 'processing', 'awaiting_sms', 'verification_required']);
       else if (filter === 'delivered') ordersQuery = ordersQuery.eq('delivery_status', 'delivered');
       else if (filter === 'failed') ordersQuery = ordersQuery.in('delivery_status', ['failed', 'timeout']);
 
@@ -113,7 +115,7 @@ export const OrdersView = ({ isSo }: { isSo: boolean }) => {
         scoped(supabase.from('delivery_instructions').select('package_id, category_id, provider_id, code_template')),
         scoped(supabase.from('package_delivery_rules').select('source_package_id, target_package_id, delivery_count, is_active').eq('is_active', true)),
         scoped(supabase.from('orders').select('id', { count: 'exact', head: true }).gte('created_at', todayIso)),
-        scoped(supabase.from('orders').select('id', { count: 'exact', head: true }).gte('created_at', todayIso).in('delivery_status', ['pending', 'processing'])),
+        scoped(supabase.from('orders').select('id', { count: 'exact', head: true }).gte('created_at', todayIso).in('delivery_status', ['pending', 'processing', 'awaiting_sms', 'verification_required'])),
         scoped(supabase.from('orders').select('id', { count: 'exact', head: true }).gte('created_at', todayIso).eq('delivery_status', 'delivered')),
         scoped(supabase.from('orders').select('id', { count: 'exact', head: true }).gte('created_at', todayIso).in('delivery_status', ['failed', 'timeout'])),
       ]);
@@ -336,6 +338,11 @@ export const OrdersView = ({ isSo }: { isSo: boolean }) => {
                           <CheckCircle className="w-3 h-3" /> Dhamee
                         </button>
                       )}
+                      {['awaiting_sms', 'verification_required'].includes(displayStatus) && (
+                        <button onClick={() => setCompleteItem(order)} className="flex items-center gap-1 px-2 py-1 bg-green-600 text-white rounded text-[10px] font-bold">
+                          <CheckCircle className="w-3 h-3" /> Dhammee
+                        </button>
+                      )}
                       <button onClick={() => setResendItem(order)} className="flex items-center gap-1 px-2 py-1 bg-purple-600 text-white rounded text-[10px] font-bold">
                         <RotateCcw className="w-3 h-3" /> {isSo ? 'Dib u dir' : 'Resend'}
                       </button>
@@ -360,6 +367,15 @@ export const OrdersView = ({ isSo }: { isSo: boolean }) => {
           order={resendItem}
           isSo={isSo}
           onClose={() => setResendItem(null)}
+          onDone={loadOrders}
+        />
+      )}
+
+      {completeItem && (
+        <CompleteOrderPrompt
+          order={completeItem}
+          isSo={isSo}
+          onClose={() => setCompleteItem(null)}
           onDone={loadOrders}
         />
       )}
