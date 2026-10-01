@@ -37,6 +37,18 @@ function json(body: unknown, status = 200) {
   });
 }
 
+function normalizeSomaliPhone(value: unknown): string {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  const last9 = digits.slice(-9);
+  return /^6\d{8}$/.test(last9) ? last9 : '';
+}
+
+function extractSomaliPhoneCandidates(value: unknown): string[] {
+  const text = String(value ?? '');
+  const matches = text.match(/(?:\+?252[\s-]*)?6(?:[\s-]*\d){8}/g) ?? [];
+  return [...new Set(matches.map(normalizeSomaliPhone).filter(Boolean))];
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -943,7 +955,7 @@ serve(async (req) => {
       // Idempotency: if this queue already finalized, ignore further updates
       const { data: existingQueue, error: existingQueueErr } = await supabase
         .from('delivery_queue')
-        .select('id, status, order_id, dispatched_at, tenant_id')
+        .select('id, status, order_id, dispatched_at, tenant_id, receiver_phone, provider_name, android_device_id, dispatch_device_id')
         .eq('id', queueId)
         .eq('tenant_id', tenantId)
         .maybeSingle();
@@ -999,6 +1011,88 @@ serve(async (req) => {
 
       const providerIndicatesFailure = text.length > 0 && failureKeywords.some(k => text.includes(k));
       const providerIndicatesSuccess = text.length > 0 && successKeywords.some(k => text.includes(k));
+
+      // STALE CALLBACK GUARD:
+      // Some carriers can surface a very late success dialog from the previous USSD session
+      // while the next queue item is already running. Never attach an explicit receiver number
+      // from that late dialog to a different current receiver.
+      const expectedReceiver = normalizeSomaliPhone(existingQueue.receiver_phone);
+      const responsePhones = providerIndicatesSuccess
+        ? extractSomaliPhoneCandidates(providerResponse)
+        : [];
+      const responseReceiverMismatch =
+        providerIndicatesSuccess &&
+        !!expectedReceiver &&
+        responsePhones.length > 0 &&
+        !responsePhones.includes(expectedReceiver);
+
+      let mismatchError: string | null = null;
+      let reassignedLateCallbackQueueId: string | null = null;
+
+      if (responseReceiverMismatch) {
+        mismatchError =
+          `Carrier success response receiver mismatch: expected ${expectedReceiver}, response contains ${responsePhones.join(', ')}. Late/stale callback suspected.`;
+        console.warn(`🛑 ${mismatchError} queueId=${queueId}`);
+
+        // If the explicit response number matches one recent delivery from this SAME device
+        // that is waiting for manual verification, safely reconcile the late callback there.
+        const sinceLateWindow = new Date(Date.now() - 10 * 60_000).toISOString();
+        const { data: priorCandidates, error: priorLookupError } = await supabase
+          .from('delivery_queue')
+          .select('id, order_id, receiver_phone, provider_name, dispatched_at')
+          .eq('tenant_id', tenantId)
+          .eq('android_device_id', deviceId)
+          .eq('status', 'verification_required')
+          .gte('dispatched_at', sinceLateWindow)
+          .order('dispatched_at', { ascending: false })
+          .limit(20);
+
+        if (priorLookupError) {
+          console.warn('Late callback reconciliation lookup failed:', priorLookupError);
+        } else {
+          const currentProvider = String(existingQueue.provider_name || '').trim().toLowerCase();
+          const matchingPrior = (priorCandidates || []).find((row: any) => {
+            const priorReceiver = normalizeSomaliPhone(row.receiver_phone);
+            const priorProvider = String(row.provider_name || '').trim().toLowerCase();
+            const providerMatches = !currentProvider || !priorProvider || currentProvider === priorProvider;
+            return providerMatches && responsePhones.includes(priorReceiver);
+          });
+
+          if (matchingPrior) {
+            const completedAt = new Date().toISOString();
+            const { data: reconciledQueue, error: reconcileQueueError } = await supabase
+              .from('delivery_queue')
+              .update({
+                status: 'completed',
+                provider_response: providerResponse,
+                error_message: null,
+                completed_at: completedAt,
+                last_attempt_at: completedAt,
+              })
+              .eq('id', matchingPrior.id)
+              .eq('tenant_id', tenantId)
+              .eq('status', 'verification_required')
+              .select('id, order_id')
+              .maybeSingle();
+
+            if (reconcileQueueError) {
+              console.warn('Late callback queue reconciliation failed:', reconcileQueueError);
+            } else if (reconciledQueue) {
+              reassignedLateCallbackQueueId = reconciledQueue.id;
+              await supabase
+                .from('orders')
+                .update({
+                  delivery_status: 'delivered',
+                  delivered_at: completedAt,
+                  delivery_notes: `Late carrier callback reconciled by receiver match. ${String(providerResponse).slice(0, 220)}`,
+                })
+                .eq('id', reconciledQueue.order_id)
+                .eq('tenant_id', tenantId);
+              console.log(`✅ Late callback reassigned to prior queue ${reconciledQueue.id}`);
+            }
+          }
+        }
+      }
 
       // Fetch current attempts for auto-retry logic
       const { data: existingAttempts, error: attemptsErr } = await supabase
@@ -1085,7 +1179,11 @@ serve(async (req) => {
       let normalizedStatus = 'failed';
       let isAutoRetry = false;
 
-      if (smsConfirmedTimeout) {
+      if (responseReceiverMismatch) {
+        // Current queue was dispatched, but this success belongs to a different receiver.
+        // Never mark the current order delivered and never auto-resend it.
+        normalizedStatus = wasDispatched ? 'verification_required' : 'failed';
+      } else if (smsConfirmedTimeout) {
         // Treat as success — late carrier callback confirmed by deduction SMS
         normalizedStatus = 'completed';
       } else if (providerIndicatesSuccess) {
@@ -1170,6 +1268,8 @@ serve(async (req) => {
         console.log(`⏰ Scheduled retry in ${cooldownMs/1000}s for queue ${queueId}`);
       } else if (normalizedStatus === 'completed') {
         updateData.completed_at = new Date().toISOString();
+      } else if (mismatchError) {
+        updateData.error_message = mismatchError;
       } else if (errorMessage) {
         updateData.error_message = errorMessage;
       }
@@ -1209,7 +1309,9 @@ serve(async (req) => {
             : (errorMessage || 'Activation failed');
         } else if (finalDeliveryStatus === 'verification_required') {
           orderUpdate.delivery_status = 'verification_required';
-          orderUpdate.delivery_notes = `USSD dispatched but provider callback ambiguous (${(errorMessage || text || 'no response').slice(0, 160)}). MANUAL VERIFICATION REQUIRED — do not auto-resend.`;
+          orderUpdate.delivery_notes = responseReceiverMismatch
+            ? `${mismatchError} Current delivery requires verification; do not auto-resend.`
+            : `USSD dispatched but provider callback ambiguous (${(errorMessage || text || 'no response').slice(0, 160)}). MANUAL VERIFICATION REQUIRED — do not auto-resend.`;
         }
 
         await supabase
@@ -1246,7 +1348,7 @@ serve(async (req) => {
       }
 
       return new Response(
-        JSON.stringify({ success: true }),
+        JSON.stringify({ success: true, normalizedStatus, responseReceiverMismatch, reassignedLateCallbackQueueId }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
