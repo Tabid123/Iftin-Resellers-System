@@ -49,6 +49,122 @@ function extractSomaliPhoneCandidates(value: unknown): string[] {
   return [...new Set(matches.map(normalizeSomaliPhone).filter(Boolean))];
 }
 
+function isDeductionSms(body: string): boolean {
+  const low = body.toLowerCase();
+  return low.includes('ugu shubtay') ||
+    low.includes('haraagaagu waa') ||
+    low.includes('u wareejisay') ||
+    low.includes('ku guulaysatay') ||
+    low.includes('ku guuleysatay');
+}
+
+async function findMatchingDeductionSms(
+  supabase: any,
+  tenantId: string,
+  deviceId: string,
+  receiverPhone: unknown,
+  sinceIso: string
+): Promise<string | null> {
+  const receiver = normalizeSomaliPhone(receiverPhone);
+  if (!receiver) return null;
+
+  const { data: recentSms, error } = await supabase
+    .from('sms_logs')
+    .select('sms_body, counterpart_phone, received_at')
+    .eq('tenant_id', tenantId)
+    .eq('device_id', deviceId)
+    .gte('received_at', sinceIso)
+    .order('received_at', { ascending: false })
+    .limit(100);
+
+  if (error) {
+    console.warn('SMS lookup failed:', error);
+    return null;
+  }
+
+  for (const row of recentSms ?? []) {
+    const body = String(row.sms_body || '');
+    if (!isDeductionSms(body)) continue;
+    const counterpart = normalizeSomaliPhone(row.counterpart_phone);
+    const bodyPhones = extractSomaliPhoneCandidates(body);
+    if (counterpart === receiver || bodyPhones.includes(receiver)) {
+      return body;
+    }
+  }
+  return null;
+}
+
+async function reconcileAwaitingSms(
+  supabase: any,
+  tenantId: string,
+  deviceId: string
+): Promise<number> {
+  const { data: rows, error } = await supabase
+    .from('delivery_queue')
+    .select('id, order_id, receiver_phone, dispatched_at, created_at')
+    .eq('tenant_id', tenantId)
+    .eq('android_device_id', deviceId)
+    .eq('status', 'awaiting_sms')
+    .order('created_at', { ascending: true })
+    .limit(20);
+
+  if (error) {
+    console.warn('Awaiting-SMS fetch failed:', error);
+    return 0;
+  }
+
+  let reconciled = 0;
+  for (const row of rows ?? []) {
+    const baseTs = row.dispatched_at || row.created_at;
+    const sinceIso = new Date(new Date(baseTs).getTime() - 120_000).toISOString();
+    const smsBody = await findMatchingDeductionSms(
+      supabase,
+      tenantId,
+      deviceId,
+      row.receiver_phone,
+      sinceIso
+    );
+    if (!smsBody) continue;
+
+    const completedAt = new Date().toISOString();
+    const { data: updated, error: updateError } = await supabase
+      .from('delivery_queue')
+      .update({
+        status: 'completed',
+        provider_response: smsBody,
+        error_message: null,
+        completed_at: completedAt,
+        last_attempt_at: completedAt,
+      })
+      .eq('id', row.id)
+      .eq('tenant_id', tenantId)
+      .eq('status', 'awaiting_sms')
+      .select('id, order_id')
+      .maybeSingle();
+
+    if (updateError) {
+      console.warn('Awaiting-SMS queue reconciliation failed:', updateError);
+      continue;
+    }
+    if (!updated) continue;
+
+    await supabase
+      .from('orders')
+      .update({
+        delivery_status: 'delivered',
+        delivered_at: completedAt,
+        delivery_notes: `Auto-confirmed from SMS Logs for receiver ${normalizeSomaliPhone(row.receiver_phone)}. ${smsBody.slice(0, 220)}`,
+      })
+      .eq('id', updated.order_id)
+      .eq('tenant_id', tenantId);
+
+    reconciled += 1;
+    console.log(`✅ Awaiting-SMS delivery reconciled: ${row.id}`);
+  }
+
+  return reconciled;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -968,7 +1084,7 @@ serve(async (req) => {
           { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      if (['completed', 'failed', 'verification_required'].includes(existingQueue.status as string)) {
+      if (['completed', 'failed', 'verification_required', 'awaiting_sms'].includes(existingQueue.status as string)) {
         return new Response(
           JSON.stringify({ success: true, message: 'Already finalized' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -1042,7 +1158,7 @@ serve(async (req) => {
           .select('id, order_id, receiver_phone, provider_name, dispatched_at')
           .eq('tenant_id', tenantId)
           .eq('android_device_id', deviceId)
-          .eq('status', 'verification_required')
+          .in('status', ['verification_required', 'awaiting_sms'])
           .gte('dispatched_at', sinceLateWindow)
           .order('dispatched_at', { ascending: false })
           .limit(20);
@@ -1071,7 +1187,7 @@ serve(async (req) => {
               })
               .eq('id', matchingPrior.id)
               .eq('tenant_id', tenantId)
-              .eq('status', 'verification_required')
+              .in('status', ['verification_required', 'awaiting_sms'])
               .select('id, order_id')
               .maybeSingle();
 
@@ -1113,51 +1229,23 @@ serve(async (req) => {
       let smsConfirmedTimeout = false;
       let smsConfirmedBody: string | null = null;
       if (
-        status === 'timeout' &&
-        !providerIndicatesSuccess &&
-        !providerIndicatesFailure
+        responseReceiverMismatch ||
+        (status === 'timeout' && !providerIndicatesSuccess && !providerIndicatesFailure)
       ) {
         try {
-          const { data: queueDetail } = await supabase
-            .from('delivery_queue')
-            .select('receiver_phone, android_device_id, last_attempt_at, created_at')
-            .eq('id', queueId)
-            .eq('tenant_id', tenantId)
-            .maybeSingle();
-
-          if (queueDetail?.receiver_phone && queueDetail?.android_device_id) {
-            // Normalize receiver phone to last 9 digits for matching
-            const receiverDigits = String(queueDetail.receiver_phone).replace(/\D/g, '');
-            const receiverLast9 = receiverDigits.slice(-9);
-            const sinceTs = new Date(Date.now() - 120_000).toISOString();
-
-            const { data: recentSms } = await supabase
-              .from('sms_logs')
-              .select('sms_body, received_at')
-              .eq('tenant_id', tenantId)
-              .eq('device_id', queueDetail.android_device_id)
-              .gte('received_at', sinceTs)
-              .order('received_at', { ascending: false })
-              .limit(20);
-
-            if (recentSms && recentSms.length > 0 && receiverLast9.length === 9) {
-              for (const row of recentSms) {
-                const body = String(row.sms_body || '');
-                const bodyLower = body.toLowerCase();
-                const isDeduction =
-                  bodyLower.includes('ugu shubtay') ||
-                  bodyLower.includes('haraagaagu waa') ||
-                  bodyLower.includes('u wareejisay') ||
-                  bodyLower.includes('ku guulaysatay');
-                const bodyDigits = body.replace(/\D/g, '');
-                if (isDeduction && bodyDigits.includes(receiverLast9)) {
-                  smsConfirmedTimeout = true;
-                  smsConfirmedBody = body;
-                  console.log(`✅ SMS-confirmed late callback for queue ${queueId} - reclassifying timeout as completed`);
-                  break;
-                }
-              }
-            }
+          const sinceTs = existingQueue.dispatched_at
+            ? new Date(new Date(existingQueue.dispatched_at).getTime() - 120_000).toISOString()
+            : new Date(Date.now() - 10 * 60_000).toISOString();
+          smsConfirmedBody = await findMatchingDeductionSms(
+            supabase,
+            tenantId,
+            deviceId,
+            existingQueue.receiver_phone,
+            sinceTs
+          );
+          smsConfirmedTimeout = !!smsConfirmedBody;
+          if (smsConfirmedTimeout) {
+            console.log(`✅ SMS Logs confirmed receiver ${expectedReceiver} for queue ${queueId}`);
           }
         } catch (lookupErr) {
           console.warn('SMS deduction lookup failed:', lookupErr);
@@ -1179,13 +1267,13 @@ serve(async (req) => {
       let normalizedStatus = 'failed';
       let isAutoRetry = false;
 
-      if (responseReceiverMismatch) {
-        // Current queue was dispatched, but this success belongs to a different receiver.
-        // Never mark the current order delivered and never auto-resend it.
-        normalizedStatus = wasDispatched ? 'verification_required' : 'failed';
-      } else if (smsConfirmedTimeout) {
-        // Treat as success — late carrier callback confirmed by deduction SMS
+      if (smsConfirmedTimeout) {
+        // Strongest proof: SMS Logs contains a deduction SMS for the exact current receiver.
         normalizedStatus = 'completed';
+      } else if (responseReceiverMismatch) {
+        // Wrong/stale carrier dialog. Do not verify manually and do not resend.
+        // Hold until SMS Logs confirms the exact intended receiver.
+        normalizedStatus = 'awaiting_sms';
       } else if (providerIndicatesSuccess) {
         // Duplicate delivery prevention: check if a NEW delivered delivery exists for same receiver + order
         const { data: existingDelivered } = await supabase
@@ -1309,9 +1397,10 @@ serve(async (req) => {
             : (errorMessage || 'Activation failed');
         } else if (finalDeliveryStatus === 'verification_required') {
           orderUpdate.delivery_status = 'verification_required';
-          orderUpdate.delivery_notes = responseReceiverMismatch
-            ? `${mismatchError} Current delivery requires verification; do not auto-resend.`
-            : `USSD dispatched but provider callback ambiguous (${(errorMessage || text || 'no response').slice(0, 160)}). MANUAL VERIFICATION REQUIRED — do not auto-resend.`;
+          orderUpdate.delivery_notes = `USSD dispatched but provider callback ambiguous (${(errorMessage || text || 'no response').slice(0, 160)}). MANUAL VERIFICATION REQUIRED — do not auto-resend.`;
+        } else if (finalDeliveryStatus === 'awaiting_sms') {
+          orderUpdate.delivery_status = 'awaiting_sms';
+          orderUpdate.delivery_notes = `${mismatchError} Waiting for matching SMS Logs confirmation; no auto-resend.`;
         }
 
         await supabase
@@ -1336,10 +1425,10 @@ serve(async (req) => {
           const updates: any = {};
           if (normalizedStatus === 'completed') {
             updates.total_deliveries = ((device.total_deliveries as number | null) ?? 0) + 1;
-          } else {
+          } else if (['failed', 'verification_required'].includes(normalizedStatus)) {
             updates.failed_deliveries = ((device.failed_deliveries as number | null) ?? 0) + 1;
           }
-          await supabase
+          if (Object.keys(updates).length > 0) await supabase
             .from('android_devices')
             .update(updates)
             .eq('id', device.id)
@@ -1391,8 +1480,11 @@ serve(async (req) => {
         }
       }
 
+      // Reconcile deliveries that are waiting specifically for SMS Logs confirmation.
+      const smsReconciled = await reconcileAwaitingSms(supabase, tenantId, deviceId);
+
       // Regular presence checks must not reclaim an order while the worker is dialing.
-      if (presenceOnly === true) return json({ success: true });
+      if (presenceOnly === true) return json({ success: true, smsReconciled });
 
       // Sweep stuck 'processing' deliveries for this device.
       // ONE-SEND LOCK: if row was already dispatched (USSD dialed), NEVER re-queue.
@@ -1632,6 +1724,8 @@ serve(async (req) => {
         .is('archived_at', null)
         .select('sim1_provider, sim2_provider')
         .maybeSingle();
+
+      const smsReconciled = await reconcileAwaitingSms(supabase, tenantId, deviceId);
 
       const device = updatedDevice || registeredDevice;
       const deviceProviders: string[] = [];
