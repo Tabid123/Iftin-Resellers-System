@@ -11,6 +11,7 @@ import {
 } from './shared';
 import { ArrowLeft, Send } from 'lucide-react';
 import { ResendOrderPrompt } from './ResendOrderPrompt';
+import { CompleteOrderPrompt } from './CompleteOrderPrompt';
 import { effectiveOrderCost } from '@/lib/iftinProfit';
 import { AdminPagination, ADMIN_PAGE_SIZE } from './AdminPagination';
 
@@ -35,11 +36,13 @@ const OrderAccordionItem = ({ item, idx, expandedId, setExpandedId, isSo, action
   isSo: boolean; actions: ReturnType<typeof useOrderActions>; onReload?: () => void;
 }) => {
   const [resendOpen, setResendOpen] = useState(false);
+  const [completeOpen, setCompleteOpen] = useState(false);
   const isExpanded = expandedId === item.id;
   const statusColor = item.delivery_status === 'delivered' ? 'bg-green-100 text-green-700' : item.delivery_status === 'failed' ? 'bg-red-100 text-red-700' : item.delivery_status === 'pending' ? 'bg-yellow-100 text-yellow-700' : item.status === 'cancelled' ? 'bg-gray-200 text-gray-600' : 'bg-gray-100 text-gray-600';
   const isCancellable = item.status !== 'cancelled' && item.delivery_status !== 'delivered';
   const isRetryable = item.delivery_status === 'failed';
   const isMarkable = item.delivery_status === 'pending';
+  const isConfirmable = ['awaiting_sms', 'verification_required'].includes(item.delivery_status);
   // Dalab kasta oo la diray ama fashilmay waa la dib u diri karaa (lambar cusub).
   const isResendable = true; // dalab kasta waa la dib u diri karaa
 
@@ -98,6 +101,7 @@ const OrderAccordionItem = ({ item, idx, expandedId, setExpandedId, isSo, action
               {isResendable && <ActionBtn onClick={() => setResendOpen(true)} icon={Send} label={isSo ? 'Dib u dir' : 'Resend'} />}
               {isRetryable && <ActionBtn onClick={() => actions.retryDelivery(item.id)} icon={RotateCcw} label={isSo ? 'Dib u Dir' : 'Retry'} variant="warning" />}
               {isMarkable && <ActionBtn onClick={() => actions.markDelivered(item.id)} icon={CheckCircle} label={isSo ? 'Dhamee' : 'Deliver'} variant="success" />}
+              {isConfirmable && <ActionBtn onClick={() => setCompleteOpen(true)} icon={CheckCircle} label={isSo ? 'Dhammee' : 'Complete'} variant="success" />}
               {isCancellable && <ActionBtn onClick={() => actions.cancelOrder(item.id)} icon={XCircle} label={isSo ? 'Kansal' : 'Cancel'} variant="danger" />}
             </>
           }
@@ -105,6 +109,9 @@ const OrderAccordionItem = ({ item, idx, expandedId, setExpandedId, isSo, action
       )}
       {resendOpen && (
         <ResendOrderPrompt order={item} isSo={isSo} onClose={() => setResendOpen(false)} onDone={onReload} />
+      )}
+      {completeOpen && (
+        <CompleteOrderPrompt order={item} isSo={isSo} onClose={() => setCompleteOpen(false)} onDone={onReload} />
       )}
     </div>
   );
