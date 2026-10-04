@@ -9,32 +9,37 @@ const PrivacyPolicy = () => {
   const tenantState = useTenant();
   const tenant = tenantState.status === "ready" || tenantState.status === "suspended" ? tenantState.tenant : null;
   const brandName = tenant?.name || (import.meta.env.VITE_TENANT_NAME as string) || "App";
-  const contactEmail = tenant ? `info@${tenant.slug}.com` : "info@najaxdata.com";
+  const supportPhone = tenant?.support_phone ? `+252 ${String(tenant.support_phone).replace(/\D/g, '').replace(/^(\d{3})(\d{3})(\d{3})$/, '$1 $2 $3')}` : null;
+  const developerName = "Iftin Digital Solutions";
   const previousPage = (location.state as { from?: string })?.from || '/providers';
   const sections = [{
     icon: Database,
     title: "Data We Collect",
-    content: "We only collect essential data required to provide our services. This includes your phone number and order history. We do not collect other personal information such as your address or name."
-  }, {
-    icon: Lock,
-    title: "Data Protection",
-    content: "Your data is protected with modern security measures. We use the latest encryption to safeguard your information. Your data is never shared with third-party companies."
+    content: "To provide internet-package purchasing and delivery, we may process your phone number, receiver number, order and transaction details, payment-provider references, and limited technical information needed for security, troubleshooting, notifications, and service delivery."
   }, {
     icon: Eye,
-    title: "Data Usage",
-    content: "Your data is used solely to complete your internet package orders. We do not use your data for other purposes such as advertising or marketing."
+    title: "How We Use Data",
+    content: "We use this information to process purchases, deliver packages, show order history, prevent fraud or duplicate delivery, provide customer support, send service notifications, and improve reliability."
+  }, {
+    icon: UserCheck,
+    title: "Data Sharing",
+    content: "We do not sell personal data. We may share only the information necessary to provide the service with infrastructure/database providers, payment processors, telecom operators, notification providers, and other vendors acting on our behalf, or when required by law."
+  }, {
+    icon: Lock,
+    title: "Security",
+    content: "We use access controls, encrypted network connections, tenant isolation, and other reasonable technical and organizational safeguards designed to protect user information from unauthorized access, loss, or misuse."
+  }, {
+    icon: Database,
+    title: "Retention and Deletion",
+    content: "We retain order, transaction, and support records only for as long as reasonably necessary to provide the service, meet legal or accounting obligations, resolve disputes, and prevent fraud. You may request deletion of personal data that we are not legally required to retain."
   }, {
     icon: Bell,
     title: "Notifications",
-    content: "We may send you notifications about your orders and our services. You can stop notifications at any time by contacting customer service."
+    content: "If notifications are enabled, we may use a device notification identifier to send order or service updates. You can disable notifications in your device settings."
   }, {
     icon: UserCheck,
     title: "Your Rights",
-    content: "You have the right to request a copy of your data. You can also request that your data be deleted from our system. Contact customer service to make a request."
-  }, {
-    icon: Shield,
-    title: "Security",
-    content: "We take strong measures to ensure the security of your data. Our servers are located in secure facilities. We regularly update our security systems."
+    content: "You may request access, correction, or deletion of your personal data, subject to applicable legal and operational requirements. Contact us using the support information below."
   }];
   return <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
       <div className="container max-w-2xl mx-auto px-4 py-8">
@@ -61,9 +66,9 @@ const PrivacyPolicy = () => {
             </div>
           </div>
           <p className="text-muted-foreground leading-relaxed">
-            {brandName} is committed to protecting your privacy and personal data. 
-            This policy explains how we collect, use, and protect your data 
-            when you use our app.
+            {brandName}, operated by {developerName}, is committed to protecting your privacy.
+            This Privacy Policy explains what information the app processes, why it is used,
+            when it may be shared, how long it may be retained, and how you can contact us about your data.
           </p>
         </div>
 
@@ -86,14 +91,16 @@ const PrivacyPolicy = () => {
 
         {/* Contact */}
         <div className="mt-8 bg-muted/50 rounded-xl p-6 text-center border border-border/50">
-          <p className="text-muted-foreground text-sm mb-2">
-            If you have questions about this privacy policy
+          <p className="text-foreground font-semibold">{developerName}</p>
+          <p className="text-muted-foreground text-sm mt-1">
+            Privacy questions, access requests, corrections, and deletion requests
           </p>
-          <p className="text-foreground font-medium">Contact: {contactEmail}</p>
+          {supportPhone && <p className="text-foreground font-medium mt-2">Support: {supportPhone}</p>}
+          <p className="text-muted-foreground text-xs mt-2">Website: iftinagents.com</p>
         </div>
 
         {/* Last Updated */}
-        <p className="text-center text-muted-foreground text-xs mt-6">Last updated: December 2025</p>
+        <p className="text-center text-muted-foreground text-xs mt-6">Last updated: October 4, 2026</p>
       </div>
     </div>;
 };
