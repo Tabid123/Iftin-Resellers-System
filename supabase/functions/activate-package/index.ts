@@ -1122,10 +1122,18 @@ serve(async (req) => {
         'cancelled', 'canceled',
         'service error', 'try again', 'please try again', 'internal',
         'temporarily', 'unavailable', 'not available', 'time out',
-        'connection', 'network error', 'waxba kama dhicin'
+        'connection', 'network error', 'waxba kama dhicin',
+        'already has', 'already subscribed', 'already active'
       ];
 
-      const providerIndicatesFailure = text.length > 0 && failureKeywords.some(k => text.includes(k));
+      // Carrier messages such as "lambarkani horey ayuu u haystaa adeegga Unlimited"
+      // mean the requested activation was NOT performed. Treat all common Somali
+      // spelling variants as a clear provider failure.
+      const providerAlreadyHasService =
+        /(?:horey|horay|hore)\s+(?:ayuu\s+)?u\s+(?:haystaa|leeyahay)/i.test(text);
+
+      const providerIndicatesFailure =
+        text.length > 0 && (providerAlreadyHasService || failureKeywords.some(k => text.includes(k)));
       const providerIndicatesSuccess = text.length > 0 && successKeywords.some(k => text.includes(k));
 
       // STALE CALLBACK GUARD:
@@ -1274,6 +1282,34 @@ serve(async (req) => {
         // Wrong/stale carrier dialog. Do not verify manually and do not resend.
         // Hold until SMS Logs confirms the exact intended receiver.
         normalizedStatus = 'awaiting_sms';
+      } else if (providerIndicatesFailure) {
+        // Explicit carrier rejection ALWAYS wins over Android's generic completed status.
+        // "horey furtay" is a special Somtel transient response; "horey ayuu u haystaa"
+        // means the requested package was not activated and must be FAILED.
+        const isSomtelRetry =
+          !providerAlreadyHasService &&
+          (text.includes('horey') || text.includes('horay')) &&
+          text.includes('furtay');
+
+        if (isSomtelRetry) {
+          if (currentAttempts < 10) {
+            normalizedStatus = 'pending';
+            isAutoRetry = true;
+            console.log(`🔄 Somtel retry: attempt ${currentAttempts + 1}/10 for queue ${queueId} - 60s cooldown`);
+          } else {
+            normalizedStatus = 'failed';
+            console.log(`❌ Somtel: max retries (10) exceeded for queue ${queueId}`);
+          }
+        } else if (!wasDispatched && currentAttempts < 2) {
+          // Only retry pre-dispatch technical failures. A clear carrier rejection
+          // after dispatch must never be turned into Delivered or retried.
+          normalizedStatus = 'pending';
+          isAutoRetry = true;
+          console.log(`🔄 Pre-dispatch retry: attempt ${currentAttempts + 1}/3 for queue ${queueId}`);
+        } else {
+          normalizedStatus = 'failed';
+          console.log(`❌ Explicit provider failure (dispatched=${wasDispatched}) for queue ${queueId}`);
+        }
       } else if (providerIndicatesSuccess) {
         // Duplicate delivery prevention: check if a NEW delivered delivery exists for same receiver + order
         const { data: existingDelivered } = await supabase
@@ -1297,30 +1333,6 @@ serve(async (req) => {
         // NEVER auto-retry after dispatch on ambiguous errors.
         normalizedStatus = 'verification_required';
         console.log(`🛑 Dispatched + ambiguous response → verification_required for queue ${queueId} (no auto-retry)`);
-      } else if (providerIndicatesFailure && !providerIndicatesSuccess) {
-        // Provider clearly said "failed" (insufficient balance, invalid, declined, etc.)
-        // For Somtel "horey furtay" we keep the existing retry behavior because it's a
-        // safe "not yet processed" signal from the provider itself.
-        const isSomtelRetry = text.includes('horey') && text.includes('furtay');
-
-        if (isSomtelRetry) {
-          if (currentAttempts < 10) {
-            normalizedStatus = 'pending';
-            isAutoRetry = true;
-            console.log(`🔄 Somtel retry: attempt ${currentAttempts + 1}/10 for queue ${queueId} - 60s cooldown`);
-          } else {
-            normalizedStatus = 'failed';
-            console.log(`❌ Somtel: max retries (10) exceeded for queue ${queueId}`);
-          }
-        } else if (!wasDispatched && currentAttempts < 2) {
-          // Only retry pre-dispatch failures (SIM/permission errors before the USSD ever left)
-          normalizedStatus = 'pending';
-          isAutoRetry = true;
-          console.log(`🔄 Pre-dispatch retry: attempt ${currentAttempts + 1}/3 for queue ${queueId}`);
-        } else {
-          normalizedStatus = 'failed';
-          console.log(`❌ Final failure (dispatched=${wasDispatched}) for queue ${queueId}`);
-        }
       } else if (status === 'completed') {
         normalizedStatus = 'completed';
       } else if (status === 'failed') {
