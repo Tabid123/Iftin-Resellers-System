@@ -204,7 +204,7 @@ const ProviderSelection = () => {
         }}
       >
         <div className="grid h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4">
-          <h1 className="truncate text-xl font-extrabold text-primary-foreground">
+          <h1 className="truncate text-xl font-extrabold text-accent">
             {brandName}
           </h1>
           <div className="flex shrink-0 items-center gap-2.5">
@@ -214,7 +214,7 @@ const ProviderSelection = () => {
               size="icon"
               onClick={() => window.open(support.telHref, '_self')}
               aria-label="Call"
-              className="h-10 w-10 rounded-full bg-primary-foreground/10 p-0 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground active:scale-95 [&_svg]:size-[22px]"
+              className="h-10 w-10 rounded-full bg-accent/20 p-0 text-accent hover:bg-accent/30 hover:text-accent active:scale-95 [&_svg]:size-[22px]"
             >
               <Phone strokeWidth={2} />
             </Button>
@@ -224,7 +224,7 @@ const ProviderSelection = () => {
               size="icon"
               onClick={() => setShowAI(true)}
               aria-label="Assistant"
-              className="h-10 w-10 rounded-full bg-primary-foreground/10 p-0 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground active:scale-95 [&_svg]:size-[22px]"
+              className="h-10 w-10 rounded-full bg-accent/20 p-0 text-accent hover:bg-accent/30 hover:text-accent active:scale-95 [&_svg]:size-[22px]"
             >
               <Bot strokeWidth={2.1} />
             </Button>
