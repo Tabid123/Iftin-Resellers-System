@@ -16,6 +16,15 @@ import CachedImage from '@/components/CachedImage'
 
 const toDateInput = (v: string | null | undefined) => (v ? new Date(v).toISOString().slice(0, 10) : '')
 
+const slugFromTenantName = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/\bdata\b/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 30)
+
 export default function ResellerDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -363,13 +372,42 @@ export default function ResellerDetailPage() {
     logoUrl !== (tenant.logo_url ?? null)
 
   const saveBranding = async () => {
-    await update({
-      name: name.trim() || tenant.name,
+    const nextName = name.trim() || tenant.name
+    const patch: any = {
+      name: nextName,
       primary_color: primary.trim() || null,
       accent_color: accent.trim() || null,
       support_phone: supportPhone.replace(/\D/g, '').slice(0, 9) || null,
       logo_url: logoUrl,
-    })
+    }
+
+    if (nextName !== tenant.name) {
+      const nextSlug = slugFromTenantName(nextName)
+      if (nextSlug.length < 2) {
+        toast({ title: 'Magaca cusub slug sax ah kama samayn karo', variant: 'destructive' })
+        return
+      }
+
+      const { data: slugOwner, error: slugCheckError } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('slug', nextSlug)
+        .neq('id', id)
+        .maybeSingle()
+
+      if (slugCheckError) {
+        toast({ title: 'Slug lama hubin', description: slugCheckError.message, variant: 'destructive' })
+        return
+      }
+      if (slugOwner) {
+        toast({ title: 'Magacan link-giisa tenant kale ayaa isticmaalaya', description: `/${nextSlug}`, variant: 'destructive' })
+        return
+      }
+
+      patch.slug = nextSlug
+    }
+
+    await update(patch)
   }
 
   const publicUrl = `https://iftinagents.com/t/${tenant.slug}`
