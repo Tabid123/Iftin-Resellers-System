@@ -407,11 +407,22 @@ export function buildPaymentUssd(
     return `*712*${number}*${ussdAmount}#`;
   }
 
-  const tpl = paymentProvider.ussd_code_template;
+  const tpl = String(paymentProvider.ussd_code_template ?? '').trim();
   if (tpl) {
-    return tpl
+    const expanded = tpl
       .replace(/\{\{?\s*(number|payment_number|phone)\s*\}?\}/gi, number)
-      .replace(/\{\{?\s*amount\s*\}?\}/gi, ussdAmount);
+      .replace(/\{\{?\s*amount\s*\}?\}/gi, ussdAmount)
+      .replace(/\s/g, '');
+    // Some tenant settings contain only a dial prefix (e.g. "*712*").
+    // Never display that prefix alone as a complete payment USSD.
+    if (/^\*\d+(?:\*\d+)*\*?$/.test(expanded)) {
+      const base = expanded.endsWith('*') ? expanded : `${expanded}*`;
+      return `${base}${number}*${ussdAmount}#`;
+    }
+    // Only use expanded templates that actually contain both payment number and amount.
+    if (expanded.includes(number) && expanded.includes(ussdAmount) && expanded.endsWith('#')) {
+      return expanded;
+    }
   }
 
   if (!resolvedPrefix) return null;
