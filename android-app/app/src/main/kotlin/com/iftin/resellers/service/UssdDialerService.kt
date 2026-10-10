@@ -1831,8 +1831,21 @@ class UssdDialerService : Service() {
                     "insufficient", "invalid", "unavailable", "waxba kama dhicin"
                 )
                 
+                // Carrier may acknowledge a previous activation without delivering this order.
+                // Treat these Somali already-active messages as failures, never as success.
+                fun isAlreadyActive(text: String): Boolean {
+                    val normalized = text.lowercase()
+                    return (
+                        (normalized.contains("hore") || normalized.contains("horay")) &&
+                        (normalized.contains("u furtay") || normalized.contains("loo furay") ||
+                         normalized.contains("ugu furan") || normalized.contains("horey u") ||
+                         normalized.contains("horay u") || normalized.contains("hore ayuu")) &&
+                        (normalized.contains("adeeg") || normalized.contains("data") ||
+                         normalized.contains("internet") || normalized.contains("xirm"))
+                    )
+                }
                 var hasSuccess = successKeywords.any { responseText.contains(it) }
-                var hasFailure = failureKeywords.any { responseText.contains(it) }
+                var hasFailure = failureKeywords.any { responseText.contains(it) } || isAlreadyActive(responseText) || isAlreadyActive(responseText)
                 
                 // ===== LATE-CALLBACK RECHECK =====
                 // If response is empty after silent timeout, wait extra 5s for late AccessibilityService capture
@@ -1865,15 +1878,15 @@ class UssdDialerService : Service() {
                 val detectedError: String?
                 
                 when {
+                    hasFailure -> {
+                        detectedStatus = "failed"
+                        detectedError = "Provider error detected: ${responseText.take(100)}"
+                        android.util.Log.d("UssdDialer", "❌ Failure response detected - marking order failed")
+                    }
                     hasSuccess -> {
                         detectedStatus = "completed"
                         detectedError = null
                         android.util.Log.d("UssdDialer", "✅ Success keywords detected in response")
-                    }
-                    hasFailure -> {
-                        detectedStatus = "failed"
-                        detectedError = "Provider error detected: ${responseText.take(100)}"
-                        android.util.Log.d("UssdDialer", "❌ Failure keywords detected - server will auto-retry")
                     }
                     responseText.isEmpty() && isFlow870 && !Ussd870Flow.wasRecentlyFinished(this) -> {
                         // The interactive menu has not reached its final carrier response yet.
