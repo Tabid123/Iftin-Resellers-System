@@ -1130,7 +1130,8 @@ serve(async (req) => {
       // mean the requested activation was NOT performed. Treat all common Somali
       // spelling variants as a clear provider failure.
       const providerAlreadyHasService =
-        /(?:horey|horay|hore)\s+(?:ayuu\s+)?u\s+(?:haystaa|leeyahay)/i.test(text);
+        /\b(?:horey|horay|hore)\s+(?:(?:ayuu|ayay|ay)\s+)?(?:u\s+)?(?:haystaa|leeyahay|furtay|furatay|furay|loo\s+furay)\b/i.test(text) &&
+        /\b(?:adeeg\w*|data|internet|xirm\w*)\b/i.test(text);
 
       const providerIndicatesFailure =
         text.length > 0 && (providerAlreadyHasService || failureKeywords.some(k => text.includes(k)));
@@ -1284,14 +1285,17 @@ serve(async (req) => {
         normalizedStatus = 'awaiting_sms';
       } else if (providerIndicatesFailure) {
         // Explicit carrier rejection ALWAYS wins over Android's generic completed status.
-        // "horey furtay" is a special Somtel transient response; "horey ayuu u haystaa"
-        // means the requested package was not activated and must be FAILED.
+        // A prior activation ("horey ayuu u furtay/haystaa") is a definitive rejection:
+        // no new package was delivered; do not auto-retry or override to completed.
         const isSomtelRetry =
           !providerAlreadyHasService &&
           (text.includes('horey') || text.includes('horay')) &&
           text.includes('furtay');
 
-        if (isSomtelRetry) {
+        if (providerAlreadyHasService) {
+          normalizedStatus = 'failed';
+          console.log(`❌ Already active service: no activation occurred for queue ${queueId}; no auto-retry`);
+        } else if (isSomtelRetry) {
           if (currentAttempts < 10) {
             normalizedStatus = 'pending';
             isAutoRetry = true;
