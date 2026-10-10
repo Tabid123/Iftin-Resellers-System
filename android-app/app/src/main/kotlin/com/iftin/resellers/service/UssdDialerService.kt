@@ -1845,7 +1845,7 @@ class UssdDialerService : Service() {
                     )
                 }
                 var hasSuccess = successKeywords.any { responseText.contains(it) }
-                var hasFailure = failureKeywords.any { responseText.contains(it) } || isAlreadyActive(responseText) || isAlreadyActive(responseText)
+                var hasFailure = failureKeywords.any { responseText.contains(it) } || isAlreadyActive(responseText)
                 
                 // ===== LATE-CALLBACK RECHECK =====
                 // If response is empty after silent timeout, wait extra 5s for late AccessibilityService capture
@@ -1856,7 +1856,7 @@ class UssdDialerService : Service() {
                     providerResponse = ussdResponse ?: ""
                     responseText = providerResponse.lowercase()
                     hasSuccess = successKeywords.any { responseText.contains(it) }
-                    hasFailure = failureKeywords.any { responseText.contains(it) }
+                    hasFailure = failureKeywords.any { responseText.contains(it) } || isAlreadyActive(responseText)
                     if (responseText.isNotEmpty()) {
                         android.util.Log.d("UssdDialer", "✅ Late USSD response captured: ${responseText.take(100)}")
                     }
