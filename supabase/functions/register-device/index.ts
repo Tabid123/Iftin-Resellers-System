@@ -124,14 +124,56 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'User-kan reseller uma laha tenant' }, 403)
       }
 
-      // First-time bind, OR mismatch → reject mismatch to prevent stealing
-      if (existingDevice?.tenant_id && existingDevice.tenant_id !== membership.tenant_id) {
-        return jsonResponse(
-          { error: 'Device-kan horey ayaa loogu xidhay reseller kale' },
-          409,
-        )
+      // A handset may be used by one reseller at a time. The service-only RPC
+      // atomically parks the previous tenant's device row and activates a
+      // tenant-specific row with the SAME physical Android ID. Historical
+      // orders, balances and SMS logs stay attached to their original tenant.
+      // Do not reassign tenant_id or disable the immutability triggers.
+      const { data: activeRowId, error: switchError } = await supabase.rpc(
+        'activate_reseller_device',
+        {
+          p_device_id: deviceId,
+          p_tenant_id: membership.tenant_id,
+          p_device_name: deviceName,
+          p_sim_number: sim1Number ?? existingDevice?.sim_number ?? '',
+          p_sim2_number: sim2Number ?? existingDevice?.sim2_number ?? null,
+          p_provider_name: getProviderFromSimNumber(sim1Number)
+            ?? existingDevice?.provider_name
+            ?? 'unknown',
+          p_sim1_provider: getProviderFromSimNumber(sim1Number)
+            ?? existingDevice?.sim1_provider
+            ?? null,
+          p_sim2_provider: getProviderFromSimNumber(sim2Number)
+            ?? existingDevice?.sim2_provider
+            ?? null,
+        },
+      )
+
+      if (switchError) {
+        console.error('Reseller device activation failed:', switchError)
+        if (switchError.message?.includes('DEVICE_BUSY')) {
+          return jsonResponse(
+            { error: 'Dalab wali socda ayaa qalabkan ku jira. Marka uu dhamaado, isku day Login mar kale.' },
+            423,
+          )
+        }
+        throw switchError
       }
 
+      const { data: activeRow, error: activeRowError } = await supabase
+        .from('android_devices')
+        .select('*')
+        .eq('id', activeRowId)
+        .eq('device_id', deviceId)
+        .eq('tenant_id', membership.tenant_id)
+        .maybeSingle()
+
+      if (activeRowError || !activeRow) {
+        console.error('Active device changed during registration:', activeRowError)
+        return jsonResponse({ error: 'Device login changed; please retry' }, 409)
+      }
+
+      existingDevice = activeRow
       resolvedTenantId = membership.tenant_id
     }
 
@@ -167,7 +209,13 @@ Deno.serve(async (req) => {
     }
 
     const deviceQuery = existingDevice
-      ? supabase.from('android_devices').update(payload).eq('id', existingDevice.id).select().single()
+      ? supabase.from('android_devices')
+          .update(payload)
+          .eq('id', existingDevice.id)
+          .eq('device_id', deviceId)
+          .eq('tenant_id', resolvedTenantId)
+          .select()
+          .single()
       : supabase.from('android_devices').insert(payload).select().single()
 
     const { data: androidDevice, error: upsertError } = await deviceQuery
