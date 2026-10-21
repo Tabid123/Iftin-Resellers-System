@@ -14,26 +14,52 @@ export const digits9 = (raw: string): string => {
   return s.slice(-9);
 };
 
-const applyTemplate = (template: string, phone: string, order: any, packageCode: string) =>
-  template
+// Match activate-package: $0.35 -> "035", $4.25 -> "4*25", $4 -> "4".
+const formatAmountForUssd = (value: unknown): string => {
+  if (value == null || value === '') return '';
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return '';
+  if (Math.abs(amount - Math.round(amount)) < 0.000001) return String(Math.round(amount));
+  return amount.toFixed(2).replace('.', amount < 1 ? '' : '*');
+};
+
+const applyTemplate = (template: string, phone: string, order: any, packageCode: string, simPassword: string) => {
+  const expanded = template.replace(/\{package_code\}/g, () => packageCode);
+  if (template.includes('{package_code}') && !packageCode.trim()) {
+    throw new Error('USSD-ka xirmada lama buuxin — delivery instructions hubi');
+  }
+  if (expanded.includes('{sim_password}') && !simPassword.trim()) {
+    throw new Error('PIN-ka USSD lama helin — delivery instructions hubi');
+  }
+  const cost = formatAmountForUssd(order.cost_price);
+  if (expanded.includes('{cost_price}') && !cost) {
+    throw new Error('Qiimaha xirmada lama helin — xirmada hubi');
+  }
+  const ussd = expanded
     .replace(/\{receiver_phone\}/g, phone)
-    .replace(/\{package_code\}/g, packageCode)
-    .replace(/\{cost_price\}/g, String(order.cost_price ?? ''))
-    .replace(/\{selling_price\}/g, String(order.selling_price ?? ''));
+    .replace(/\{cost_price\}/g, cost)
+    .replace(/\{selling_price\}/g, String(order.selling_price ?? ''))
+    .replace(/\{sim_password\}/g, () => simPassword);
+  if (/\{[^{}]*\}/.test(ussd)) {
+    throw new Error('USSD-ka si sax ah looma buuxin — delivery instructions hubi');
+  }
+  return ussd;
+};
 
 async function lookupUssd(order: any, phone: string): Promise<{ ussd: string | null; provider: string | null; deviceId: string | null; simSlot: number | null }> {
   // 1. Reuse the original queue row (most reliable — it already worked once).
-  const prev = order.id
-    ? (
-        await supabase
-          .from('delivery_queue')
-          .select('ussd_code, provider_name, android_device_id, sim_slot, receiver_phone')
-          .eq('order_id', order.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-      ).data
-    : null;
+  let prev: any = null;
+  if (order.id) {
+    const { data, error } = await supabase
+      .from('delivery_queue')
+      .select('ussd_code, provider_name, android_device_id, sim_slot, receiver_phone')
+      .eq('order_id', order.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error('Xogta diristii hore lama soo akhrin — fadlan isku day mar kale');
+    prev = data;
+  }
 
   if (prev?.ussd_code && prev.ussd_code !== 'MANUAL') {
     const oldPhone = digits9(String(prev.receiver_phone ?? order.receiver_phone ?? ''));
@@ -41,41 +67,55 @@ async function lookupUssd(order: any, phone: string): Promise<{ ussd: string | n
     return { ussd, provider: prev.provider_name ?? null, deviceId: prev.android_device_id ?? null, simSlot: prev.sim_slot ?? null };
   }
 
-  // 2. Fall back to the tenant's delivery instructions.
-  let template: string | null = null;
-  if (order.provider_id) {
-    const { data: pkgLevel } = await supabase
-      .from('delivery_instructions')
-      .select('code_template')
-      .eq('provider_id', order.provider_id)
-      .eq('package_id', order.package_id ?? '')
-      .limit(1)
-      .maybeSingle();
-    template = pkgLevel?.code_template ?? null;
-    if (!template) {
-      const { data: provLevel } = await supabase
-        .from('delivery_instructions')
-        .select('code_template')
-        .eq('provider_id', order.provider_id)
-        .is('category_id', null)
-        .is('package_id', null)
-        .limit(1)
-        .maybeSingle();
-      template = provLevel?.code_template ?? null;
-    }
-  }
-
-  let packageCode = '';
+  // Orders and the unmatched picker do not carry category_id. Read it from
+  // the selected package before resolving Package > Category > Provider.
+  let pkg: any = null;
   if (order.package_id) {
-    const { data: pkg } = await supabase
+    const { data, error } = await supabase
       .from('data_packages_config')
-      .select('ussd_code')
+      .select('ussd_code, category_id, provider_id')
       .eq('id', order.package_id)
       .maybeSingle();
-    packageCode = pkg?.ussd_code ?? '';
+    if (error) throw new Error('Xogta xirmada lama soo akhrin — fadlan isku day mar kale');
+    if (!data) throw new Error('Xirmadan lama helin — fadlan dib u dooro xirmada');
+    pkg = data;
   }
 
-  const ussd = template ? applyTemplate(template, phone, order, packageCode) : (packageCode || null);
+  const providerId = order.provider_id ?? pkg?.provider_id;
+  const readInstruction = async (query: any) => {
+    const { data, error } = await query.limit(1).maybeSingle();
+    if (error) throw new Error('Delivery instructions lama soo akhrin — fadlan isku day mar kale');
+    return data?.code_template?.trim() || data?.ussd_code?.trim() ? data : null;
+  };
+
+  let instruction: any = null;
+  if (providerId && order.package_id) {
+    instruction = await readInstruction(supabase
+      .from('delivery_instructions')
+      .select('code_template, ussd_code, sim_password')
+      .eq('provider_id', providerId)
+      .eq('package_id', order.package_id));
+  }
+  if (!instruction && providerId && pkg?.category_id) {
+    instruction = await readInstruction(supabase
+      .from('delivery_instructions')
+      .select('code_template, ussd_code, sim_password')
+      .eq('provider_id', providerId)
+      .eq('category_id', pkg.category_id)
+      .is('package_id', null));
+  }
+  if (!instruction && providerId) {
+    instruction = await readInstruction(supabase
+      .from('delivery_instructions')
+      .select('code_template, ussd_code, sim_password')
+      .eq('provider_id', providerId)
+      .is('category_id', null)
+      .is('package_id', null));
+  }
+
+  const packageCode = pkg?.ussd_code?.trim() ?? '';
+  const template = instruction?.code_template?.trim() || instruction?.ussd_code?.trim() || packageCode;
+  const ussd = template ? applyTemplate(template, phone, order, packageCode, instruction?.sim_password ?? '') : null;
   return {
     ussd,
     provider: prev?.provider_name ?? order.provider_name ?? null,
@@ -90,7 +130,13 @@ export async function resendOrder(order: any, newReceiverRaw: string): Promise<R
   const phone = digits9(newReceiverRaw);
   if (phone.length !== 9) return { ok: false, message: 'Lambarka sax ma aha' };
 
-  const { ussd, provider, deviceId, simSlot } = await lookupUssd(order, phone);
+  let delivery: Awaited<ReturnType<typeof lookupUssd>>;
+  try {
+    delivery = await lookupUssd(order, phone);
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : 'Xogta USSD lama soo akhrin' };
+  }
+  const { ussd, provider, deviceId, simSlot } = delivery;
   if (!ussd) return { ok: false, message: 'USSD-ka xirmadan lama helin — delivery instructions hubi' };
 
   // Lacag unmatched ah: dalab hore ma jiro — mid cusub ayaa la abuuraa.
