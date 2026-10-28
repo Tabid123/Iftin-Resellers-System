@@ -1116,7 +1116,9 @@ serve(async (req) => {
         if (parentError) throw parentError;
         if (isFinalOrder(parentOrder)) return json({ success: true, message: 'Order already finalized' });
       }
-      const requiresLateEvidence = needsLateEvidence(existingQueue.status);
+      const requiresLateEvidence = needsLateEvidence(existingQueue.status) ||
+        (!!existingQueue.processing_started_at &&
+          Date.now() - new Date(existingQueue.processing_started_at).getTime() >= 90_000);
       const wasDispatched = !!existingQueue.dispatched_at;
 
       // Enhanced logging for debugging

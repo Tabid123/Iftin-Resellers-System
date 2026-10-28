@@ -79,6 +79,14 @@ test('generic late success cannot verify or requeue an ambiguous delivery', asyn
   assert.equal(updates.length, 0);
 });
 
+test('90-second evidence rule applies before the next watchdog tick', async () => {
+  const q = heldQueue(); q.status = 'processing';
+  const { handler, updates } = handlerFor(q);
+  const response = await handler(callback({ status: 'completed', providerResponse: 'Successful' }));
+  assert.equal(response.status, 200);
+  assert.equal(updates.length, 0);
+});
+
 test('late callback from the wrong device is rejected', async () => {
   const q = heldQueue(); q.android_device_id = 'another-device';
   const { handler, updates } = handlerFor(q);
