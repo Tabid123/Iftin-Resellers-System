@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
+import { deliveryOutcome, needsLateEvidence, isFinalOrder } from './deliverySafety.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -94,6 +95,25 @@ async function findMatchingDeductionSms(
   return null;
 }
 
+async function maintainDeliveryQueue(supabase: any, tenantId: string) {
+  const { error } = await supabase.rpc('expire_delivery_processing', { p_tenant_id: tenantId });
+  if (error) console.warn('Delivery maintenance failed:', error);
+}
+
+async function completeOrderIfReady(supabase: any, tenantId: string, orderId: string | null, note: string) {
+  if (!orderId) return;
+  const { data: rows, error } = await supabase.from('delivery_queue')
+    .select('status').eq('tenant_id', tenantId).eq('order_id', orderId);
+  if (error) throw error;
+  const outcome = deliveryOutcome((rows || []).map((row: any) => row.status));
+  await supabase.from('orders').update({
+    delivery_status: outcome,
+    delivered_at: outcome === 'delivered' ? new Date().toISOString() : null,
+    delivery_notes: note,
+  }).eq('id', orderId).eq('tenant_id', tenantId)
+    .neq('delivery_status', 'delivered').neq('delivery_status', 'cancelled').neq('status', 'cancelled');
+}
+
 async function reconcileAwaitingSms(
   supabase: any,
   tenantId: string,
@@ -101,10 +121,10 @@ async function reconcileAwaitingSms(
 ): Promise<number> {
   const { data: rows, error } = await supabase
     .from('delivery_queue')
-    .select('id, order_id, receiver_phone, dispatched_at, created_at')
+    .select('id, order_id, receiver_phone, dispatched_at, created_at, processing_started_at, status, error_message')
     .eq('tenant_id', tenantId)
     .eq('android_device_id', deviceId)
-    .eq('status', 'awaiting_sms')
+    .in('status', ['awaiting_sms', 'verification_required'])
     .order('created_at', { ascending: true })
     .limit(20);
 
@@ -115,8 +135,12 @@ async function reconcileAwaitingSms(
 
   let reconciled = 0;
   for (const row of rows ?? []) {
-    const baseTs = row.dispatched_at || row.created_at;
-    const sinceIso = new Date(new Date(baseTs).getTime() - 120_000).toISOString();
+    // Only timeout holds have a known processing lease. Keep old manual holds
+    // untouched, and never match an hours-old delivery against a new SMS.
+    if (row.status === 'verification_required' && !String(row.error_message || '').startsWith('Processing exceeded 90s.')) continue;
+    const baseTs = row.processing_started_at || row.dispatched_at || row.created_at;
+    if (Date.now() - new Date(baseTs).getTime() > 10 * 60_000) continue;
+    const sinceIso = new Date(new Date(baseTs).getTime() - 5_000).toISOString();
     const smsBody = await findMatchingDeductionSms(
       supabase,
       tenantId,
@@ -138,7 +162,7 @@ async function reconcileAwaitingSms(
       })
       .eq('id', row.id)
       .eq('tenant_id', tenantId)
-      .eq('status', 'awaiting_sms')
+      .eq('status', row.status)
       .select('id, order_id')
       .maybeSingle();
 
@@ -148,15 +172,8 @@ async function reconcileAwaitingSms(
     }
     if (!updated) continue;
 
-    await supabase
-      .from('orders')
-      .update({
-        delivery_status: 'delivered',
-        delivered_at: completedAt,
-        delivery_notes: `Auto-confirmed from SMS Logs for receiver ${normalizeSomaliPhone(row.receiver_phone)}. ${smsBody.slice(0, 220)}`,
-      })
-      .eq('id', updated.order_id)
-      .eq('tenant_id', tenantId);
+    await completeOrderIfReady(supabase, tenantId, updated.order_id,
+      `Auto-confirmed from SMS Logs for receiver ${normalizeSomaliPhone(row.receiver_phone)}. ${smsBody.slice(0, 220)}`);
 
     reconciled += 1;
     console.log(`✅ Awaiting-SMS delivery reconciled: ${row.id}`);
@@ -1071,7 +1088,7 @@ serve(async (req) => {
       // Idempotency: if this queue already finalized, ignore further updates
       const { data: existingQueue, error: existingQueueErr } = await supabase
         .from('delivery_queue')
-        .select('id, status, order_id, dispatched_at, tenant_id, receiver_phone, provider_name, android_device_id, dispatch_device_id')
+        .select('id, status, order_id, dispatched_at, tenant_id, receiver_phone, provider_name, android_device_id, dispatch_device_id, processing_started_at')
         .eq('id', queueId)
         .eq('tenant_id', tenantId)
         .maybeSingle();
@@ -1084,13 +1101,22 @@ serve(async (req) => {
           { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      if (['completed', 'failed', 'verification_required', 'awaiting_sms'].includes(existingQueue.status as string)) {
+      if (['completed', 'failed', 'cancelled'].includes(existingQueue.status as string)) {
         return new Response(
           JSON.stringify({ success: true, message: 'Already finalized' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
+      // A callback belongs to the device that claimed this exact queue item.
+      if (existingQueue.android_device_id !== deviceId) return json({ error: 'Delivery belongs to another device' }, 403);
+      if (existingQueue.order_id) {
+        const { data: parentOrder, error: parentError } = await supabase.from('orders')
+          .select('status, delivery_status').eq('id', existingQueue.order_id).eq('tenant_id', tenantId).maybeSingle();
+        if (parentError) throw parentError;
+        if (isFinalOrder(parentOrder)) return json({ success: true, message: 'Order already finalized' });
+      }
+      const requiresLateEvidence = needsLateEvidence(existingQueue.status);
       const wasDispatched = !!existingQueue.dispatched_at;
 
       // Enhanced logging for debugging
@@ -1204,15 +1230,8 @@ serve(async (req) => {
               console.warn('Late callback queue reconciliation failed:', reconcileQueueError);
             } else if (reconciledQueue) {
               reassignedLateCallbackQueueId = reconciledQueue.id;
-              await supabase
-                .from('orders')
-                .update({
-                  delivery_status: 'delivered',
-                  delivered_at: completedAt,
-                  delivery_notes: `Late carrier callback reconciled by receiver match. ${String(providerResponse).slice(0, 220)}`,
-                })
-                .eq('id', reconciledQueue.order_id)
-                .eq('tenant_id', tenantId);
+              await completeOrderIfReady(supabase, tenantId, reconciledQueue.order_id,
+                `Late carrier callback reconciled by receiver match. ${String(providerResponse).slice(0, 220)}`);
               console.log(`✅ Late callback reassigned to prior queue ${reconciledQueue.id}`);
             }
           }
@@ -1239,11 +1258,13 @@ serve(async (req) => {
       let smsConfirmedBody: string | null = null;
       if (
         responseReceiverMismatch ||
+        requiresLateEvidence ||
         (status === 'timeout' && !providerIndicatesSuccess && !providerIndicatesFailure)
       ) {
         try {
-          const sinceTs = existingQueue.dispatched_at
-            ? new Date(new Date(existingQueue.dispatched_at).getTime() - 120_000).toISOString()
+          const evidenceStart = existingQueue.processing_started_at || existingQueue.dispatched_at;
+          const sinceTs = evidenceStart
+            ? new Date(new Date(evidenceStart).getTime() - 5_000).toISOString()
             : new Date(Date.now() - 10 * 60_000).toISOString();
           smsConfirmedBody = await findMatchingDeductionSms(
             supabase,
@@ -1258,6 +1279,16 @@ serve(async (req) => {
           }
         } catch (lookupErr) {
           console.warn('SMS deduction lookup failed:', lookupErr);
+        }
+      }
+
+      if (requiresLateEvidence) {
+        const evidenceStart = existingQueue.processing_started_at || existingQueue.dispatched_at;
+        const withinWindow = !!evidenceStart && Date.now() - new Date(evidenceStart).getTime() <= 10 * 60_000;
+        const exactSuccess = withinWindow && providerIndicatesSuccess && !providerIndicatesFailure
+          && !!expectedReceiver && responsePhones.includes(expectedReceiver);
+        if (!withinWindow || (!smsConfirmedTimeout && !exactSuccess && !providerIndicatesFailure)) {
+          return json({ success: true, message: 'Still requires carrier verification; no resend' });
         }
       }
 
@@ -1283,6 +1314,8 @@ serve(async (req) => {
         // Wrong/stale carrier dialog. Do not verify manually and do not resend.
         // Hold until SMS Logs confirms the exact intended receiver.
         normalizedStatus = 'awaiting_sms';
+      } else if (requiresLateEvidence && providerIndicatesFailure) {
+        normalizedStatus = 'failed';
       } else if (providerIndicatesFailure) {
         // Explicit carrier rejection ALWAYS wins over Android's generic completed status.
         // A prior activation ("horey ayuu u furtay/haystaa") is a definitive rejection:
@@ -1384,13 +1417,16 @@ serve(async (req) => {
         .update(updateData)
         .eq('id', queueId)
         .eq('tenant_id', tenantId)
+        .in('status', ['processing', 'verification_required', 'awaiting_sms'])
         .select()
-        .single();
+        .maybeSingle();
 
       if (queueError) {
         console.error('Queue update error:', queueError);
         throw queueError;
       }
+
+      if (!queueData || queueData.status === 'cancelled') return json({ success: true, message: 'Already finalized' });
 
       // Update order based on final delivery queue status
       // Skip order update for auto-retry (status='pending')
@@ -1419,11 +1455,13 @@ serve(async (req) => {
           orderUpdate.delivery_notes = `${mismatchError} Waiting for matching SMS Logs confirmation; no auto-resend.`;
         }
 
-        await supabase
-          .from('orders')
-          .update(orderUpdate)
-          .eq('id', queueData.order_id)
-          .eq('tenant_id', tenantId);
+        if (finalDeliveryStatus === 'completed') {
+          await completeOrderIfReady(supabase, tenantId, queueData.order_id, orderUpdate.delivery_notes);
+        } else {
+          await supabase.from('orders').update(orderUpdate)
+            .eq('id', queueData.order_id).eq('tenant_id', tenantId)
+            .neq('delivery_status', 'delivered').neq('delivery_status', 'cancelled').neq('status', 'cancelled');
+        }
       }
 
       // Update device counters
@@ -1499,103 +1537,8 @@ serve(async (req) => {
       // Reconcile deliveries that are waiting specifically for SMS Logs confirmation.
       const smsReconciled = await reconcileAwaitingSms(supabase, tenantId, deviceId);
 
-      // Regular presence checks must not reclaim an order while the worker is dialing.
+      await maintainDeliveryQueue(supabase, tenantId);
       if (presenceOnly === true) return json({ success: true, smsReconciled });
-
-      // Sweep stuck 'processing' deliveries for this device.
-      // ONE-SEND LOCK: if row was already dispatched (USSD dialed), NEVER re-queue.
-      // Only re-queue rows that never reached dispatch (true app crash before dial).
-      try {
-        const timeoutMs = 90000; // 90 seconds
-        const now = Date.now();
-        const { data: processingRows, error: procErr } = await supabase
-          .from('delivery_queue')
-          .select('id, order_id, last_attempt_at, created_at, attempts, dispatched_at')
-          .eq('tenant_id', tenantId)
-          .eq('status', 'processing')
-          .eq('android_device_id', deviceId);
-
-        if (procErr) {
-          console.warn('Processing fetch error:', procErr);
-        } else {
-          for (const row of processingRows ?? []) {
-            const last = row.last_attempt_at ? new Date(row.last_attempt_at as string).getTime() : 0;
-            const created = row.created_at ? new Date(row.created_at as string).getTime() : 0;
-            const age = Math.max(now - last, now - created);
-            if (age <= timeoutMs) continue;
-
-            const currentAttempts = ((row.attempts as number | null) ?? 0);
-            const wasDispatched = !!row.dispatched_at;
-
-            if (wasDispatched) {
-              // USSD was dialed → cannot safely retry. Flag for manual verification.
-              console.log(`🛑 Dispatched-but-stuck queueId=${row.id} → verification_required (age=${age}ms)`);
-              const { data: updated } = await supabase
-                .from('delivery_queue')
-                .update({
-                  status: 'verification_required',
-                  error_message: 'USSD dispatched but no provider callback within 90s. Manual verification required.',
-                  last_attempt_at: new Date().toISOString(),
-                  attempts: currentAttempts + 1,
-                })
-                .eq('id', row.id as string)
-                .eq('tenant_id', tenantId)
-                .select()
-                .single();
-              if (updated) {
-                await supabase.from('orders').update({
-                  delivery_status: 'verification_required',
-                  delivery_notes: 'USSD sent but provider callback missing. Verify before any resend.',
-                }).eq('id', updated.order_id as string).eq('tenant_id', tenantId);
-              }
-            } else if (currentAttempts < 3) {
-              // Never dispatched → safe to retry (true pre-dial failure)
-              console.log(`🔄 Re-queuing NEVER-dispatched delivery queueId=${row.id} (attempt ${currentAttempts + 1}/3)`);
-              await supabase
-                .from('delivery_queue')
-                .update({
-                  status: 'pending',
-                  android_device_id: null,
-                  error_message: `Auto-requeued (pre-dispatch failure, attempt ${currentAttempts + 1}/3)`,
-                  last_attempt_at: new Date().toISOString(),
-                })
-                .eq('id', row.id as string)
-                .eq('tenant_id', tenantId);
-              await supabase
-                .from('orders')
-                .update({
-                  delivery_status: 'pending',
-                  delivery_notes: `Auto-requeued: device offline before USSD dialed (attempt ${currentAttempts + 1}/3)`,
-                })
-                .eq('id', row.order_id as string)
-                .eq('tenant_id', tenantId);
-            } else {
-              // Never dispatched, 3 attempts exhausted → final failed
-              console.log(`❌ Final fail (never-dispatched) queueId=${row.id}`);
-              const { data: updated } = await supabase
-                .from('delivery_queue')
-                .update({
-                  status: 'failed',
-                  error_message: 'Pre-dispatch failure after 3 attempts',
-                  last_attempt_at: new Date().toISOString(),
-                  attempts: currentAttempts + 1,
-                })
-                .eq('id', row.id as string)
-                .eq('tenant_id', tenantId)
-                .select()
-                .single();
-              if (updated) {
-                await supabase.from('orders').update({
-                  delivery_status: 'failed',
-                  delivery_notes: 'Could not dispatch USSD after 3 attempts.',
-                }).eq('id', updated.order_id as string).eq('tenant_id', tenantId);
-              }
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('Ping sweep error:', e);
-      }
 
       return new Response(
         JSON.stringify({ success: true }),
@@ -1786,44 +1729,6 @@ serve(async (req) => {
         // 3. OTP tasks removed - OTP is now shown on-screen, no SMS needed
       }
 
-      // 4. Sweep stuck processing deliveries with ONE-SEND LOCK
-      try {
-        const timeoutMs = 90000;
-        const now = Date.now();
-        const { data: processingRows } = await supabase
-          .from('delivery_queue')
-          .select('id, order_id, last_attempt_at, created_at, attempts, dispatched_at')
-          .eq('tenant_id', tenantId)
-          .eq('status', 'processing')
-          .eq('android_device_id', deviceId);
-
-        for (const row of processingRows ?? []) {
-          const last = row.last_attempt_at ? new Date(row.last_attempt_at as string).getTime() : 0;
-          const created = row.created_at ? new Date(row.created_at as string).getTime() : 0;
-          const age = Math.max(now - last, now - created);
-          if (age <= timeoutMs) continue;
-
-          const newAttempts = ((row.attempts as number | null) ?? 0) + 1;
-          const wasDispatched = !!row.dispatched_at;
-          const finalStatus = wasDispatched ? 'verification_required' : 'failed';
-          const orderStatus = wasDispatched ? 'verification_required' : 'failed';
-          const note = wasDispatched
-            ? 'USSD sent but no provider callback within 90s. Manual verification required.'
-            : 'Device timeout before USSD dispatch.';
-
-          const { data: updated } = await supabase
-            .from('delivery_queue')
-            .update({ status: finalStatus, error_message: note, last_attempt_at: new Date().toISOString(), attempts: newAttempts })
-            .eq('id', row.id as string)
-            .eq('tenant_id', tenantId)
-            .select()
-            .single();
-          if (updated) {
-            await supabase.from('orders').update({ delivery_status: orderStatus, delivery_notes: note }).eq('id', updated.order_id as string).eq('tenant_id', tenantId);
-          }
-        }
-      } catch (_e) { /* sweep error, non-critical */ }
-
       // Dynamic poll interval: 2s when busy, 4s when idle (faster pickup)
       const hasPendingWork = deliveryOrder !== null;
       const nextPollMs = hasPendingWork ? 2000 : 4000;
@@ -1852,3 +1757,4 @@ serve(async (req) => {
     );
   }
 });
+
