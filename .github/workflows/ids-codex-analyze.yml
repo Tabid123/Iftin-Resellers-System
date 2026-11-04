@@ -1,4 +1,5 @@
 name: Iftin AI Developer - Automatic Investigation
+run-name: "Investigation ${{ inputs.ticket_ref }}"
 
 on:
   workflow_dispatch:
@@ -77,36 +78,16 @@ jobs:
           output-schema-file: /tmp/ids-analysis-schema.json
           output-file: /tmp/ids-analysis-report.json
 
-      - name: Report investigation to private Admin dashboard
+      - name: Preserve the analysis for administrator review
         if: always()
-        env:
-          IDS_CALLBACK_TOKEN: ${{ secrets.IDS_ANALYSIS_CALLBACK_TOKEN }}
-          IDS_TICKET_REF: ${{ inputs.ticket_ref }}
-          IDS_REPO: ${{ github.event.repository.name }}
-          IDS_RESULT: ${{ steps.codex.outcome }}
-          IDS_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          python3 - <<'PY'
-          import os,json,urllib.request,pathlib
-          token=os.environ.get("IDS_CALLBACK_TOKEN","")
-          if not token: raise SystemExit("Missing IDS_ANALYSIS_CALLBACK_TOKEN repository secret")
-          ready=os.environ.get("IDS_RESULT")=="success"
-          fields={}
-          file=pathlib.Path("/tmp/ids-analysis-report.json")
-          if ready and file.is_file():
-              try:
-                  candidate=json.loads(file.read_text(encoding="utf-8"))
-                  if isinstance(candidate,dict) and all(isinstance(candidate.get(k),str) for k in ("summary","likely_cause","evidence","plan","risks","tests")):
-                      fields={k:candidate[k][:2500] for k in ("summary","likely_cause","evidence","plan","risks","tests")}
-                  else:ready=False
-              except (ValueError,UnicodeError):ready=False
-          else:ready=False
-          payload={"ticketRef":os.environ["IDS_TICKET_REF"],"repo":os.environ["IDS_REPO"],
-                   "status":"ready" if ready else "failed","report":fields,
-                   "runUrl":os.environ["IDS_RUN_URL"]}
-          url="https://wstccdwsllhgthxdbynf.supabase.co/functions/v1/ids-support-report"
-          request=urllib.request.Request(url,json.dumps(payload).encode("utf-8"),
-              {"Content-Type":"application/json","Authorization":"Bearer "+token},method="POST")
-          with urllib.request.urlopen(request,timeout=15) as resp:
-              if resp.status!=200: raise SystemExit("Callback failed: HTTP "+str(resp.status))
-          PY
+          if [ -f /tmp/ids-analysis-report.json ]; then
+            cp /tmp/ids-analysis-report.json ids-analysis-report.json
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ids-analysis-report
+          path: ids-analysis-report.json
+          if-no-files-found: ignore
+          retention-days: 3
