@@ -72,6 +72,28 @@ describe('unmatched payment USSD resolution', () => {
     expect(db.writes.map(w => w.table)).toEqual(['orders', 'delivery_queue']);
   });
 
+  it('queues an Ayaan-style Kaafi $0.18 receipt using the scoped Somnet category rule', async () => {
+    const tenantId = 'tenant-ayaan-synthetic';
+    const db = mockDatabase({
+      packages: [{ ...packageRow, tenant_id: tenantId, cost_price: 0.20 }],
+      instructions: [{
+        ...categoryInstruction,
+        tenant_id: tenantId,
+        status: 'pending',
+        code_template: '*829*{receiver_phone}*{cost_price}*{sim_password}#',
+      }],
+    });
+    const result = await resendOrder({
+      ...order, tenant_id: tenantId, package_name: 'Kaafi Unlimited',
+      selling_price: 0.18, cost_price: 0.20,
+    }, phone);
+    expect(result).toEqual({ ok: true, orderId: 'created-order' });
+    expect(db.queued()).toMatchObject({
+      tenant_id: tenantId, receiver_phone: phone, ussd_code: `*829*${phone}*020*1234#`,
+    });
+    expect(db.writes.find(w => w.table === 'orders')?.values).toMatchObject({ tenant_id: tenantId });
+  });
+
   it('prefers a package instruction over category and provider defaults', async () => {
     const db = mockDatabase({ instructions: [
       categoryInstruction,
