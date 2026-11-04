@@ -166,6 +166,22 @@ describe('unmatched payment USSD resolution', () => {
     expect(db.writes).toEqual([]);
   });
 
+  it('rebuilds legacy PIN placeholders and decimal amounts instead of retrying malformed USSD', async () => {
+    const db = mockDatabase({ previous: [{
+      order_id: 'old-order', receiver_phone: phone,
+      ussd_code: '*829*680000001*0.2*{sim_password}#',
+      provider_name: 'Somnet', android_device_id: 'device-a', sim_slot: 2,
+    }] });
+    expect(await resendOrder({
+      ...order, id: 'old-order', receiver_phone: phone,
+      cost_price: 0.20,
+    }, phone)).toEqual({ ok: true, orderId: 'old-order' });
+    expect(db.queued()).toMatchObject({
+      order_id: 'old-order', ussd_code: '*829*680000001*020*1234#',
+      android_device_id: 'device-a', sim_slot: 2,
+    });
+  });
+
   it('reuses an existing delivery and routing without creating another order', async () => {
     const db = mockDatabase({ previous: [{
       order_id: 'old-order', receiver_phone: '680000002', ussd_code: '*829*680000002*035*1234#',
