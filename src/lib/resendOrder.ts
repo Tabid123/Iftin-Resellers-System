@@ -67,21 +67,24 @@ async function lookupUssd(order: any, phone: string): Promise<{ ussd: string | n
     return { ussd, provider: prev.provider_name ?? null, deviceId: prev.android_device_id ?? null, simSlot: prev.sim_slot ?? null };
   }
 
-  // Orders and the unmatched picker do not carry category_id. Read it from
-  // the selected package before resolving Package > Category > Provider.
+  // Resolve within the receipt's tenant, even for users authorized in multiple
+  // workspaces. The selected package is the source of truth for provider/category.
+  const tenantId: string | null = order.tenant_id ?? null;
+  const tenantQuery = (query: any) => tenantId ? query.eq('tenant_id', tenantId) : query;
   let pkg: any = null;
   if (order.package_id) {
-    const { data, error } = await supabase
+    const { data, error } = await tenantQuery(supabase
       .from('data_packages_config')
       .select('ussd_code, category_id, provider_id')
-      .eq('id', order.package_id)
+      .eq('id', order.package_id))
       .maybeSingle();
     if (error) throw new Error('Xogta xirmada lama soo akhrin — fadlan isku day mar kale');
     if (!data) throw new Error('Xirmadan lama helin — fadlan dib u dooro xirmada');
     pkg = data;
   }
 
-  const providerId = order.provider_id ?? pkg?.provider_id;
+  const providerId = pkg?.provider_id ?? order.provider_id;
+  const categoryId = pkg?.category_id ?? order.category_id;
   const readInstruction = async (query: any) => {
     const { data, error } = await query.limit(1).maybeSingle();
     if (error) throw new Error('Delivery instructions lama soo akhrin — fadlan isku day mar kale');
@@ -90,27 +93,27 @@ async function lookupUssd(order: any, phone: string): Promise<{ ussd: string | n
 
   let instruction: any = null;
   if (providerId && order.package_id) {
-    instruction = await readInstruction(supabase
+    instruction = await readInstruction(tenantQuery(supabase
       .from('delivery_instructions')
       .select('code_template, ussd_code, sim_password')
       .eq('provider_id', providerId)
-      .eq('package_id', order.package_id));
+      .eq('package_id', order.package_id)));
   }
-  if (!instruction && providerId && pkg?.category_id) {
-    instruction = await readInstruction(supabase
+  if (!instruction && providerId && categoryId) {
+    instruction = await readInstruction(tenantQuery(supabase
       .from('delivery_instructions')
       .select('code_template, ussd_code, sim_password')
       .eq('provider_id', providerId)
-      .eq('category_id', pkg.category_id)
-      .is('package_id', null));
+      .eq('category_id', categoryId)
+      .is('package_id', null)));
   }
   if (!instruction && providerId) {
-    instruction = await readInstruction(supabase
+    instruction = await readInstruction(tenantQuery(supabase
       .from('delivery_instructions')
       .select('code_template, ussd_code, sim_password')
       .eq('provider_id', providerId)
       .is('category_id', null)
-      .is('package_id', null));
+      .is('package_id', null)));
   }
 
   const packageCode = pkg?.ussd_code?.trim() ?? '';
@@ -137,7 +140,7 @@ export async function resendOrder(order: any, newReceiverRaw: string): Promise<R
     return { ok: false, message: error instanceof Error ? error.message : 'Xogta USSD lama soo akhrin' };
   }
   const { ussd, provider, deviceId, simSlot } = delivery;
-  if (!ussd) return { ok: false, message: 'USSD-ka xirmadan lama helin — delivery instructions hubi' };
+  if (!ussd) return { ok: false, message: 'USSD-ka xirmadan lama helin — hubi nooca cusub ee app-ka iyo delivery instructions' };
 
   // Lacag unmatched ah: dalab hore ma jiro — mid cusub ayaa la abuuraa.
   if (!order?.id) {
@@ -146,6 +149,7 @@ export async function resendOrder(order: any, newReceiverRaw: string): Promise<R
     const { data: created, error: createErr } = await supabase
       .from('orders')
       .insert({
+        ...(order.tenant_id ? { tenant_id: order.tenant_id } : {}),
         provider_id: order.provider_id ?? null,
         package_id: order.package_id,
         package_name: order.package_name ?? 'Data Package',
@@ -169,6 +173,7 @@ export async function resendOrder(order: any, newReceiverRaw: string): Promise<R
     }
 
     const { error: qErr } = await supabase.from('delivery_queue').insert({
+      ...(order.tenant_id ? { tenant_id: order.tenant_id } : {}),
       order_id: created.id,
       receiver_phone: phone,
       provider_name: provider ?? 'unknown',
@@ -204,6 +209,7 @@ export async function resendOrder(order: any, newReceiverRaw: string): Promise<R
 
   // 2) Ku dar saf cusub oo delivery_queue ah oo isku dalabka qabta.
   const { error: queueErr } = await supabase.from('delivery_queue').insert({
+    ...(order.tenant_id ? { tenant_id: order.tenant_id } : {}),
     order_id: order.id,
     receiver_phone: phone,
     provider_name: provider ?? 'unknown',
