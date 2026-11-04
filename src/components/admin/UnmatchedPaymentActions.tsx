@@ -74,7 +74,7 @@ export const UnmatchedPaymentActions: React.FC<{
   useEffect(() => {
     if (!providerId) { setPackages([]); setPackageId(''); return; }
     let q = supabase.from('data_packages_config')
-      .select('id, package_name, data_amount, selling_price, cost_price')
+      .select('id, package_name, data_amount, selling_price, cost_price, category_id')
       .eq('provider_id', providerId).eq('is_active', true).order('display_order');
     if (categoryId) q = q.eq('category_id', categoryId);
     q.then(({ data }) => setPackages(data || []));
@@ -89,6 +89,8 @@ export const UnmatchedPaymentActions: React.FC<{
     setBusy(true);
     try {
       const res = await resendOrder({
+        tenant_id: payment.tenant_id ?? undefined,
+        category_id: chosenPkg.category_id || categoryId || null,
         provider_id: providerId,
         provider_name: chosenProvider?.provider_name,
         package_id: chosenPkg.id,
