@@ -61,9 +61,17 @@ async function lookupUssd(order: any, phone: string): Promise<{ ussd: string | n
     prev = data;
   }
 
-  if (prev?.ussd_code && prev.ussd_code !== 'MANUAL') {
+  // Failed legacy deliveries may contain literal {sim_password}, {cost_price},
+  // or a decimal amount. Never reuse such a dial string for a manual resend:
+  // resolve a fresh template and PIN from the selected package/category instead.
+  const oldCode = String(prev?.ussd_code || '').trim();
+  const oldDial = oldCode.split('|')[0];
+  const reusable = oldCode && oldCode !== 'MANUAL'
+    && !/[{}]/.test(oldDial)
+    && !/\*\d+\.\d+(?=[*#])/.test(oldDial);
+  if (reusable) {
     const oldPhone = digits9(String(prev.receiver_phone ?? order.receiver_phone ?? ''));
-    const ussd = oldPhone ? prev.ussd_code.split(oldPhone).join(phone) : prev.ussd_code;
+    const ussd = oldPhone ? oldCode.split(oldPhone).join(phone) : oldCode;
     return { ussd, provider: prev.provider_name ?? null, deviceId: prev.android_device_id ?? null, simSlot: prev.sim_slot ?? null };
   }
 
