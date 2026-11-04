@@ -7,6 +7,141 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-device-id',
 };
 
+
+// Server-side guard for legacy admin APKs that queue unexpanded USSD templates.
+// Never allow an unresolved PIN, amount, or receiver placeholder to reach a SIM.
+const legacyClaimNeedsRepair = (code: unknown): boolean => {
+  const dial = String(code ?? '').split('|')[0];
+  return /[{}]/.test(dial) || /\*\d+\.\d+(?=[*#])/.test(dial);
+};
+
+const legacyClaimAmount = (value: unknown): string | null => {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) return null;
+  if (Math.abs(number - Math.round(number)) < 0.000001) return String(Math.round(number));
+  return number.toFixed(2).replace('.', number < 1 ? '' : '*');
+};
+
+async function prepareLegacyClaimedUssd(
+  supabase: any,
+  tenantId: string,
+  claim: any,
+  existingPin: string,
+): Promise<{ ok: true; ussdCode: string; pinCode: string } | { ok: false; reason: string }> {
+  const original = String(claim.ussd_code ?? '').trim();
+  if (!original) return { ok: false, reason: 'Empty delivery USSD' };
+  if (!legacyClaimNeedsRepair(original)) {
+    return { ok: true, ussdCode: original, pinCode: existingPin };
+  }
+
+  // The order and its package must belong to the device's authoritative tenant.
+  if (!claim.order_id) return { ok: false, reason: 'Missing order for USSD repair' };
+  const { data: linkedOrder, error: orderError } = await supabase
+    .from('orders')
+    .select('provider_id,package_id,cost_price')
+    .eq('id', claim.order_id)
+    .eq('tenant_id', tenantId)
+    .maybeSingle();
+  if (orderError || !linkedOrder?.provider_id || !linkedOrder.package_id) {
+    return { ok: false, reason: 'Delivery order or provider not found' };
+  }
+
+  const { data: pkg, error: pkgError } = await supabase
+    .from('data_packages_config')
+    .select('provider_id,category_id,cost_price,ussd_code')
+    .eq('id', linkedOrder.package_id)
+    .eq('tenant_id', tenantId)
+    .maybeSingle();
+  if (pkgError || !pkg || pkg.provider_id !== linkedOrder.provider_id) {
+    return { ok: false, reason: 'Delivery package or provider mismatch' };
+  }
+
+  const providerId = linkedOrder.provider_id;
+  const lookupRule = async (specific: 'package' | 'category' | 'provider') => {
+    let query = supabase.from('delivery_instructions')
+      .select('code_template,ussd_code,sim_password')
+      .eq('tenant_id', tenantId)
+      .eq('provider_id', providerId)
+      .is('order_id', null);
+    if (specific === 'package') {
+      query = query.eq('package_id', linkedOrder.package_id);
+    } else if (specific === 'category' && pkg.category_id) {
+      query = query.eq('category_id', pkg.category_id).is('package_id', null);
+    } else if (specific === 'provider') {
+      query = query.is('category_id', null).is('package_id', null);
+    } else {
+      return null;
+    }
+    const { data, error } = await query.limit(1).maybeSingle();
+    return error ? null : data;
+  };
+
+  let instruction: any = null;
+  for (const scope of ['package', 'category', 'provider'] as const) {
+    const candidate = await lookupRule(scope);
+    if (candidate?.code_template?.trim() || candidate?.ussd_code?.trim()) {
+      instruction = candidate;
+      break;
+    }
+  }
+  const template = String(instruction?.code_template?.trim() ||
+    instruction?.ussd_code?.trim() || '');
+  const pin = String(instruction?.sim_password || existingPin || '').trim();
+  const phone = String(claim.receiver_phone ?? '').replace(/\D/g, '').slice(-9);
+  const cost = legacyClaimAmount(pkg.cost_price ?? linkedOrder.cost_price);
+  if (!template || !/^6\d{8}$/.test(phone) || !cost) {
+    return { ok: false, reason: 'Missing valid delivery rule, phone, or cost' };
+  }
+  if (template.includes('{sim_password}') && !/^\d{3,12}$/.test(pin)) {
+    return { ok: false, reason: 'Configured SIM PIN missing or invalid' };
+  }
+  if (template.includes('{package_code}') && !String(pkg.ussd_code || '').trim()) {
+    return { ok: false, reason: 'Package USSD token unavailable' };
+  }
+
+  const [rawDial, ...pathParts] = template.split('|');
+  const dial = rawDial
+    .replace(/\{receiver_phone\}/g, phone)
+    .replace(/\{cost_price\}/g, cost)
+    .replace(/\{sim_password\}/g, () => pin)
+    .replace(/\{package_code\}/g, () => String(pkg.ussd_code || '').trim())
+    .replace(/\s+/g, '');
+  // A placeholder, decimal dollar amount or non-dial character must NEVER be dispatched.
+  if (/[{}]/.test(dial) || /\*\d+\.\d+(?=[*#])/.test(dial) ||
+      !/^\*[0-9*#]+#$/.test(dial)) {
+    return { ok: false, reason: 'Delivery USSD could not be safely completed' };
+  }
+  const finalUssd = pathParts.length ? dial + '|' + pathParts.join('|') : dial;
+
+  // Claim is processing but has not been dialed; update it atomically.
+  const { data: updated, error: updateError } = await supabase
+    .from('delivery_queue')
+    .update({ ussd_code: finalUssd })
+    .eq('id', claim.id)
+    .eq('tenant_id', tenantId)
+    .eq('status', 'processing')
+    .is('dispatched_at', null)
+    .select('id')
+    .maybeSingle();
+  if (updateError || !updated?.id) {
+    return { ok: false, reason: 'Delivery queue changed during USSD validation' };
+  }
+  return { ok: true, ussdCode: finalUssd, pinCode: pin };
+}
+
+async function quarantineMalformedClaim(
+  supabase: any, tenantId: string, claim: any, reason: string,
+): Promise<void> {
+  // Only pre-dispatch rows are changed. Never retry or alter a dispatched USSD.
+  const { error } = await supabase.from('delivery_queue')
+    .update({ status: 'failed', error_message: 'Pre-dispatch USSD validation: ' + reason })
+    .eq('id', claim.id)
+    .eq('tenant_id', tenantId)
+    .eq('status', 'processing')
+    .is('dispatched_at', null);
+  if (error) console.error('Unable to quarantine invalid delivery:', error.message);
+}
+
 async function resolveActiveDevice(supabase: any, deviceId?: string | null, columns = 'id, device_id, tenant_id, sim1_provider, sim2_provider') {
   const cleanDeviceId = String(deviceId || '').trim();
   if (!cleanDeviceId) return { device: null, errorResponse: json({ error: 'deviceId required' }, 400) };
@@ -1012,6 +1147,13 @@ serve(async (req) => {
           }
         }
         
+        const prepared = await prepareLegacyClaimedUssd(supabase, tenantId, order, configuredPin);
+        if (!prepared.ok) {
+          await quarantineMalformedClaim(supabase, tenantId, order, prepared.reason);
+          console.warn('Rejected malformed pre-dispatch USSD:', { queueId: order.id, reason: prepared.reason });
+          return json({ orders: [], nextPollMs: 4000 });
+        }
+
         console.log('✅ Claimed delivery:', {
           id: order.id,
           provider_name: order.provider_name,
@@ -1025,13 +1167,13 @@ serve(async (req) => {
             orders: [{
               id: order.id,
               orderId: order.order_id,
-              ussdCode: order.ussd_code,
+              ussdCode: prepared.ussdCode,
               receiverPhone: order.receiver_phone,
               packageCode: order.package_code,
               attempts: order.attempts,
               simSlot: order.sim_slot ?? 0,
               provider: order.provider_name,
-              pinCode: configuredPin,
+              pinCode: prepared.pinCode || configuredPin,
             }],
             nextPollMs: 2000,
           }),
@@ -1715,17 +1857,28 @@ serve(async (req) => {
         // claim_next_delivery returns a single JSON object (not array)
         if (claimed && typeof claimed === 'object' && (claimed as any).id) {
           const order: any = claimed;
-          deliveryOrder = {
-            id: order.id,
-            orderId: order.order_id,
-            ussdCode: order.ussd_code,
-            receiverPhone: order.receiver_phone,
-            packageCode: order.package_code,
-            attempts: order.attempts,
-            simSlot: order.sim_slot ?? 0,
-            provider: order.provider_name,
-          };
-          console.log('✅ Claimed delivery (poll):', { id: order.id, provider_name: order.provider_name });
+          const prepared = await prepareLegacyClaimedUssd(
+            supabase, tenantId, order, String(order.pin_code || '').trim()
+          );
+          if (!prepared.ok) {
+            await quarantineMalformedClaim(supabase, tenantId, order, prepared.reason);
+            console.warn('Rejected malformed pre-dispatch USSD (poll):', {
+              queueId: order.id, reason: prepared.reason,
+            });
+          } else {
+            deliveryOrder = {
+              id: order.id,
+              orderId: order.order_id,
+              ussdCode: prepared.ussdCode,
+              receiverPhone: order.receiver_phone,
+              packageCode: order.package_code,
+              attempts: order.attempts,
+              simSlot: order.sim_slot ?? 0,
+              provider: order.provider_name,
+              pinCode: prepared.pinCode,
+            };
+            console.log('✅ Claimed delivery (poll):', { id: order.id, provider_name: order.provider_name });
+          }
         }
 
         // 3. OTP tasks removed - OTP is now shown on-screen, no SMS needed
