@@ -129,7 +129,7 @@ const UnmatchedPayments = () => {
       const to = from + ADMIN_PAGE_SIZE - 1;
       let query = supabase
         .from('payment_receipts')
-        .select('id,sender_phone,amount,receiver_sim,status,admin_notes,created_at', { count: 'exact' })
+        .select('id,tenant_id,sender_phone,amount,receiver_sim,status,admin_notes,created_at', { count: 'exact' })
         .eq('status', 'unmatched')
         .order('created_at', { ascending: false })
         .range(from, to);
