@@ -64,9 +64,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.3.5'
+      - name: Install Bun
+        run: |
+          npm install --global bun@1.3.5
+          bun --version
 
       - name: Select Xcode 26 or later
         run: |
@@ -96,6 +97,7 @@ jobs:
           import os
           required = ['IOS_DISTRIBUTION_P12_BASE64', 'IOS_P12_PASSWORD', 'IOS_PROVISIONING_PROFILE_BASE64']
           missing = [key for key in required if not os.environ.get(key)]
+          print('Apple signing secrets missing: ' + (', '.join(missing) or 'none'))
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
               summary.write(f"Tenant `{os.environ['TENANT_SLUG']}`, mode `{os.environ['BUILD_MODE']}`.\n\n")
               if missing:
