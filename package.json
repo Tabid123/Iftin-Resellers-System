@@ -87,7 +87,9 @@
   },
   "devDependencies": {
     "@capacitor/android": "^8.5.0",
+    "@capacitor/assets": "3.0.5",
     "@capacitor/cli": "^8.5.0",
+    "@capacitor/ios": "8.5.0",
     "@eslint/js": "^9.32.0",
     "@lovable.dev/vite-tanstack-config": "2.23.1",
     "@types/node": "^22.16.5",
