@@ -131,9 +131,15 @@ jobs:
         run: |
           bun run build
           if [ ! -f dist/index.html ]; then
-            test -f .output/public/index.html
-            mkdir -p dist
-            cp -R .output/public/. dist/
+            SOURCE_DIR=''
+            for candidate in .output/public dist/client dist/public build/client build; do
+              if [ -f "$candidate/index.html" ]; then SOURCE_DIR="$candidate"; break; fi
+            done
+            test -n "$SOURCE_DIR"
+            mkdir -p dist_ios
+            cp -R "$SOURCE_DIR"/. dist_ios/
+            rm -rf dist
+            mv dist_ios dist
           fi
           node scripts/make-native-bootstrap.mjs
 
