@@ -142,7 +142,15 @@ jobs:
 
       - name: Generate and sync native iOS project
         run: |
+          mkdir -p build/ios-dependencies/IONFilesystemLib
+          curl --retry 3 --max-time 90 -fsSL -H 'Accept: application/octet-stream' \
+            'https://api.github.com/repos/ionic-team/ion-ios-filesystem/releases/assets/550865182' \
+            -o build/ios-dependencies/IONFilesystemLib.zip
+          echo '3f06a18f67b8623a88342d83f2eb8a7f4fa16d65300de68022c16353ce829dbd  build/ios-dependencies/IONFilesystemLib.zip' | shasum -a 256 -c -
+          unzip -q build/ios-dependencies/IONFilesystemLib.zip -d build/ios-dependencies/IONFilesystemLib
+          mv dist dist_ios
           bunx cap add ios --packagemanager CocoaPods
+          mv dist_ios dist
           python3 scripts/configure-tenant-ios.py --native
           swift scripts/generate-ios-assets.swift
           bunx cap sync ios

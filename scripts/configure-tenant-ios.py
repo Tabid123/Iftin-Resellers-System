@@ -34,7 +34,13 @@ if "--native" not in sys.argv:
     config_path = root / "capacitor.config.json"
     config = json.loads(config_path.read_text())
     config.update(appId=app_id, appName=app_name, backgroundColor=color)
-    config["ios"] = {"scheme": "App", "contentInset": "automatic", "backgroundColor": color}
+    config["ios"] = {
+        "scheme": "App", "contentInset": "automatic", "backgroundColor": color,
+        "includePlugins": [
+            "@capacitor/app", "@capacitor/device", "@capacitor/filesystem",
+            "@capacitor/keyboard", "@capacitor/splash-screen", "@capacitor/status-bar",
+        ],
+    }
     config.setdefault("server", {}).pop("url", None)
     config["plugins"]["SplashScreen"]["backgroundColor"] = color
     config_path.write_text(json.dumps(config, indent=2) + "\n")
@@ -73,6 +79,28 @@ if "--native" not in sys.argv:
     sys.exit(0)
 
 app = root / "ios/App/App"
+library = root / "build/ios-dependencies/IONFilesystemLib"
+if library.is_dir():
+    # Use the verified official framework fetched through the GitHub asset API.
+    spec = {
+        "name": "IONFilesystemLib", "version": "1.1.4",
+        "summary": "Native iOS filesystem library",
+        "homepage": "https://github.com/ionic-team/ion-ios-filesystem",
+        "license": {"type": "MIT"}, "authors": "OutSystems Mobile Ecosystem",
+        "source": {"http": "https://github.com/ionic-team/ion-ios-filesystem/releases/download/1.1.4/IONFilesystemLib.zip"},
+        "vendored_frameworks": "IONFilesystemLib.xcframework",
+        "platforms": {"ios": "14.0"}, "swift_versions": ["5.9"],
+    }
+    (library / "IONFilesystemLib.podspec.json").write_text(json.dumps(spec))
+    podfile_path = root / "ios/App/Podfile"
+    podfile = podfile_path.read_text()
+    if "pod 'IONFilesystemLib', :path" not in podfile:
+        marker = "  capacitor_pods\n"
+        if podfile.count(marker) != 1:
+            raise ValueError("Unexpected Capacitor Podfile layout")
+        podfile = podfile.replace(marker, marker + "  pod 'IONFilesystemLib', :path => '../../build/ios-dependencies/IONFilesystemLib'\n")
+        podfile_path.write_text(podfile)
+
 info_path = app / "Info.plist"
 info = plistlib.loads(info_path.read_bytes())
 info.update({
