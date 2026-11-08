@@ -112,9 +112,6 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Package tenant storefront and branding
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           node scripts/generate-tenant-offline-bootstrap.mjs
           python3 scripts/configure-tenant-ios.py
@@ -127,9 +124,6 @@ jobs:
           curl --retry 3 -fsSL 'https://iftinagents.com/__l5e/assets-v1/d208b555-c658-4bb2-9ad9-fb3aeac0e72f/offline-mode-prompt.wav' -o public/audio/offline.wav
 
       - name: Build packaged web app
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           bun run build
           if [ ! -f dist/index.html ]; then
