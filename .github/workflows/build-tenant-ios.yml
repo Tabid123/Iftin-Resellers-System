@@ -32,6 +32,7 @@ on:
     paths:
       - .github/workflows/build-tenant-ios.yml
       - scripts/configure-tenant-ios.py
+      - scripts/generate-ios-assets.swift
       - scripts/generate-tenant-offline-bootstrap.mjs
       - package.json
       - bun.lock
@@ -143,7 +144,7 @@ jobs:
         run: |
           bunx cap add ios --packagemanager CocoaPods
           python3 scripts/configure-tenant-ios.py --native
-          bunx capacitor-assets generate --ios --iconBackgroundColor "$SPLASH_COLOR" --splashBackgroundColor "$SPLASH_COLOR"
+          swift scripts/generate-ios-assets.swift
           bunx cap sync ios
           python3 - <<'PY'
           import json, os
