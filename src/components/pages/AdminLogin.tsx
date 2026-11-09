@@ -13,11 +13,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
-import { Shield, Loader2, AlertTriangle, KeyRound } from 'lucide-react';
+import { Shield, Loader2 } from 'lucide-react';
 import najaxLogo from '@/assets/najax-logo.jpeg';
-
-// TEMPORARY EMERGENCY BYPASS
-const EMERGENCY_PIN = '5516';
 
 const AdminLogin = () => {
   const navigate = useNavigate();
@@ -30,9 +27,7 @@ const AdminLogin = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showEmergencyMode, setShowEmergencyMode] = useState(false);
   const [choices, setChoices] = useState<Array<{ id: string; name: string; slug: string }>>([]);
-  const [emergencyPin, setEmergencyPin] = useState('');
 
   const isServiceRestricted = (errorMsg: string) => {
     return errorMsg.toLowerCase().includes('restricted') ||
@@ -41,23 +36,6 @@ const AdminLogin = () => {
            errorMsg.toLowerCase().includes('fetch') ||
            errorMsg.toLowerCase().includes('network') ||
            errorMsg.toLowerCase().includes('failed to fetch');
-  };
-
-  const handleEmergencyLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!EMERGENCY_PIN) {
-      toast({ title: 'Khalad', description: 'Emergency PIN lama helin', variant: 'destructive' });
-      return;
-    }
-    if (emergencyPin === EMERGENCY_PIN) {
-      // TEMPORARY local session - Supabase xiran yahay
-      localStorage.setItem('adminEmergencySession', 'true');
-      localStorage.setItem('adminEmergencyTime', Date.now().toString());
-      toast({ title: '✅ Guul', description: 'Emergency mode: Admin waa la soo galay' });
-      navigate('/dashboard');
-    } else {
-      toast({ title: 'Khalad PIN', description: 'PIN-ka waa khalad', variant: 'destructive' });
-    }
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -80,20 +58,7 @@ const AdminLogin = () => {
         password,
       });
 
-      if (error) {
-        // Hubi haddii Supabase xiran yahay (quota/restricted error)
-        if (isServiceRestricted(error.message)) {
-          setShowEmergencyMode(true);
-          toast({
-            title: '⚠️ Supabase Xiran',
-            description: 'Service waa xiran. Emergency mode isticmaal.',
-            variant: 'destructive',
-          });
-          setLoading(false);
-          return;
-        }
-        throw error;
-      }
+      if (error) throw error;
 
       // Every membership (no LIMIT, no arbitrary pick) + platform role.
       const [memberships, { data: roleData }] = await Promise.all([
@@ -166,21 +131,14 @@ const AdminLogin = () => {
 
 
     } catch (error: any) {
-      // Haddii connection-ka oo dhan fashilmo (network error)
-      if (isServiceRestricted(error.message || '')) {
-        setShowEmergencyMode(true);
-        toast({
-          title: '⚠️ Supabase Xiran',
-          description: 'Service ma heli karo. Emergency mode isticmaal.',
-          variant: 'destructive',
-        });
-      } else {
-        toast({
-          title: 'Khalad',
-          description: error.message || 'Wax khalad ah ayaa dhacay',
-          variant: 'destructive',
-        });
-      }
+      const message = error?.message || 'Wax khalad ah ayaa dhacay';
+      toast({
+        title: 'Khalad',
+        description: isServiceRestricted(message)
+          ? 'Adeegga lama heli karo hadda. Fadlan mar kale isku day.'
+          : message,
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
@@ -275,42 +233,6 @@ const AdminLogin = () => {
               )}
             </Button>
           </form>
-
-          {/* Emergency Mode - Supabase xiran yahay */}
-          {showEmergencyMode && (
-            <div className="border border-destructive/50 rounded-lg p-4 bg-destructive/5 space-y-3">
-              <div className="flex items-center gap-2 text-destructive">
-                <AlertTriangle className="h-5 w-5" />
-                <span className="font-semibold text-sm">Emergency Mode - Supabase Xiran</span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Supabase service-ku ma shaqaynayso (quota exceeded). PIN-ka gaar ah ku gal si aad ugu geshid dashboard-ka.
-              </p>
-              <form onSubmit={handleEmergencyLogin} className="space-y-3">
-                <div className="space-y-2">
-                  <Label htmlFor="emergency-pin" className="flex items-center gap-1">
-                    <KeyRound className="h-4 w-4" />
-                    Emergency PIN
-                  </Label>
-                  <Input
-                    id="emergency-pin"
-                    type="password"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    placeholder="PIN gali"
-                    value={emergencyPin}
-                    onChange={(e) => setEmergencyPin(e.target.value)}
-                    required
-                    className="border-destructive/50"
-                  />
-                </div>
-                <Button type="submit" variant="destructive" className="w-full">
-                  <KeyRound className="mr-2 h-4 w-4" />
-                  Emergency Gal
-                </Button>
-              </form>
-            </div>
-          )}
 
         </CardContent>
       </Card>
