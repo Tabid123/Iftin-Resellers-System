@@ -113,7 +113,7 @@ const RotatingBanner = () => {
   // A URL change means the admin replaced this banner. Reuse the local blob
   // only if both the tenant/banner identity and remote source still match.
   const selectedBanner = banners[currentBanner];
-  const selectedIdentity = workspaceId && selectedBanner?.media_type !== 'video'
+  const selectedIdentity = workspaceId && selectedBanner && selectedBanner.media_type !== 'video'
     ? `${bannerCacheKey(workspaceId, selectedBanner)}:${selectedBanner.banner_image}`
     : null;
 
