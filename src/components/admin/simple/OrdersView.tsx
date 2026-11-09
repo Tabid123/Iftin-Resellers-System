@@ -8,6 +8,7 @@ import { ResendOrderPrompt } from './ResendOrderPrompt';
 import { CompleteOrderPrompt } from './CompleteOrderPrompt';
 import { calculateOrderProfit, effectiveOrderCost, isDirectFlowCode } from '@/lib/iftinProfit';
 import { AdminPagination, ADMIN_PAGE_SIZE } from './AdminPagination';
+import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 
 interface DeliveryQueueItem {
   id: string;
@@ -65,6 +66,7 @@ const StatusBadge = ({ status }: { status: string }) => {
 };
 
 export const OrdersView = ({ isSo }: { isSo: boolean }) => {
+  const { can } = useAdminPermissions();
   const [orders, setOrders] = useState<OrderDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -285,9 +287,9 @@ export const OrdersView = ({ isSo }: { isSo: boolean }) => {
                     <div className="px-3 border-t border-gray-100 dark:border-gray-700">
                       <DetailRow label="Business" value={order.provider_name || 'N/A'} />
                       {order.sim_number && <DetailRow label="AccNo" value={`SIM_${order.sim_number}`} />}
-                      <DetailRow label="Data" value={`$${Number(order.cost_price || 0).toFixed(2)}`} />
+                      {can('view_profit') && <DetailRow label="Data" value={`${Number(order.cost_price || 0).toFixed(2)}`} />}
                       <DetailRow label="Network" value={order.package_name} bold />
-                      <DetailRow label="Profit" value={`$${profit < 0.01 && profit > 0 ? profit.toFixed(3) : profit.toFixed(2)}`} bold />
+                      {can('view_profit') && <DetailRow label="Profit" value={`${profit < 0.01 && profit > 0 ? profit.toFixed(3) : profit.toFixed(2)}`} bold />}
                       {order.device_name && <DetailRow label="Device" value={order.device_name} />}
                       {order.sim_number && <DetailRow label="SimNO" value={order.sim_number} />}
                       <div className="flex items-start justify-between py-2 border-b border-gray-100 dark:border-gray-700">
