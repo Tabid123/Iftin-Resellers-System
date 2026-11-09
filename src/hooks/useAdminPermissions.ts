@@ -8,6 +8,7 @@ import { useTenant } from '@/contexts/TenantContext';
  * explicit rows (or the NO_ACCESS_KEY marker), so an empty selection is unambiguous.
  */
 export const NO_ACCESS_KEY = 'no_access';
+export const RESTRICTED_ACCESS_KEY = 'restricted_access';
 
 export const ADMIN_PERMISSION_KEYS = [
   { key: 'view_sales_today', label: 'Sales Today', labelSo: 'Dakhliga Maanta Arag' },
@@ -26,7 +27,7 @@ export const ADMIN_PERMISSION_KEYS = [
 ] as const;
 
 export function serializeAdminPermissions(selected: string[]): string[] {
-  return selected.length > 0 ? selected : [NO_ACCESS_KEY];
+  return [RESTRICTED_ACCESS_KEY, ...(selected.length > 0 ? selected : [NO_ACCESS_KEY])];
 }
 
 type AccessState = {
