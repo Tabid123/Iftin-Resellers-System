@@ -3,7 +3,8 @@ let CACHE_VERSION = '';
 const STATIC_CACHE_PREFIX = 'iftin-static-';
 const DYNAMIC_CACHE_PREFIX = 'iftin-dynamic-';
 const API_CACHE_PREFIX = 'iftin-api-';
-const IMAGE_CACHE_PREFIX = 'iftin-images-';
+// Image artwork has stable, content-specific URLs and should survive JS rebuilds.
+const IMAGE_CACHE_NAME = 'iftin-images-persistent-v2';
 
 const getCacheName = (prefix) => prefix + (CACHE_VERSION || 'default');
 
@@ -42,7 +43,7 @@ const clearOldCaches = async () => {
     getCacheName(STATIC_CACHE_PREFIX),
     getCacheName(DYNAMIC_CACHE_PREFIX),
     getCacheName(API_CACHE_PREFIX),
-    getCacheName(IMAGE_CACHE_PREFIX),
+    IMAGE_CACHE_NAME,
   ];
   await Promise.all(
     cacheNames
@@ -88,27 +89,33 @@ self.addEventListener('fetch', (event) => {
     url.pathname.endsWith('.tsx')
   ) return;
 
-  // NETWORK-FIRST for Supabase Storage images. Admins may replace an image at
-  // the same object URL; cache-first would keep showing the deleted artwork.
-  // The saved response remains the offline fallback.
+  // Public immutable objects are named with upload timestamps or content hashes.
+  // Cache-first avoids downloading large banners again on every app visit or
+  // rotation. New uploads get new URLs, so admins still see replacements.
+  // Mutable file names remain network-first; never cache private objects.
   if (url.hostname.includes('supabase') && url.pathname.includes('/storage/')) {
-    event.respondWith(
-      fetch(request, { cache: 'no-store' }).then(response => {
-          // <img> requests to a cross-origin public Supabase object can be
-          // returned as an opaque response (status 0 / ok=false). Opaque image
-          // responses are still perfectly valid to replay from Cache Storage,
-          // so cache them too; otherwise banners disappear as soon as the user
-          // goes offline.
-          if (response && (response.ok || response.type === 'opaque')) {
-            const clone = response.clone();
-            caches.open(getCacheName(IMAGE_CACHE_PREFIX)).then(cache => cache.put(request, clone));
-          }
-          return response;
-        }).catch(() =>
-          caches.match(request)
-            .then(cachedResponse => cachedResponse || new Response(null, { status: 404 }))
-        )
-    );
+    const isPublic = url.pathname.startsWith('/storage/v1/object/public/');
+    const isImmutable = isPublic &&
+      (/(?:^|\\/)\\d{12,}_[^/]+$/.test(url.pathname) ||
+       /(?:^|\\/)[a-f0-9]{32,}\\.(?:png|jpe?g|webp|gif|zip)$/i.test(url.pathname));
+    if (!isPublic) return;
+
+    event.respondWith((async () => {
+      const cache = await caches.open(IMAGE_CACHE_NAME);
+      if (isImmutable) {
+        const cached = await cache.match(request);
+        if (cached) return cached;
+      }
+      try {
+        const response = await fetch(request, { cache: isImmutable ? 'default' : 'no-store' });
+        if (response && (response.ok || response.type === 'opaque')) {
+          await cache.put(request, response.clone());
+        }
+        return response;
+      } catch {
+        return (await cache.match(request)) || new Response(null, { status: 404 });
+      }
+    })());
     return;
   }
 
@@ -204,10 +211,12 @@ self.addEventListener('fetch', (event) => {
 // Listen for messages from client
 async function cacheImageUrls(urls) {
   if (!Array.isArray(urls) || !urls.length) return;
-  const cache = await caches.open(getCacheName(IMAGE_CACHE_PREFIX));
+  const cache = await caches.open(IMAGE_CACHE_NAME);
 
+  // Only precache the first few most useful logos/category images; the rest
+  // are cached on demand. Do not re-download files already stored offline.
   await Promise.allSettled(
-    urls.slice(0, 250).map(async (raw) => {
+    urls.slice(0, 36).map(async (raw) => {
       try {
         const url = new URL(String(raw), self.location.origin);
         if (!/^https?:$/.test(url.protocol)) return;
@@ -215,10 +224,10 @@ async function cacheImageUrls(urls) {
         const request = new Request(url.toString(), {
           method: 'GET',
           mode: url.origin === self.location.origin ? 'same-origin' : 'no-cors',
-          cache: 'no-store',
           credentials: 'omit',
         });
 
+        if (await cache.match(request)) return;
         const response = await fetch(request);
         if (response && (response.ok || response.type === 'opaque')) {
           await cache.put(request, response.clone());
