@@ -243,7 +243,7 @@ export function AdminManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {admins?.map((admin, idx) => (
+                {admins?.map((admin) => (
                   <TableRow key={admin.user_id}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
@@ -265,6 +265,8 @@ export function AdminManagement() {
                           <Badge variant="outline" className="text-xs">
                             {language === 'so' ? 'Dhamaan (Full)' : 'Full Access'}
                           </Badge>
+                        ) : admin.permissions.filter(p => p !== RESTRICTED_ACCESS_MARKER).length === 0 ? (
+                          <Badge variant="outline" className="text-xs">{language === 'so' ? 'Rukhsad la’aan' : 'No access'}</Badge>
                         ) : (
                           admin.permissions.filter(p => p !== RESTRICTED_ACCESS_MARKER).slice(0, 3).map(p => (
                             <Badge key={p} variant="secondary" className="text-xs">{p.replace('manage_', '').replace('view_', '')}</Badge>
