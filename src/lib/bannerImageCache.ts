@@ -40,7 +40,7 @@ export function bannerCacheKey(
   return `${workspaceId}:${identity}`;
 }
 
-export async function readCachedBannerImage(key: string): Promise<string | null> {
+export async function readCachedBannerImage(key: string, source?: string): Promise<string | null> {
   const db = await openDb();
   if (!db) return null;
 
@@ -50,7 +50,9 @@ export async function readCachedBannerImage(key: string): Promise<string | null>
       const request = tx.objectStore(STORE_NAME).get(key);
       request.onsuccess = () => {
         const cached = request.result as CachedBannerImage | undefined;
-        if (!cached?.blob) {
+        // A banner edited in the admin can retain its id but has a new URL.
+        // Never display the previous image just because the cache key matches.
+        if (!cached?.blob || (source && cached.source !== source)) {
           resolve(null);
           return;
         }
