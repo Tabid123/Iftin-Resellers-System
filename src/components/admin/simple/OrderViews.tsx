@@ -32,10 +32,10 @@ const attachPackageCosts = async (rows: any[]): Promise<any[]> => {
 };
 
 // ========== ORDER ACCORDION ITEM ==========
-const OrderAccordionItem = ({ item, idx, expandedId, setExpandedId, isSo, actions, onReload, mayReadSales, mayReadProfit }: {
+const OrderAccordionItem = ({ item, idx, expandedId, setExpandedId, isSo, actions, onReload, mayReadSales, mayReadProfit, mayManageOrders }: {
   item: any; idx: number; expandedId: string | null; setExpandedId: (id: string | null) => void;
   isSo: boolean; actions: ReturnType<typeof useOrderActions>; onReload?: () => void;
-  mayReadSales: boolean; mayReadProfit: boolean;
+  mayReadSales: boolean; mayReadProfit: boolean; mayManageOrders: boolean;
 }) => {
   const [resendOpen, setResendOpen] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);
@@ -100,11 +100,11 @@ const OrderAccordionItem = ({ item, idx, expandedId, setExpandedId, isSo, action
           ]}
           actions={
             <>
-              {isResendable && <ActionBtn onClick={() => setResendOpen(true)} icon={Send} label={isSo ? 'Dib u dir' : 'Resend'} />}
-              {isRetryable && <ActionBtn onClick={() => actions.retryDelivery(item.id)} icon={RotateCcw} label={isSo ? 'Dib u Dir' : 'Retry'} variant="warning" />}
-              {isMarkable && <ActionBtn onClick={() => actions.markDelivered(item.id)} icon={CheckCircle} label={isSo ? 'Dhamee' : 'Deliver'} variant="success" />}
-              {isConfirmable && <ActionBtn onClick={() => setCompleteOpen(true)} icon={CheckCircle} label={isSo ? 'Dhammee' : 'Complete'} variant="success" />}
-              {isCancellable && <ActionBtn onClick={() => actions.cancelOrder(item.id)} icon={XCircle} label={isSo ? 'Kansal' : 'Cancel'} variant="danger" />}
+              {mayManageOrders && isResendable && <ActionBtn onClick={() => setResendOpen(true)} icon={Send} label={isSo ? 'Dib u dir' : 'Resend'} />}
+              {mayManageOrders && isRetryable && <ActionBtn onClick={() => actions.retryDelivery(item.id)} icon={RotateCcw} label={isSo ? 'Dib u Dir' : 'Retry'} variant="warning" />}
+              {mayManageOrders && isMarkable && <ActionBtn onClick={() => actions.markDelivered(item.id)} icon={CheckCircle} label={isSo ? 'Dhamee' : 'Deliver'} variant="success" />}
+              {mayManageOrders && isConfirmable && <ActionBtn onClick={() => setCompleteOpen(true)} icon={CheckCircle} label={isSo ? 'Dhammee' : 'Complete'} variant="success" />}
+              {mayManageOrders && isCancellable && <ActionBtn onClick={() => actions.cancelOrder(item.id)} icon={XCircle} label={isSo ? 'Kansal' : 'Cancel'} variant="danger" />}
             </>
           }
         />
@@ -124,6 +124,7 @@ export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
   const { can } = useStaffAccess();
   const mayReadProfit = can('view_profit');
   const mayReadSales = can('view_sales');
+  const mayManageOrders = can('manage_orders');
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -212,7 +213,7 @@ export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
       ]} activeKey={statusFilter} onSelect={setStatusFilter} />
       <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder={isSo ? 'Raadi...' : 'Search...'} />
       {loading ? <LazyFallback /> : filtered.length === 0 ? <EmptyState message={isSo ? 'Wax dalab ah lama helin' : 'No orders found'} /> : (
-        <div className="space-y-2">{filtered.map((item, idx) => <OrderAccordionItem key={item.id} item={item} idx={page * ADMIN_PAGE_SIZE + idx} expandedId={expandedId} setExpandedId={setExpandedId} isSo={isSo} actions={actions} onReload={loadOrders} mayReadSales={mayReadSales} mayReadProfit={mayReadProfit} />)}</div>
+        <div className="space-y-2">{filtered.map((item, idx) => <OrderAccordionItem key={item.id} item={item} idx={page * ADMIN_PAGE_SIZE + idx} expandedId={expandedId} setExpandedId={setExpandedId} isSo={isSo} actions={actions} onReload={loadOrders} mayReadSales={mayReadSales} mayReadProfit={mayReadProfit} mayManageOrders={mayManageOrders} />)}</div>
       )}
       <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
     </div>
@@ -224,6 +225,7 @@ export const OrdersListView = ({ isSo, type }: { isSo: boolean; type: string }) 
   const { can } = useStaffAccess();
   const mayReadProfit = can('view_profit');
   const mayReadSales = can('view_sales');
+  const mayManageOrders = can('manage_orders');
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -274,7 +276,7 @@ export const OrdersListView = ({ isSo, type }: { isSo: boolean; type: string }) 
       ]} />
       <SearchInput value={search} onChange={setSearch} placeholder={isSo ? 'Raadi lambarka ama package...' : 'Search phone or package...'} />
       {loading ? <LazyFallback /> : filtered.length === 0 ? <EmptyState message={isSo ? 'Wax dalab ah lama helin' : 'No orders found'} /> : (
-        <div className="space-y-2">{filtered.map((item, idx) => <OrderAccordionItem key={item.id} item={item} idx={page * ADMIN_PAGE_SIZE + idx} expandedId={expandedId} setExpandedId={setExpandedId} isSo={isSo} actions={actions} onReload={loadOrders} mayReadSales={mayReadSales} mayReadProfit={mayReadProfit} />)}</div>
+        <div className="space-y-2">{filtered.map((item, idx) => <OrderAccordionItem key={item.id} item={item} idx={page * ADMIN_PAGE_SIZE + idx} expandedId={expandedId} setExpandedId={setExpandedId} isSo={isSo} actions={actions} onReload={loadOrders} mayReadSales={mayReadSales} mayReadProfit={mayReadProfit} mayManageOrders={mayManageOrders} />)}</div>
       )}
       <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
     </div>
