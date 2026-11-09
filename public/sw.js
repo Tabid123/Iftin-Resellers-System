@@ -96,8 +96,8 @@ self.addEventListener('fetch', (event) => {
   if (url.hostname.includes('supabase') && url.pathname.includes('/storage/')) {
     const isPublic = url.pathname.startsWith('/storage/v1/object/public/');
     const isImmutable = isPublic &&
-      (/(?:^|\\/)\\d{12,}_[^/]+$/.test(url.pathname) ||
-       /(?:^|\\/)[a-f0-9]{32,}\\.(?:png|jpe?g|webp|gif|zip)$/i.test(url.pathname));
+      (/(?:^|\/)\d{12,}_[^/]+$/.test(url.pathname) ||
+       /(?:^|\/)[a-f0-9]{32,}\.(?:png|jpe?g|webp|gif|zip)$/i.test(url.pathname));
     if (!isPublic) return;
 
     event.respondWith((async () => {
