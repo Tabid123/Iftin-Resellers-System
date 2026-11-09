@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { invokeEdgeFunction, supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTenant } from '@/contexts/TenantContext';
+import { useStaffAccess } from '@/hooks/useStaffAccess';
+import { RESTRICTED_ACCESS_MARKER } from '@/lib/staffAccessRules';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +22,8 @@ const PERMISSION_KEYS = [
   { key: 'manage_providers', label: 'Manage Providers', labelSo: 'Shirkadaha Maaree' },
   { key: 'manage_orders', label: 'Manage Orders', labelSo: 'Dalabyada Maaree' },
   { key: 'view_transactions', label: 'View Transactions', labelSo: 'Lacagaha Arag' },
+  { key: 'view_sales', label: 'View Sales', labelSo: 'Iibka Arag' },
+  { key: 'view_profit', label: 'View Profit', labelSo: 'Faa’iidada Arag' },
   { key: 'manage_users', label: 'Manage Users', labelSo: 'Isticmaalayaasha Maaree' },
   { key: 'manage_settings', label: 'Manage Settings', labelSo: 'Settings Maaree' },
   { key: 'manage_devices', label: 'Manage Devices', labelSo: 'Devices Maaree' },
@@ -46,14 +50,17 @@ export function AdminManagement() {
   const [inviteFullName, setInviteFullName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [invitePermissions, setInvitePermissions] = useState<string[]>([]);
+  const [inviteFullAccess, setInviteFullAccess] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [editPermissions, setEditPermissions] = useState<string[]>([]);
+  const [editFullAccess, setEditFullAccess] = useState(false);
   const tenantState = useTenant();
   const tenantId = tenantState.tenant?.id ?? null;
+  const { isOwnerOrPlatform, ready: accessReady } = useStaffAccess();
 
   const { data: admins, isLoading } = useQuery({
     queryKey: ['admin-users', tenantId],
-    enabled: Boolean(tenantId),
+    enabled: Boolean(tenantId) && isOwnerOrPlatform,
     queryFn: async () => {
       if (!tenantId) throw new Error('Tenant lama helin');
       const { data: roles, error } = await supabase
@@ -69,7 +76,8 @@ export function AdminManagement() {
         const { data: perms } = await supabase
           .from('admin_permissions')
           .select('permission_key')
-          .eq('user_id', role.user_id);
+          .eq('user_id', role.user_id)
+          .eq('tenant_id', tenantId);
         
         adminUsers.push({
           user_id: role.user_id,
@@ -120,6 +128,7 @@ export function AdminManagement() {
       setInvitePassword('');
       setInviteFullName('');
       setInvitePermissions([]);
+      setInviteFullAccess(false);
       toast({
         title: language === 'so' ? 'Guul' : 'Success',
         description: language === 'so' 
@@ -134,12 +143,28 @@ export function AdminManagement() {
 
   const savePermissions = useMutation({
     mutationFn: async ({ userId, permissions }: { userId: string; permissions: string[] }) => {
-      await supabase.from('admin_permissions').delete().eq('user_id', userId);
+      if (!isOwnerOrPlatform || !tenantId) throw new Error('Owner permission required');
+      const { data: target, error: targetError } = await supabase.from('tenant_members')
+        .select('role').eq('tenant_id', tenantId).eq('user_id', userId).maybeSingle();
+      if (targetError || target?.role !== 'admin') throw new Error('Only staff roles may be updated');
+      const { data: oldRows, error: readError } = await supabase.from('admin_permissions')
+        .select('permission_key').eq('tenant_id', tenantId).eq('user_id', userId);
+      if (readError) throw readError;
+      const previous = (oldRows || []).map(row => row.permission_key);
+      const { error: deleteError } = await supabase.from('admin_permissions')
+        .delete().eq('tenant_id', tenantId).eq('user_id', userId);
+      if (deleteError) throw deleteError;
       if (permissions.length > 0) {
         const { error } = await supabase.from('admin_permissions').insert(
           permissions.map(key => ({ user_id: userId, permission_key: key, tenant_id: tenantId }))
         );
-        if (error) throw error;
+        if (error) {
+          // Compensating recovery; a proper atomic RPC still requires backend work.
+          if (previous.length) await supabase.from('admin_permissions').insert(
+            previous.map(key => ({ user_id: userId, permission_key: key, tenant_id: tenantId }))
+          );
+          throw error;
+        }
       }
     },
     onSuccess: () => {
@@ -154,7 +179,10 @@ export function AdminManagement() {
 
   const removeAdmin = useMutation({
     mutationFn: async (userId: string) => {
-      await supabase.from('admin_permissions').delete().eq('user_id', userId);
+      if (!isOwnerOrPlatform || !tenantId) throw new Error('Owner permission required');
+      const { error: permissionError } = await supabase.from('admin_permissions').delete()
+        .eq('tenant_id', tenantId).eq('user_id', userId);
+      if (permissionError) throw permissionError;
       const { error } = await supabase.from('tenant_members').delete()
         .eq('tenant_id', tenantId)
         .eq('user_id', userId)
@@ -169,12 +197,16 @@ export function AdminManagement() {
 
   const openEditPermissions = (admin: AdminUser) => {
     setEditingUser(admin);
-    setEditPermissions([...admin.permissions]);
+    setEditPermissions(admin.permissions.filter(k => k !== RESTRICTED_ACCESS_MARKER));
+    setEditFullAccess(admin.permissions.length === 0);
   };
 
   const togglePermission = (key: string, list: string[], setter: (v: string[]) => void) => {
     setter(list.includes(key) ? list.filter(k => k !== key) : [...list, key]);
   };
+
+  if (!accessReady) return <div className="p-6 text-center">Loading…</div>;
+  if (!isOwnerOrPlatform) return <div className="p-6 text-center">{language === 'so' ? 'Mulkiilaha oo keliya ayaa rukhsadaha shaqaalaha maamuli kara.' : 'Only the owner can manage staff permissions.'}</div>;
 
   return (
     <div className="space-y-4">
@@ -220,7 +252,7 @@ export function AdminManagement() {
                         </div>
                         <div>
                           <div className="font-medium">{admin.full_name || admin.user_id.slice(0, 8) + '...'}</div>
-                          {idx === 0 && <Badge className="bg-amber-500/20 text-amber-700 text-[10px]">Super Admin</Badge>}
+                          {admin.role === 'owner' && <Badge className="bg-amber-500/20 text-amber-700 text-[10px]">Owner</Badge>}
                         </div>
                       </div>
                     </TableCell>
@@ -234,12 +266,12 @@ export function AdminManagement() {
                             {language === 'so' ? 'Dhamaan (Full)' : 'Full Access'}
                           </Badge>
                         ) : (
-                          admin.permissions.slice(0, 3).map(p => (
+                          admin.permissions.filter(p => p !== RESTRICTED_ACCESS_MARKER).slice(0, 3).map(p => (
                             <Badge key={p} variant="secondary" className="text-xs">{p.replace('manage_', '').replace('view_', '')}</Badge>
                           ))
                         )}
-                        {admin.permissions.length > 3 && (
-                          <Badge variant="outline" className="text-xs">+{admin.permissions.length - 3}</Badge>
+                        {admin.permissions.filter(p => p !== RESTRICTED_ACCESS_MARKER).length > 3 && (
+                          <Badge variant="outline" className="text-xs">+{admin.permissions.filter(p => p !== RESTRICTED_ACCESS_MARKER).length - 3}</Badge>
                         )}
                       </div>
                     </TableCell>
@@ -248,10 +280,10 @@ export function AdminManagement() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => openEditPermissions(admin)}>
+                        {admin.role !== 'owner' && <Button variant="ghost" size="sm" onClick={() => openEditPermissions(admin)}>
                           <Shield className="h-4 w-4" />
-                        </Button>
-                        {idx !== 0 && (
+                        </Button>}
+                        {admin.role !== 'owner' && (
                           <Button variant="ghost" size="sm" className="text-destructive" onClick={() => removeAdmin.mutate(admin.user_id)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -331,16 +363,21 @@ export function AdminManagement() {
             <div className="space-y-2">
               <Label>{language === 'so' ? 'Permissions (waxa uu samayn karo)' : 'Permissions'}</Label>
               <p className="text-xs text-muted-foreground mb-2">
-                {language === 'so' 
-                  ? 'Haddii aadan waxba dooranin, Full Access ayuu helayaa' 
-                  : 'If none selected, user gets Full Access'}
+                {language === 'so'
+                  ? 'Rukhsadaha aan la dooran waa xiran yihiin. Full Access si gaar ah u dooro.'
+                  : 'Unselected permissions are denied. Choose Full Access explicitly.'}
               </p>
+              <div className="flex items-center justify-between rounded-md border p-2 mb-2">
+                <Label>{language === 'so' ? 'Dhammaan rukhsadaha (Full Access)' : 'Full Access'}</Label>
+                <Switch checked={inviteFullAccess} onCheckedChange={setInviteFullAccess} />
+              </div>
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {PERMISSION_KEYS.map(perm => (
                   <div key={perm.key} className="flex items-center justify-between py-1">
                     <Label className="text-sm">{language === 'so' ? perm.labelSo : perm.label}</Label>
                     <Switch
                       checked={invitePermissions.includes(perm.key)}
+                      disabled={inviteFullAccess}
                       onCheckedChange={() => togglePermission(perm.key, invitePermissions, setInvitePermissions)}
                     />
                   </div>
@@ -353,7 +390,7 @@ export function AdminManagement() {
               {language === 'so' ? 'Ka noqo' : 'Cancel'}
             </Button>
             <Button 
-              onClick={() => inviteAdmin.mutate({ email: inviteEmail, password: invitePassword, full_name: inviteFullName, permissions: invitePermissions })}
+              onClick={() => inviteAdmin.mutate({ email: inviteEmail, password: invitePassword, full_name: inviteFullName, permissions: inviteFullAccess ? [] : [RESTRICTED_ACCESS_MARKER, ...invitePermissions] })}
               disabled={!inviteEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteEmail) || !invitePassword || invitePassword.length < 6 || !inviteFullName || inviteAdmin.isPending}
             >
               {inviteAdmin.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
@@ -374,11 +411,16 @@ export function AdminManagement() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-4">
+            <div className="flex items-center justify-between rounded-md border p-2">
+              <Label>{language === 'so' ? 'Dhammaan rukhsadaha (Full Access)' : 'Full Access'}</Label>
+              <Switch checked={editFullAccess} onCheckedChange={setEditFullAccess} />
+            </div>
             {PERMISSION_KEYS.map(perm => (
               <div key={perm.key} className="flex items-center justify-between">
                 <Label>{language === 'so' ? perm.labelSo : perm.label}</Label>
                 <Switch
                   checked={editPermissions.includes(perm.key)}
+                  disabled={editFullAccess}
                   onCheckedChange={() => togglePermission(perm.key, editPermissions, setEditPermissions)}
                 />
               </div>
@@ -388,7 +430,7 @@ export function AdminManagement() {
             <Button variant="outline" onClick={() => setEditingUser(null)}>
               {language === 'so' ? 'Ka noqo' : 'Cancel'}
             </Button>
-            <Button onClick={() => editingUser && savePermissions.mutate({ userId: editingUser.user_id, permissions: editPermissions })}>
+            <Button onClick={() => editingUser && savePermissions.mutate({ userId: editingUser.user_id, permissions: editFullAccess ? [] : [RESTRICTED_ACCESS_MARKER, ...editPermissions] })}>
               {language === 'so' ? 'Kaydi' : 'Save'}
             </Button>
           </DialogFooter>
