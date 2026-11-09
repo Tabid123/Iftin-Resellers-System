@@ -55,7 +55,7 @@ class UssdDialerService : Service() {
         private const val NIGHT_POLL_INTERVAL_MS = 20000L   // fallback when Realtime is disconnected
         private const val BUSY_POLL_INTERVAL_MS = 3000L     // drain queue quickly after work is found
         private const val REALTIME_FALLBACK_POLL_INTERVAL_MS = 120000L // 2 min safety poll while Realtime is healthy
-        private const val REALTIME_DISCONNECTED_DISCOVERY_POLL_MS = 5000L
+        private const val REALTIME_DISCONNECTED_DISCOVERY_POLL_MS = 30000L // 30s safety fallback; Realtime triggers immediate discovery
         private const val HEARTBEAT_INTERVAL_MS = 60000L     // presence safety margin; server uses a 90s online window
         private const val JITTER_MAX_MS = 2000L             // 1-2s random jitter
         private val API_URL = com.iftin.resellers.config.ApiConfig.FUNCTIONS_URL + "/process-payment-receipt"
@@ -714,9 +714,16 @@ class UssdDialerService : Service() {
                 return
             }
             
+            // Bulk SMS tables require an authenticated tenant member.
+            // Do not hammer the API with anonymous requests that RLS rejects (401).
+            val auth = com.iftin.resellers.auth.AuthRepository(applicationContext)
+            if (!auth.ensureValidSession()) return
+            val tenantId = auth.getTenantId() ?: return
+
             // Batch loop: keep processing until queue is empty
             while (isRunning) {
-                val tasks = apiClient.getPendingBulkSms(deviceId)
+                val accessToken = auth.getAccessToken() ?: break
+                val tasks = apiClient.getPendingBulkSms(deviceId, accessToken, tenantId)
                 if (tasks.isEmpty()) {
                     android.util.Log.d("UssdDialer", "📤 Bulk SMS queue empty, stopping batch loop")
                     break
@@ -726,9 +733,9 @@ class UssdDialerService : Service() {
                 
                 for (task in tasks) {
                     try {
-                        val message = apiClient.getBulkSmsCampaignMessage(task.campaignId)
+                        val message = apiClient.getBulkSmsCampaignMessage(task.campaignId, accessToken, tenantId)
                         if (message == null) {
-                            apiClient.updateBulkSmsStatus(task.id, task.campaignId, "failed", "Campaign message not found")
+                            apiClient.updateBulkSmsStatus(task.id, task.campaignId, "failed", "Campaign message not found", accessToken, tenantId)
                             continue
                         }
                         
@@ -764,7 +771,7 @@ class UssdDialerService : Service() {
                         }
                         
                         android.util.Log.d("UssdDialer", "✅ Bulk SMS sent to $formattedPhone from SIM${simSlotIndex + 1}")
-                        apiClient.updateBulkSmsStatus(task.id, task.campaignId, "sent", null)
+                        apiClient.updateBulkSmsStatus(task.id, task.campaignId, "sent", null, accessToken, tenantId)
                         
                         // 2-3s delay between sends to avoid carrier throttling
                         val throttleDelay = 2000L + (Random().nextDouble() * 1000).toLong()
@@ -772,7 +779,7 @@ class UssdDialerService : Service() {
                         
                     } catch (e: Exception) {
                         android.util.Log.e("UssdDialer", "❌ Bulk SMS send error: ${e.message}")
-                        apiClient.updateBulkSmsStatus(task.id, task.campaignId, "failed", e.message)
+                        apiClient.updateBulkSmsStatus(task.id, task.campaignId, "failed", e.message, accessToken, tenantId)
                     }
                 }
             }
