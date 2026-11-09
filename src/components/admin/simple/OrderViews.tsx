@@ -13,6 +13,7 @@ import { ArrowLeft, Send } from 'lucide-react';
 import { ResendOrderPrompt } from './ResendOrderPrompt';
 import { CompleteOrderPrompt } from './CompleteOrderPrompt';
 import { effectiveOrderCost } from '@/lib/iftinProfit';
+import { useStaffAccess } from '@/hooks/useStaffAccess';
 import { AdminPagination, ADMIN_PAGE_SIZE } from './AdminPagination';
 
 const orderDisplayCost = (item: any) => effectiveOrderCost(item.cost_price, item.data_packages_config?.cost_price);
@@ -37,6 +38,7 @@ const OrderAccordionItem = ({ item, idx, expandedId, setExpandedId, isSo, action
 }) => {
   const [resendOpen, setResendOpen] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);
+  const { can } = useStaffAccess();
   const isExpanded = expandedId === item.id;
   const statusColor = item.delivery_status === 'delivered' ? 'bg-green-100 text-green-700' : item.delivery_status === 'failed' ? 'bg-red-100 text-red-700' : item.delivery_status === 'pending' ? 'bg-yellow-100 text-yellow-700' : item.status === 'cancelled' ? 'bg-gray-200 text-gray-600' : 'bg-gray-100 text-gray-600';
   const isCancellable = item.status !== 'cancelled' && item.delivery_status !== 'delivered';
@@ -58,7 +60,7 @@ const OrderAccordionItem = ({ item, idx, expandedId, setExpandedId, isSo, action
           </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          <span className="font-bold text-sm">${Number(item.selling_price).toFixed(2)}</span>
+          {can('view_sales') && <span className="font-bold text-sm">${Number(item.selling_price).toFixed(2)}</span>}
           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${statusColor}`}>{item.delivery_status || item.status}</span>
           {item.payment_source && <span className={`text-[8px] px-1 py-0.5 rounded font-bold ${
             item.payment_source === 'ussd_online' ? 'bg-blue-100 text-blue-700' :
@@ -85,8 +87,8 @@ const OrderAccordionItem = ({ item, idx, expandedId, setExpandedId, isSo, action
             { icon: Phone, label: isSo ? 'Qaataha' : 'Receiver', value: `+252${formatPhone(item.receiver_phone)}`, color: 'text-green-500' },
             { icon: User, label: isSo ? 'Macmiilka' : 'Customer', value: `+252${formatPhone(item.customer_phone)}`, color: 'text-purple-500' },
             ...(item.sender_phone ? [{ icon: Phone, label: isSo ? 'Diraha' : 'Sender', value: `+252${formatPhone(item.sender_phone)}`, color: 'text-orange-500' }] : []),
-            { icon: DollarSign, label: isSo ? 'Iibka' : 'Price', value: `$${Number(item.selling_price).toFixed(2)}`, color: 'text-emerald-500' },
-            { icon: DollarSign, label: isSo ? 'Kharash' : 'Cost', value: `$${orderDisplayCost(item).toFixed(2)}`, color: 'text-red-500' },
+            ...(can('view_sales') ? [{ icon: DollarSign, label: isSo ? 'Iibka' : 'Price', value: `${Number(item.selling_price).toFixed(2)}`, color: 'text-emerald-500' }] : []),
+            ...(can('view_profit') ? [{ icon: DollarSign, label: isSo ? 'Kharash' : 'Cost', value: `${orderDisplayCost(item).toFixed(2)}`, color: 'text-red-500' }] : []),
             { icon: Calendar, label: isSo ? 'Taariikhda' : 'Date', value: `${formatDate(item.created_at)} ${formatTime(item.created_at)}`, color: 'text-teal-500' },
             ...(item.delivered_at ? [{ icon: CheckCircle, label: isSo ? 'La gaarsiiyay' : 'Delivered', value: `${formatDate(item.delivered_at)} ${formatTime(item.delivered_at)}`, color: 'text-green-600' }] : []),
             ...(item.payment_source ? [{ icon: CreditCard, label: isSo ? 'Nooca' : 'Type', value: 
@@ -119,6 +121,9 @@ const OrderAccordionItem = ({ item, idx, expandedId, setExpandedId, isSo, action
 
 // ========== DAILY ORDERS ==========
 export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
+  const { can } = useStaffAccess();
+  const mayReadProfit = can('view_profit');
+  const mayReadSales = can('view_sales');
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,7 +142,7 @@ export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
       const from = page * ADMIN_PAGE_SIZE;
       const to = from + ADMIN_PAGE_SIZE - 1;
       let dayQuery = supabase.from('orders').select(
-        'id,customer_phone,sender_phone,receiver_phone,package_id,provider_id,package_name,data_amount,selling_price,cost_price,status,delivery_status,delivery_notes,delivered_at,payment_source,created_at,tenant_id',
+        `id,customer_phone,sender_phone,receiver_phone,package_id,provider_id,package_name,data_amount${mayReadSales ? ',selling_price' : ''}${mayReadProfit ? ',cost_price' : ''},status,delivery_status,delivery_notes,delivered_at,payment_source,created_at,tenant_id`,
         { count: 'exact' },
       )
         .gte('created_at', startOfDay(date).toISOString()).lte('created_at', endOfDay(date).toISOString())
@@ -147,13 +152,13 @@ export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
       const { data, error, count } = await dayQuery;
       if (error) throw error;
       setTotalRows(count ?? 0);
-      setOrders(await attachPackageCosts(data || []));
+      setOrders(mayReadProfit ? await attachPackageCosts(data || []) : (data || []));
     } catch (err) {
       console.error('[DailyOrders] load failed', err);
       toast.error('Failed to load orders');
     }
     finally { setLoading(false); }
-  }, [selectedDate, page]);
+  }, [selectedDate, page, mayReadProfit, mayReadSales]);
 
   useEffect(() => { loadOrders(); }, [loadOrders]);
   useRealtimeRefresh(['orders'], loadOrders, 800, { notify: true, lang: isSo ? 'so' : 'en' });
@@ -195,7 +200,7 @@ export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
         { label: isSo ? 'La diray' : 'Delivered', value: deliveredCount, icon: CheckCircle, color: 'bg-green-500' },
         { label: isSo ? 'Sugaya' : 'Pending', value: pendingCount, icon: Clock, color: 'bg-yellow-500' },
         { label: isSo ? 'Guuldaraystay' : 'Failed', value: failedCount, icon: XCircle, color: 'bg-red-500' },
-        { label: isSo ? 'Dakhli' : 'Revenue', value: `$${totalRevenue.toFixed(0)}`, icon: DollarSign, color: 'bg-emerald-500' },
+        ...(mayReadSales ? [{ label: isSo ? 'Dakhli' : 'Revenue', value: `${totalRevenue.toFixed(0)}`, icon: DollarSign, color: 'bg-emerald-500' }] : []),
       ]} />
       <FilterRow filters={[
         { key: 'all', label: isSo ? 'Dhammaan' : 'All', count: orders.length },
@@ -216,6 +221,9 @@ export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
 
 // ========== GENERIC ORDER LIST ==========
 export const OrdersListView = ({ isSo, type }: { isSo: boolean; type: string }) => {
+  const { can } = useStaffAccess();
+  const mayReadProfit = can('view_profit');
+  const mayReadSales = can('view_sales');
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -231,7 +239,7 @@ export const OrdersListView = ({ isSo, type }: { isSo: boolean; type: string }) 
     const from = page * ADMIN_PAGE_SIZE;
     const to = from + ADMIN_PAGE_SIZE - 1;
     let query = supabase.from('orders').select(
-      'id,customer_phone,sender_phone,receiver_phone,package_id,provider_id,package_name,data_amount,selling_price,cost_price,status,delivery_status,delivery_notes,delivered_at,payment_source,created_at,tenant_id',
+      `id,customer_phone,sender_phone,receiver_phone,package_id,provider_id,package_name,data_amount${mayReadSales ? ',selling_price' : ''}${mayReadProfit ? ',cost_price' : ''},status,delivery_status,delivery_notes,delivered_at,payment_source,created_at,tenant_id`,
       { count: 'exact' },
     ).order('created_at', { ascending: false }).range(from, to);
     if (tid) query = query.eq('tenant_id', tid);
@@ -244,9 +252,9 @@ export const OrdersListView = ({ isSo, type }: { isSo: boolean; type: string }) 
     const { data, error, count } = await query;
     if (error) console.error('[OrdersList] load failed', error);
     setTotalRows(count ?? 0);
-    setOrders(await attachPackageCosts(data || []));
+    setOrders(mayReadProfit ? await attachPackageCosts(data || []) : (data || []));
     setLoading(false);
-  }, [type, page]);
+  }, [type, page, mayReadProfit, mayReadSales]);
 
   useEffect(() => { loadOrders(); }, [loadOrders]);
   useRealtimeRefresh(['orders'], loadOrders, 800, { notify: true, lang: isSo ? 'so' : 'en' });
@@ -260,7 +268,7 @@ export const OrdersListView = ({ isSo, type }: { isSo: boolean; type: string }) 
     <div className="space-y-3">
       <StatCardsRow cards={[
         { label: isSo ? 'Wadarta' : 'Total', value: orders.length, icon: Package, color: 'bg-purple-500' },
-        { label: isSo ? 'Dakhli' : 'Revenue', value: `$${totalRev.toFixed(0)}`, icon: DollarSign, color: 'bg-emerald-500' },
+        ...(mayReadSales ? [{ label: isSo ? 'Dakhli' : 'Revenue', value: `${totalRev.toFixed(0)}`, icon: DollarSign, color: 'bg-emerald-500' }] : []),
         { label: isSo ? 'Guulaystay' : 'Delivered', value: deliveredC, icon: CheckCircle, color: 'bg-green-500' },
         { label: isSo ? 'Guuldaraystay' : 'Failed', value: failedC, icon: XCircle, color: 'bg-red-500' },
       ]} />
