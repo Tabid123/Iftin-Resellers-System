@@ -139,8 +139,6 @@ export function SimpleAdminSidebar() {
   };
 
   const handleLogout = async () => {
-    localStorage.removeItem('adminEmergencySession');
-    localStorage.removeItem('adminEmergencyTime');
     await supabase.auth.signOut();
     navigate('/dashboard/login');
   };
