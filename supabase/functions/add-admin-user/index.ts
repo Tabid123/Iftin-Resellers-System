@@ -149,7 +149,17 @@ Deno.serve(async (req) => {
           permission_key: key,
           tenant_id: tenantId,
         })));
-      if (permError) throw permError;
+      if (permError) {
+        // Without this rollback a failed permission insert would leave a new
+        // admin with no rows, which legacy clients interpret as Full Access.
+        const { error: rollbackError } = await supabaseAdmin.from('tenant_members')
+          .delete().eq('tenant_id', tenantId).eq('user_id', targetUser.id);
+        if (rollbackError) {
+          console.error('Critical staff permission rollback failure', rollbackError);
+          throw new Error('Staff creation failed and membership rollback needs manual review');
+        }
+        throw permError;
+      }
     }
 
     return new Response(
