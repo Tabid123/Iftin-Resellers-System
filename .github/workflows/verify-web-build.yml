@@ -11,9 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
+      # GitHub release downloads for setup-bun are intermittently returning
+      # HTTP 504. npm publishes the same pinned Bun binary.
+      - name: Install Bun from npm
+        run: |
+          npm install --global bun@1.4.4
+          bun --version
       - name: Install dependencies
         run: bun install --frozen-lockfile
       - name: Guard splash and route transitions
