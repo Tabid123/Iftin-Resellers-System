@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, Search, ChevronLeft, ChevronRight, ChevronDown, Phone, DollarSign, Hash, Clock } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTenant } from '@/contexts/TenantContext';
+import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { calculateEvoucherProfit, calculateOrderProfit, effectiveOrderCost, isDirectFlowCode } from '@/lib/iftinProfit';
 
 interface Transaction {
@@ -128,6 +129,7 @@ const instructionMatchesPackage = (instruction: DeliveryInstruction, pkg: Packag
 export function TransactionsDashboard() {
   const { language } = useLanguage();
   const isSo = language === 'so';
+  const { can } = useAdminPermissions();
   const tenantState = useTenant();
   const tenantId = tenantState.status === 'ready' ? tenantState.tenant?.id ?? null : null;
 
@@ -326,9 +328,9 @@ export function TransactionsDashboard() {
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Card className="bg-blue-500 text-white border-0 shadow-md"><CardContent className="p-2.5"><p className="text-[9px] text-blue-100 font-medium">Delivered</p><p className="text-lg font-bold">{stats.deliveredCount}</p></CardContent></Card>
-        <Card className="bg-purple-600 text-white border-0 shadow-md"><CardContent className="p-2.5"><p className="text-[9px] text-purple-100 font-medium">Sales / Revenue</p><p className="text-lg font-bold">${stats.revenue.toFixed(2)}</p><p className="text-[8px] text-purple-200">Selling price only</p></CardContent></Card>
-        <Card className="bg-emerald-600 text-white border-0 shadow-md"><CardContent className="p-2.5"><p className="text-[9px] text-emerald-100 font-medium">USD Profit</p><p className="text-lg font-bold">${stats.profitUsd.toFixed(2)}</p><p className="text-[8px] text-emerald-200">Flows: Selling − Cost</p></CardContent></Card>
-        <Card className="bg-gray-700 text-white border-0 shadow-md"><CardContent className="p-2.5"><p className="text-[9px] text-gray-200 font-medium">EV / Flow Profit</p><p className="text-lg font-bold">${stats.profitEvoucher.toFixed(2)}</p><p className="text-[8px] text-gray-300">Cost: ${stats.cost.toFixed(2)}</p></CardContent></Card>
+        {can('view_sales_today') && <Card className="bg-purple-600 text-white border-0 shadow-md"><CardContent className="p-2.5"><p className="text-[9px] text-purple-100 font-medium">Sales / Revenue</p><p className="text-lg font-bold">${stats.revenue.toFixed(2)}</p><p className="text-[8px] text-purple-200">Selling price only</p></CardContent></Card>}
+        {can('view_profit') && <Card className="bg-emerald-600 text-white border-0 shadow-md"><CardContent className="p-2.5"><p className="text-[9px] text-emerald-100 font-medium">USD Profit</p><p className="text-lg font-bold">${stats.profitUsd.toFixed(2)}</p><p className="text-[8px] text-emerald-200">Flows: Selling − Cost</p></CardContent></Card>}
+        {can('view_profit') && <Card className="bg-gray-700 text-white border-0 shadow-md"><CardContent className="p-2.5"><p className="text-[9px] text-gray-200 font-medium">EV / Flow Profit</p><p className="text-lg font-bold">${stats.profitEvoucher.toFixed(2)}</p><p className="text-[8px] text-gray-300">Cost: ${stats.cost.toFixed(2)}</p></CardContent></Card>}
       </div>
 
       <div className="relative">
@@ -363,7 +365,7 @@ export function TransactionsDashboard() {
                     <div className="flex items-center gap-2"><span className="truncate text-sm font-bold text-gray-800 dark:text-white">{row.package_name}</span><span className={`rounded-full px-1.5 py-0.5 text-[8px] font-bold ${getStatusColor(row)}`}>{displayStatus}</span></div>
                     <div className="mt-1 flex items-center gap-2 text-[10px] text-gray-500"><span>{row.provider_name}</span><span>•</span><span>{formatTime(row.created_at)}</span></div>
                   </div>
-                  <div className="shrink-0 text-right"><p className="text-sm font-bold text-gray-800 dark:text-white">${row.selling_price.toFixed(2)}</p><p className={`text-[10px] font-semibold ${profitUsd >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>Profit ${profitUsd.toFixed(3)}</p></div>
+                  <div className="shrink-0 text-right"><p className="text-sm font-bold text-gray-800 dark:text-white">${row.selling_price.toFixed(2)}</p>{can('view_profit') && <p className={`text-[10px] font-semibold ${profitUsd >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>Profit ${profitUsd.toFixed(3)}</p>}</div>
                   <ChevronDown className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`} />
                 </button>
 
@@ -372,10 +374,10 @@ export function TransactionsDashboard() {
                     <div><Phone className="mr-1 inline h-3 w-3" />Receiver: {formatPhone(row.receiver_phone || row.customer_phone)}</div>
                     <div><Clock className="mr-1 inline h-3 w-3" />{formatDate(row.created_at)} {formatTime(row.created_at)}</div>
                     <div><DollarSign className="mr-1 inline h-3 w-3" />Selling: ${row.selling_price.toFixed(2)}</div>
-                    <div><DollarSign className="mr-1 inline h-3 w-3" />Cost: ${row.cost_price.toFixed(2)}</div>
-                    <div><DollarSign className="mr-1 inline h-3 w-3" />USD Profit: ${profitUsd.toFixed(4)}</div>
-                    <div><DollarSign className="mr-1 inline h-3 w-3" />{row.bundle_profit != null ? 'Bundle Profit' : row.is_direct_flow ? 'Flow Profit' : 'EV Profit'}: ${profitEv.toFixed(4)}</div>
-                    <div><Hash className="mr-1 inline h-3 w-3" />{row.bundle_profit != null ? 'Bundle: Σ(Target Sell − Target Cost) × Count' : row.is_direct_flow ? 'Flow: Selling − Cost' : `Rate: ${(row.evoucher_rate * 100).toFixed(2)}%`}</div>
+                    {can('view_profit') && <div><DollarSign className="mr-1 inline h-3 w-3" />Cost: ${row.cost_price.toFixed(2)}</div>}
+                    {can('view_profit') && <div><DollarSign className="mr-1 inline h-3 w-3" />USD Profit: ${profitUsd.toFixed(4)}</div>}
+                    {can('view_profit') && <div><DollarSign className="mr-1 inline h-3 w-3" />{row.bundle_profit != null ? 'Bundle Profit' : row.is_direct_flow ? 'Flow Profit' : 'EV Profit'}: ${profitEv.toFixed(4)}</div>}
+                    {can('view_profit') && <div><Hash className="mr-1 inline h-3 w-3" />{row.bundle_profit != null ? 'Bundle: Σ(Target Sell − Target Cost) × Count' : row.is_direct_flow ? 'Flow: Selling − Cost' : `Rate: ${(row.evoucher_rate * 100).toFixed(2)}%`}</div>}
                     <div className="truncate font-mono">ID: {row.id.slice(0, 8).toUpperCase()}</div>
                   </div>
                 )}
