@@ -13,6 +13,7 @@ import { ArrowLeft, Send } from 'lucide-react';
 import { ResendOrderPrompt } from './ResendOrderPrompt';
 import { CompleteOrderPrompt } from './CompleteOrderPrompt';
 import { effectiveOrderCost } from '@/lib/iftinProfit';
+import { useStaffAccess } from '@/hooks/useStaffAccess';
 import { AdminPagination, ADMIN_PAGE_SIZE } from './AdminPagination';
 
 const orderDisplayCost = (item: any) => effectiveOrderCost(item.cost_price, item.data_packages_config?.cost_price);
@@ -31,9 +32,10 @@ const attachPackageCosts = async (rows: any[]): Promise<any[]> => {
 };
 
 // ========== ORDER ACCORDION ITEM ==========
-const OrderAccordionItem = ({ item, idx, expandedId, setExpandedId, isSo, actions, onReload }: {
+const OrderAccordionItem = ({ item, idx, expandedId, setExpandedId, isSo, actions, onReload, mayReadSales, mayReadProfit, mayManageOrders }: {
   item: any; idx: number; expandedId: string | null; setExpandedId: (id: string | null) => void;
   isSo: boolean; actions: ReturnType<typeof useOrderActions>; onReload?: () => void;
+  mayReadSales: boolean; mayReadProfit: boolean; mayManageOrders: boolean;
 }) => {
   const [resendOpen, setResendOpen] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);
@@ -58,7 +60,7 @@ const OrderAccordionItem = ({ item, idx, expandedId, setExpandedId, isSo, action
           </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          <span className="font-bold text-sm">${Number(item.selling_price).toFixed(2)}</span>
+          {mayReadSales && <span className="font-bold text-sm">${Number(item.selling_price).toFixed(2)}</span>}
           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${statusColor}`}>{item.delivery_status || item.status}</span>
           {item.payment_source && <span className={`text-[8px] px-1 py-0.5 rounded font-bold ${
             item.payment_source === 'ussd_online' ? 'bg-blue-100 text-blue-700' :
@@ -85,8 +87,8 @@ const OrderAccordionItem = ({ item, idx, expandedId, setExpandedId, isSo, action
             { icon: Phone, label: isSo ? 'Qaataha' : 'Receiver', value: `+252${formatPhone(item.receiver_phone)}`, color: 'text-green-500' },
             { icon: User, label: isSo ? 'Macmiilka' : 'Customer', value: `+252${formatPhone(item.customer_phone)}`, color: 'text-purple-500' },
             ...(item.sender_phone ? [{ icon: Phone, label: isSo ? 'Diraha' : 'Sender', value: `+252${formatPhone(item.sender_phone)}`, color: 'text-orange-500' }] : []),
-            { icon: DollarSign, label: isSo ? 'Iibka' : 'Price', value: `$${Number(item.selling_price).toFixed(2)}`, color: 'text-emerald-500' },
-            { icon: DollarSign, label: isSo ? 'Kharash' : 'Cost', value: `$${orderDisplayCost(item).toFixed(2)}`, color: 'text-red-500' },
+            ...(mayReadSales ? [{ icon: DollarSign, label: isSo ? 'Iibka' : 'Price', value: `${Number(item.selling_price).toFixed(2)}`, color: 'text-emerald-500' }] : []),
+            ...(mayReadProfit ? [{ icon: DollarSign, label: isSo ? 'Kharash' : 'Cost', value: `${orderDisplayCost(item).toFixed(2)}`, color: 'text-red-500' }] : []),
             { icon: Calendar, label: isSo ? 'Taariikhda' : 'Date', value: `${formatDate(item.created_at)} ${formatTime(item.created_at)}`, color: 'text-teal-500' },
             ...(item.delivered_at ? [{ icon: CheckCircle, label: isSo ? 'La gaarsiiyay' : 'Delivered', value: `${formatDate(item.delivered_at)} ${formatTime(item.delivered_at)}`, color: 'text-green-600' }] : []),
             ...(item.payment_source ? [{ icon: CreditCard, label: isSo ? 'Nooca' : 'Type', value: 
@@ -98,11 +100,11 @@ const OrderAccordionItem = ({ item, idx, expandedId, setExpandedId, isSo, action
           ]}
           actions={
             <>
-              {isResendable && <ActionBtn onClick={() => setResendOpen(true)} icon={Send} label={isSo ? 'Dib u dir' : 'Resend'} />}
-              {isRetryable && <ActionBtn onClick={() => actions.retryDelivery(item.id)} icon={RotateCcw} label={isSo ? 'Dib u Dir' : 'Retry'} variant="warning" />}
-              {isMarkable && <ActionBtn onClick={() => actions.markDelivered(item.id)} icon={CheckCircle} label={isSo ? 'Dhamee' : 'Deliver'} variant="success" />}
-              {isConfirmable && <ActionBtn onClick={() => setCompleteOpen(true)} icon={CheckCircle} label={isSo ? 'Dhammee' : 'Complete'} variant="success" />}
-              {isCancellable && <ActionBtn onClick={() => actions.cancelOrder(item.id)} icon={XCircle} label={isSo ? 'Kansal' : 'Cancel'} variant="danger" />}
+              {mayManageOrders && isResendable && <ActionBtn onClick={() => setResendOpen(true)} icon={Send} label={isSo ? 'Dib u dir' : 'Resend'} />}
+              {mayManageOrders && isRetryable && <ActionBtn onClick={() => actions.retryDelivery(item.id)} icon={RotateCcw} label={isSo ? 'Dib u Dir' : 'Retry'} variant="warning" />}
+              {mayManageOrders && isMarkable && <ActionBtn onClick={() => actions.markDelivered(item.id)} icon={CheckCircle} label={isSo ? 'Dhamee' : 'Deliver'} variant="success" />}
+              {mayManageOrders && isConfirmable && <ActionBtn onClick={() => setCompleteOpen(true)} icon={CheckCircle} label={isSo ? 'Dhammee' : 'Complete'} variant="success" />}
+              {mayManageOrders && isCancellable && <ActionBtn onClick={() => actions.cancelOrder(item.id)} icon={XCircle} label={isSo ? 'Kansal' : 'Cancel'} variant="danger" />}
             </>
           }
         />
@@ -119,6 +121,10 @@ const OrderAccordionItem = ({ item, idx, expandedId, setExpandedId, isSo, action
 
 // ========== DAILY ORDERS ==========
 export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
+  const { can, mode } = useStaffAccess();
+  const mayReadProfit = can('view_profit');
+  const mayReadSales = can('view_sales');
+  const mayManageOrders = mode === 'full' && can('manage_orders');
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -136,8 +142,23 @@ export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
       const tid = getTenantId();
       const from = page * ADMIN_PAGE_SIZE;
       const to = from + ADMIN_PAGE_SIZE - 1;
+      if (mode === 'restricted') {
+        // The backend returns only fields this staff member is authorized to see.
+        // Never fetch raw order prices/costs in the limited-staff client.
+        const { data, error } = await (supabase as any).rpc('get_staff_orders', {
+          p_start: startOfDay(date).toISOString(),
+          p_end: endOfDay(date).toISOString(),
+          p_status: 'all',
+          p_page: page,
+          p_page_size: ADMIN_PAGE_SIZE,
+        });
+        if (error) throw error;
+        setTotalRows(Number(data?.total || 0));
+        setOrders(Array.isArray(data?.rows) ? data.rows : []);
+        return;
+      }
       let dayQuery = supabase.from('orders').select(
-        'id,customer_phone,sender_phone,receiver_phone,package_id,provider_id,package_name,data_amount,selling_price,cost_price,status,delivery_status,delivery_notes,delivered_at,payment_source,created_at,tenant_id',
+        `id,customer_phone,sender_phone,receiver_phone,package_id,provider_id,package_name,data_amount${mayReadSales ? ',selling_price' : ''}${mayReadProfit ? ',cost_price' : ''},status,delivery_status,delivery_notes,delivered_at,payment_source,created_at,tenant_id`,
         { count: 'exact' },
       )
         .gte('created_at', startOfDay(date).toISOString()).lte('created_at', endOfDay(date).toISOString())
@@ -147,13 +168,13 @@ export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
       const { data, error, count } = await dayQuery;
       if (error) throw error;
       setTotalRows(count ?? 0);
-      setOrders(await attachPackageCosts(data || []));
+      setOrders(mayReadProfit ? await attachPackageCosts(data || []) : (data || []));
     } catch (err) {
       console.error('[DailyOrders] load failed', err);
       toast.error('Failed to load orders');
     }
     finally { setLoading(false); }
-  }, [selectedDate, page]);
+  }, [selectedDate, page, mayReadProfit, mayReadSales, mode]);
 
   useEffect(() => { loadOrders(); }, [loadOrders]);
   useRealtimeRefresh(['orders'], loadOrders, 800, { notify: true, lang: isSo ? 'so' : 'en' });
@@ -195,7 +216,7 @@ export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
         { label: isSo ? 'La diray' : 'Delivered', value: deliveredCount, icon: CheckCircle, color: 'bg-green-500' },
         { label: isSo ? 'Sugaya' : 'Pending', value: pendingCount, icon: Clock, color: 'bg-yellow-500' },
         { label: isSo ? 'Guuldaraystay' : 'Failed', value: failedCount, icon: XCircle, color: 'bg-red-500' },
-        { label: isSo ? 'Dakhli' : 'Revenue', value: `$${totalRevenue.toFixed(0)}`, icon: DollarSign, color: 'bg-emerald-500' },
+        ...(mayReadSales ? [{ label: isSo ? 'Dakhli' : 'Revenue', value: `${totalRevenue.toFixed(0)}`, icon: DollarSign, color: 'bg-emerald-500' }] : []),
       ]} />
       <FilterRow filters={[
         { key: 'all', label: isSo ? 'Dhammaan' : 'All', count: orders.length },
@@ -207,7 +228,7 @@ export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
       ]} activeKey={statusFilter} onSelect={setStatusFilter} />
       <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder={isSo ? 'Raadi...' : 'Search...'} />
       {loading ? <LazyFallback /> : filtered.length === 0 ? <EmptyState message={isSo ? 'Wax dalab ah lama helin' : 'No orders found'} /> : (
-        <div className="space-y-2">{filtered.map((item, idx) => <OrderAccordionItem key={item.id} item={item} idx={page * ADMIN_PAGE_SIZE + idx} expandedId={expandedId} setExpandedId={setExpandedId} isSo={isSo} actions={actions} onReload={loadOrders} />)}</div>
+        <div className="space-y-2">{filtered.map((item, idx) => <OrderAccordionItem key={item.id} item={item} idx={page * ADMIN_PAGE_SIZE + idx} expandedId={expandedId} setExpandedId={setExpandedId} isSo={isSo} actions={actions} onReload={loadOrders} mayReadSales={mayReadSales} mayReadProfit={mayReadProfit} mayManageOrders={mayManageOrders} />)}</div>
       )}
       <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
     </div>
@@ -216,6 +237,10 @@ export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
 
 // ========== GENERIC ORDER LIST ==========
 export const OrdersListView = ({ isSo, type }: { isSo: boolean; type: string }) => {
+  const { can, mode } = useStaffAccess();
+  const mayReadProfit = can('view_profit');
+  const mayReadSales = can('view_sales');
+  const mayManageOrders = mode === 'full' && can('manage_orders');
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -230,8 +255,30 @@ export const OrdersListView = ({ isSo, type }: { isSo: boolean; type: string }) 
     const tid = getTenantId();
     const from = page * ADMIN_PAGE_SIZE;
     const to = from + ADMIN_PAGE_SIZE - 1;
+    if (mode === 'restricted') {
+      try {
+        const { data, error } = await (supabase as any).rpc('get_staff_orders', {
+          p_start: type === 'sales' ? today.toISOString() : null,
+          p_end: null,
+          p_status: ['sales', 'failed', 'pending', 'delivered'].includes(type) ? type : 'all',
+          p_page: page,
+          p_page_size: ADMIN_PAGE_SIZE,
+        });
+        if (error) throw error;
+        setTotalRows(Number(data?.total || 0));
+        setOrders(Array.isArray(data?.rows) ? data.rows : []);
+      } catch (error) {
+        console.error('[OrdersList] restricted load failed', error);
+        setTotalRows(0);
+        setOrders([]);
+        toast.error('Failed to load orders');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
     let query = supabase.from('orders').select(
-      'id,customer_phone,sender_phone,receiver_phone,package_id,provider_id,package_name,data_amount,selling_price,cost_price,status,delivery_status,delivery_notes,delivered_at,payment_source,created_at,tenant_id',
+      `id,customer_phone,sender_phone,receiver_phone,package_id,provider_id,package_name,data_amount${mayReadSales ? ',selling_price' : ''}${mayReadProfit ? ',cost_price' : ''},status,delivery_status,delivery_notes,delivered_at,payment_source,created_at,tenant_id`,
       { count: 'exact' },
     ).order('created_at', { ascending: false }).range(from, to);
     if (tid) query = query.eq('tenant_id', tid);
@@ -244,9 +291,9 @@ export const OrdersListView = ({ isSo, type }: { isSo: boolean; type: string }) 
     const { data, error, count } = await query;
     if (error) console.error('[OrdersList] load failed', error);
     setTotalRows(count ?? 0);
-    setOrders(await attachPackageCosts(data || []));
+    setOrders(mayReadProfit ? await attachPackageCosts(data || []) : (data || []));
     setLoading(false);
-  }, [type, page]);
+  }, [type, page, mayReadProfit, mayReadSales, mode]);
 
   useEffect(() => { loadOrders(); }, [loadOrders]);
   useRealtimeRefresh(['orders'], loadOrders, 800, { notify: true, lang: isSo ? 'so' : 'en' });
@@ -260,13 +307,13 @@ export const OrdersListView = ({ isSo, type }: { isSo: boolean; type: string }) 
     <div className="space-y-3">
       <StatCardsRow cards={[
         { label: isSo ? 'Wadarta' : 'Total', value: orders.length, icon: Package, color: 'bg-purple-500' },
-        { label: isSo ? 'Dakhli' : 'Revenue', value: `$${totalRev.toFixed(0)}`, icon: DollarSign, color: 'bg-emerald-500' },
+        ...(mayReadSales ? [{ label: isSo ? 'Dakhli' : 'Revenue', value: `${totalRev.toFixed(0)}`, icon: DollarSign, color: 'bg-emerald-500' }] : []),
         { label: isSo ? 'Guulaystay' : 'Delivered', value: deliveredC, icon: CheckCircle, color: 'bg-green-500' },
         { label: isSo ? 'Guuldaraystay' : 'Failed', value: failedC, icon: XCircle, color: 'bg-red-500' },
       ]} />
       <SearchInput value={search} onChange={setSearch} placeholder={isSo ? 'Raadi lambarka ama package...' : 'Search phone or package...'} />
       {loading ? <LazyFallback /> : filtered.length === 0 ? <EmptyState message={isSo ? 'Wax dalab ah lama helin' : 'No orders found'} /> : (
-        <div className="space-y-2">{filtered.map((item, idx) => <OrderAccordionItem key={item.id} item={item} idx={page * ADMIN_PAGE_SIZE + idx} expandedId={expandedId} setExpandedId={setExpandedId} isSo={isSo} actions={actions} onReload={loadOrders} />)}</div>
+        <div className="space-y-2">{filtered.map((item, idx) => <OrderAccordionItem key={item.id} item={item} idx={page * ADMIN_PAGE_SIZE + idx} expandedId={expandedId} setExpandedId={setExpandedId} isSo={isSo} actions={actions} onReload={loadOrders} mayReadSales={mayReadSales} mayReadProfit={mayReadProfit} mayManageOrders={mayManageOrders} />)}</div>
       )}
       <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
     </div>
