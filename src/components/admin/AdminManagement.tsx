@@ -14,19 +14,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Loader2, Shield, UserPlus, Trash2, Mail, User, Lock, Eye, EyeOff } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { ADMIN_PERMISSION_KEYS, NO_ACCESS_KEY, serializeAdminPermissions } from '@/hooks/useAdminPermissions';
 
-const PERMISSION_KEYS = [
-  { key: 'manage_packages', label: 'Manage Packages', labelSo: 'Xirmooyinka Maaree' },
-  { key: 'manage_providers', label: 'Manage Providers', labelSo: 'Shirkadaha Maaree' },
-  { key: 'manage_orders', label: 'Manage Orders', labelSo: 'Dalabyada Maaree' },
-  { key: 'view_transactions', label: 'View Transactions', labelSo: 'Lacagaha Arag' },
-  { key: 'manage_users', label: 'Manage Users', labelSo: 'Isticmaalayaasha Maaree' },
-  { key: 'manage_settings', label: 'Manage Settings', labelSo: 'Settings Maaree' },
-  { key: 'manage_devices', label: 'Manage Devices', labelSo: 'Devices Maaree' },
-  { key: 'manage_bulk_sms', label: 'Bulk SMS', labelSo: 'Bulk SMS' },
-  { key: 'view_audit_log', label: 'View Audit Log', labelSo: 'Audit Log Arag' },
-  { key: 'manage_admins', label: 'Manage Admins', labelSo: 'Admins Maaree' },
-];
+const PERMISSION_KEYS = ADMIN_PERMISSION_KEYS;
 
 interface AdminUser {
   user_id: string;
@@ -45,7 +35,7 @@ export function AdminManagement() {
   const [invitePassword, setInvitePassword] = useState('');
   const [inviteFullName, setInviteFullName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [invitePermissions, setInvitePermissions] = useState<string[]>([]);
+  const [invitePermissions, setInvitePermissions] = useState<string[]>(() => PERMISSION_KEYS.map(p => p.key));
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [editPermissions, setEditPermissions] = useState<string[]>([]);
   const tenantState = useTenant();
@@ -69,7 +59,8 @@ export function AdminManagement() {
         const { data: perms } = await supabase
           .from('admin_permissions')
           .select('permission_key')
-          .eq('user_id', role.user_id);
+          .eq('user_id', role.user_id)
+          .eq('tenant_id', tenantId);
         
         adminUsers.push({
           user_id: role.user_id,
@@ -106,7 +97,7 @@ export function AdminManagement() {
         error?: string;
         full_name?: string;
         email?: string;
-      }>('add-admin-user', { email, password, full_name, permissions, tenant_id: tenantId });
+      }>('add-admin-user', { email, password, full_name, permissions: serializeAdminPermissions(permissions), tenant_id: tenantId });
 
       if (response.error) throw new Error(response.error.message);
       if (response.data?.error) throw new Error(response.data.error);
@@ -119,7 +110,7 @@ export function AdminManagement() {
       setInviteEmail('');
       setInvitePassword('');
       setInviteFullName('');
-      setInvitePermissions([]);
+      setInvitePermissions(PERMISSION_KEYS.map(p => p.key));
       toast({
         title: language === 'so' ? 'Guul' : 'Success',
         description: language === 'so' 
@@ -134,13 +125,16 @@ export function AdminManagement() {
 
   const savePermissions = useMutation({
     mutationFn: async ({ userId, permissions }: { userId: string; permissions: string[] }) => {
-      await supabase.from('admin_permissions').delete().eq('user_id', userId);
-      if (permissions.length > 0) {
-        const { error } = await supabase.from('admin_permissions').insert(
-          permissions.map(key => ({ user_id: userId, permission_key: key, tenant_id: tenantId }))
-        );
-        if (error) throw error;
-      }
+      if (!tenantId) throw new Error('Tenant lama helin');
+      const { error: deleteError } = await supabase.from('admin_permissions')
+        .delete().eq('user_id', userId).eq('tenant_id', tenantId);
+      if (deleteError) throw deleteError;
+      const { error: insertError } = await supabase.from('admin_permissions').insert(
+        serializeAdminPermissions(permissions).map(key => ({
+          user_id: userId, permission_key: key, tenant_id: tenantId,
+        }))
+      );
+      if (insertError) throw insertError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users', tenantId] });
@@ -154,7 +148,9 @@ export function AdminManagement() {
 
   const removeAdmin = useMutation({
     mutationFn: async (userId: string) => {
-      await supabase.from('admin_permissions').delete().eq('user_id', userId);
+      const { error: permError } = await supabase.from('admin_permissions').delete()
+        .eq('user_id', userId).eq('tenant_id', tenantId);
+      if (permError) throw permError;
       const { error } = await supabase.from('tenant_members').delete()
         .eq('tenant_id', tenantId)
         .eq('user_id', userId)
@@ -169,7 +165,9 @@ export function AdminManagement() {
 
   const openEditPermissions = (admin: AdminUser) => {
     setEditingUser(admin);
-    setEditPermissions([...admin.permissions]);
+    setEditPermissions(admin.permissions.length === 0
+      ? PERMISSION_KEYS.map(p => p.key)
+      : admin.permissions.filter(key => key !== NO_ACCESS_KEY));
   };
 
   const togglePermission = (key: string, list: string[], setter: (v: string[]) => void) => {
@@ -233,6 +231,10 @@ export function AdminManagement() {
                           <Badge variant="outline" className="text-xs">
                             {language === 'so' ? 'Dhamaan (Full)' : 'Full Access'}
                           </Badge>
+                        ) : admin.permissions.includes(NO_ACCESS_KEY) ? (
+                          <Badge variant="destructive" className="text-xs">
+                            {language === 'so' ? 'Fasax Ma Leh' : 'No Access'}
+                          </Badge>
                         ) : (
                           admin.permissions.slice(0, 3).map(p => (
                             <Badge key={p} variant="secondary" className="text-xs">{p.replace('manage_', '').replace('view_', '')}</Badge>
@@ -248,10 +250,10 @@ export function AdminManagement() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => openEditPermissions(admin)}>
+                        <Button variant="ghost" size="sm" disabled={admin.role === 'owner'} onClick={() => openEditPermissions(admin)}>
                           <Shield className="h-4 w-4" />
                         </Button>
-                        {idx !== 0 && (
+                        {admin.role !== 'owner' && (
                           <Button variant="ghost" size="sm" className="text-destructive" onClick={() => removeAdmin.mutate(admin.user_id)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -332,8 +334,8 @@ export function AdminManagement() {
               <Label>{language === 'so' ? 'Permissions (waxa uu samayn karo)' : 'Permissions'}</Label>
               <p className="text-xs text-muted-foreground mb-2">
                 {language === 'so' 
-                  ? 'Haddii aadan waxba dooranin, Full Access ayuu helayaa' 
-                  : 'If none selected, user gets Full Access'}
+                  ? 'Daar qaybaha uu admin-ku geli karo; kuwa aad damiso kama muuqanayaan. Haddii dhammaan la damiyo, wax fasax ah ma helayo.'
+                  : 'Enable only the sections this admin can access. If all are off, the admin gets no access.'}
               </p>
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {PERMISSION_KEYS.map(perm => (
