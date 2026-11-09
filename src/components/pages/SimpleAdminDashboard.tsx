@@ -17,6 +17,7 @@ import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import najaxLogo from '@/assets/najax-logo.jpeg';
 import { useTenant } from '@/contexts/TenantContext';
 import { useTenantCapabilities } from '@/hooks/useTenantCapabilities';
+import { useStaffAccess } from '@/hooks/useStaffAccess';
 import { prefetchAdminViews } from '@/lib/prefetchAdminViews';
 import { fetchIftinWallet, type IftinWalletData } from '@/lib/iftinWallet';
 import CachedImage from '@/components/CachedImage';
@@ -101,6 +102,7 @@ const SimpleAdminDashboard = () => {
   const tenant = tenantState.tenant;
   const tenantReady = tenantState.status === 'ready' || tenantState.status === 'platform';
   const { isPartner } = useTenantCapabilities();
+  const { can, canView, ready: accessReady } = useStaffAccess();
   const [clock, setClock] = useState(new Date());
   const [selectedPeriod, setSelectedPeriod] = useState<'today' | 'week' | 'month' | 'year'>('today');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -363,20 +365,21 @@ const SimpleAdminDashboard = () => {
     { label: "Wallet & Faa'iido", value: `$${wallet.available.toFixed(2)}`, sub: `La baxsan karo · Faa'idada ${periodLabel.toLowerCase()}: $${stats.todayProfit.toFixed(2)}`, color: 'from-emerald-500 to-teal-700', darkFooter: 'bg-emerald-800', link: '/dashboard/iftin-wallet', fullWidth: true, isWallet: true, partnerOnly: true },
     { label: 'Warbixin', value: stats.todayOrderCount, icon: '📊', sub: 'Shirkad walba & taariikh', color: 'from-indigo-500 to-indigo-700', darkFooter: 'bg-indigo-800', link: '/dashboard/warbixin', partnerOnly: true },
     { label: `Dalabyada ${periodLabel}`, value: stats.todayOrderCount, icon: '🛒', sub: `${stats.todayFailed} fashilmay · ${stats.todayPending} sugaya`, color: 'from-teal-400 to-teal-600', darkFooter: 'bg-teal-700', link: '/dashboard/daily-orders' },
-    { label: `Dakhliga ${periodLabel}`, value: `$${stats.todaySales.toFixed(2)}`, icon: '💰', sub: `${stats.todayDelivered} dalab la diray`, color: 'from-red-500 to-red-700', darkFooter: 'bg-red-800', link: '/dashboard/transactions', deviceOnly: true },
-    { label: `Faaidada ${periodLabel}`, value: `$${stats.todayProfit.toFixed(2)}`, icon: '📈', sub: `Qarash: $${stats.todayCost.toFixed(2)}`, color: 'from-green-600 to-green-800', darkFooter: 'bg-green-900', link: '/dashboard/transactions', deviceOnly: true },
+    { label: `Dakhliga ${periodLabel}`, value: `$${stats.todaySales.toFixed(2)}`, icon: '💰', sub: `${stats.todayDelivered} dalab la diray`, color: 'from-red-500 to-red-700', darkFooter: 'bg-red-800', link: '/dashboard/sales', deviceOnly: true, accessKey: 'view_sales' },
+    { label: `Faaidada ${periodLabel}`, value: `$${stats.todayProfit.toFixed(2)}`, icon: '📈', sub: `Qarash: $${stats.todayCost.toFixed(2)}`, color: 'from-green-600 to-green-800', darkFooter: 'bg-green-900', link: '/dashboard/transactions', deviceOnly: true, accessKey: 'view_profit' },
     { label: 'Unmatched', value: unmatchedCount, icon: '⚠️', sub: `${unmatchedCount} unmatched · ${stats.todayFailed} fashilmay`, color: 'from-blue-500 to-blue-700', darkFooter: 'bg-blue-800', link: '/dashboard/unmatched', deviceOnly: true },
     { label: 'Orders', value: stats.todayOrderCount, icon: '📦', sub: `${stats.todayDelivered} guul · ${stats.todayFailed} fashil`, color: 'from-pink-500 to-pink-700', darkFooter: 'bg-pink-800', link: '/dashboard/abdiqafar', deviceOnly: true },
     { label: 'Devices Online', value: stats.devicesOnline, icon: '📱', color: 'from-yellow-400 to-yellow-600', darkFooter: 'bg-yellow-700', link: '/dashboard/devices', deviceOnly: true },
   ] as any[]).filter((c) => {
     if (!isPartner && c.partnerOnly) return false;
     if (isPartner && c.deviceOnly) return false;
-    return true;
+    if (c.accessKey) return can(c.accessKey);
+    return canView(c.link);
   });
 
   const clockStr = clock.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
 
-  if (!tenantReady) {
+  if (!tenantReady || !accessReady) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="flex flex-col items-center gap-3 text-gray-600 dark:text-gray-300">
@@ -438,7 +441,7 @@ const SimpleAdminDashboard = () => {
             </div>
 
             {statCards[0]?.isWallet && (
-              <div onClick={() => navigate(statCards[0].link)} className="relative col-span-2 rounded-2xl overflow-hidden shadow-lg cursor-pointer active:scale-[0.98] transition-transform">
+              <div onClick={() => { if (canView(statCards[0].link)) navigate(statCards[0].link); }} className="relative col-span-2 rounded-2xl overflow-hidden shadow-lg cursor-pointer active:scale-[0.98] transition-transform">
                 <div className="bg-gradient-to-br from-emerald-500 via-teal-600 to-teal-800 text-white p-5">
                   <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 80% 20%, rgba(255,255,255,0.35) 0%, transparent 35%)' }} />
                   <div className="relative flex items-start justify-between">
@@ -452,16 +455,16 @@ const SimpleAdminDashboard = () => {
 
             <div className="grid grid-cols-2 gap-3">
               {statCards.filter((c) => !(c as any).isWallet).map((card, i) => (
-                <div key={i} className={`rounded-lg overflow-hidden shadow-md cursor-pointer active:scale-95 transition-transform flex flex-col ${(card as any).fullWidth ? 'col-span-2' : ''}`} onClick={() => navigate(card.link)}>
+                <div key={i} className={`rounded-lg overflow-hidden shadow-md cursor-pointer active:scale-95 transition-transform flex flex-col ${(card as any).fullWidth ? 'col-span-2' : ''}`} onClick={() => { if (canView(card.link)) navigate(card.link); }}>
                   <div className={`bg-gradient-to-br ${card.color} text-white p-4 text-center flex-1`}><div className="text-3xl font-bold">{card.value}</div><div className="text-sm mt-1 opacity-90">{card.label}</div>{card.sub && <div className="text-[10px] mt-0.5 opacity-70">{card.sub}</div>}</div>
                   <div className={`${card.darkFooter} text-white text-center py-2 text-xs flex items-center justify-center gap-1 shrink-0`}><span>➡</span> More Info</div>
                 </div>
               ))}
-              <div className="rounded-lg overflow-hidden shadow-md cursor-pointer active:scale-95 transition-transform flex flex-col" onClick={() => navigate('/dashboard/blocked')}>
+              {canView('/dashboard/blocked') && <div className="rounded-lg overflow-hidden shadow-md cursor-pointer active:scale-95 transition-transform flex flex-col" onClick={() => navigate('/dashboard/blocked')}>
                 <div className="bg-gradient-to-br from-gray-600 to-gray-800 text-white p-4 text-center flex-1"><div className="text-3xl font-bold">🚫</div><div className="text-sm mt-1 opacity-90">Blocked Users</div></div>
                 <div className="bg-gray-900 text-white text-center py-2 text-xs flex items-center justify-center gap-1 shrink-0"><span>➡</span> More Info</div>
-              </div>
-              {!isPartner && (
+              </div>}
+              {!isPartner && canView('/dashboard/sms-logs') && (
                 <div className="rounded-lg overflow-hidden shadow-md cursor-pointer active:scale-95 transition-transform flex flex-col" onClick={() => navigate('/dashboard/sms-logs')}>
                   <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 text-white p-4 text-center flex-1"><div className="text-3xl font-bold">💬</div><div className="text-sm mt-1 opacity-90">SMS Logs</div></div>
                   <div className="bg-indigo-950 text-white text-center py-2 text-xs flex items-center justify-center gap-1 shrink-0"><span>➡</span> More Info</div>
@@ -469,7 +472,7 @@ const SimpleAdminDashboard = () => {
               )}
             </div>
 
-            {!isPartner && (
+            {!isPartner && can('manage_devices') && can('view_profit') && (
             <div className="space-y-3">
               <div className="flex items-center gap-3"><div className="flex-1 h-px bg-gray-300 dark:bg-gray-700" /><span className="text-gray-500 dark:text-gray-400 text-sm font-medium">Devices & SIM Balances</span><div className="flex-1 h-px bg-gray-300 dark:bg-gray-700" /></div>
               {deviceCards.length === 0 && !loading && <p className="text-center text-gray-400 text-sm py-4">Wax device ah lama helin</p>}
