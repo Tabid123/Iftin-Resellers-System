@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
-import { useConnectivity } from '@/contexts/ConnectivityContext';
 import { onStorefront } from '@/lib/storefrontEvents';
 import { activeWorkspaceId, workspaceStorage } from '@/lib/workspaceKeys';
 import { tenantOfflineBootstrap } from '@/generated/tenantOfflineBootstrap';
@@ -45,7 +44,6 @@ function packagedBannerFor(item: Banner | null | undefined): string | null {
 
 const RotatingBanner = () => {
   const tenantState = useTenant();
-  const { isReallyOnline } = useConnectivity();
   const tenant = tenantState.status === 'ready' || tenantState.status === 'suspended'
     ? tenantState.tenant
     : null;
