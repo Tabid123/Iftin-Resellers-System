@@ -133,15 +133,9 @@ Deno.serve(async (req) => {
       targetUser = newUser.user;
     }
 
-    // Bind the admin to this tenant only. Platform roles are intentionally
-    // separate and must never be granted from a tenant admin screen.
-    const { error: roleError } = await supabaseAdmin
-      .from("tenant_members")
-      .insert({ tenant_id: tenantId, user_id: targetUser.id, role: "admin" });
-    if (roleError) throw roleError;
-
-    // Add permissions if provided
-    if (permissions && permissions.length > 0) {
+    // Write the restricted marker BEFORE the tenant membership. Otherwise
+    // an error between these writes could briefly create a full-access admin.
+    if (permissions.length > 0) {
       const { error: permError } = await supabaseAdmin
         .from("admin_permissions")
         .insert(permissions.map((key: string) => ({
@@ -149,17 +143,19 @@ Deno.serve(async (req) => {
           permission_key: key,
           tenant_id: tenantId,
         })));
-      if (permError) {
-        // Without this rollback a failed permission insert would leave a new
-        // admin with no rows, which legacy clients interpret as Full Access.
-        const { error: rollbackError } = await supabaseAdmin.from('tenant_members')
-          .delete().eq('tenant_id', tenantId).eq('user_id', targetUser.id);
-        if (rollbackError) {
-          console.error('Critical staff permission rollback failure', rollbackError);
-          throw new Error('Staff creation failed and membership rollback needs manual review');
-        }
-        throw permError;
+      if (permError) throw permError;
+    }
+
+    // Bind to this tenant only. Platform roles are never granted here.
+    const { error: roleError } = await supabaseAdmin
+      .from("tenant_members")
+      .insert({ tenant_id: tenantId, user_id: targetUser.id, role: "admin" });
+    if (roleError) {
+      if (permissions.length > 0) {
+        await supabaseAdmin.from("admin_permissions").delete()
+          .eq("tenant_id", tenantId).eq("user_id", targetUser.id);
       }
+      throw roleError;
     }
 
     return new Response(
