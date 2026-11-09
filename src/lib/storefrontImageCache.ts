@@ -22,6 +22,9 @@ function collect(value: unknown, urls: Set<string>) {
   if (typeof value !== 'object') return;
 
   for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    // Multi-megabyte rotating banners load only when displayed, not during
+    // background catalog hydration on every startup.
+    if (key === 'banner_image') continue;
     if (
       typeof raw === 'string' &&
       raw.trim() &&
@@ -58,21 +61,16 @@ export function collectStorefrontImageUrls(...values: unknown[]): string[] {
  */
 export function precacheStorefrontImages(...values: unknown[]): void {
   if (typeof window === 'undefined') return;
-  const urls = collectStorefrontImageUrls(...values);
-  if (!urls.length) return;
+  // Cap background network usage. Visible components load assets normally;
+  // the worker persists only a small set of high-priority storefront artwork.
+  const urls = collectStorefrontImageUrls(...values).slice(0, 36);
+  if (!urls.length || !('serviceWorker' in navigator)) return;
 
-  for (const url of urls) {
-    if (url.startsWith('data:') || url.startsWith('blob:')) continue;
-    const img = new Image();
-    img.decoding = 'async';
-    img.src = url;
-  }
-
-  if (!('serviceWorker' in navigator)) return;
   void navigator.serviceWorker.ready
     .then((registration) => {
       const worker = registration.active ?? registration.waiting ?? registration.installing;
       worker?.postMessage({ type: 'CACHE_IMAGES', urls });
     })
     .catch(() => {});
+
 }
