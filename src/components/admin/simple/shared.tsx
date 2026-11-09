@@ -161,7 +161,7 @@ export const EmptyState = ({ message }: { message: string }) => (
 async function optimizeStorefrontImage(file: File, bucket: string): Promise<File> {
   if (
     !['banners', 'category-images'].includes(bucket) ||
-    !/^image\\/(jpeg|png|webp)$/.test(file.type)
+    !/^image\/(jpeg|png|webp)$/.test(file.type)
   ) return file;
 
   const sourceUrl = URL.createObjectURL(file);
@@ -187,7 +187,7 @@ async function optimizeStorefrontImage(file: File, bucket: string): Promise<File
     });
     if (!blob || blob.type !== 'image/webp' || blob.size >= file.size * 0.9) return file;
 
-    const baseName = file.name.replace(/\\.[^.]+$/, '') || 'image';
+    const baseName = file.name.replace(/\.[^.]+$/, '') || 'image';
     return new File([blob], baseName + '.webp', {
       type: 'image/webp',
       lastModified: Date.now(),
