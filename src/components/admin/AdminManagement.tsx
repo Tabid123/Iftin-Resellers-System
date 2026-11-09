@@ -150,21 +150,41 @@ export function AdminManagement() {
       const { data: oldRows, error: readError } = await supabase.from('admin_permissions')
         .select('permission_key').eq('tenant_id', tenantId).eq('user_id', userId);
       if (readError) throw readError;
-      const previous = (oldRows || []).map(row => row.permission_key);
-      const { error: deleteError } = await supabase.from('admin_permissions')
-        .delete().eq('tenant_id', tenantId).eq('user_id', userId);
-      if (deleteError) throw deleteError;
-      if (permissions.length > 0) {
+      const previous = new Set((oldRows || []).map(row => row.permission_key));
+      const next = new Set(permissions);
+
+      if (permissions.length === 0) {
+        // Full Access is an explicit owner choice. Legacy full access = no rows.
+        const { error } = await supabase.from('admin_permissions').delete()
+          .eq('tenant_id', tenantId).eq('user_id', userId);
+        if (error) throw error;
+        return;
+      }
+
+      if (!next.has(RESTRICTED_ACCESS_MARKER)) {
+        throw new Error('Restricted staff must have a restriction marker');
+      }
+      // Add the restriction marker first: NEVER expose a temporarily
+      // empty permission set (legacy Full Access) during a staff update.
+      if (!previous.has(RESTRICTED_ACCESS_MARKER)) {
+        const { error } = await supabase.from('admin_permissions').insert({
+          tenant_id: tenantId, user_id: userId, permission_key: RESTRICTED_ACCESS_MARKER,
+        });
+        if (error) throw error;
+        previous.add(RESTRICTED_ACCESS_MARKER);
+      }
+      const toAdd = [...next].filter(key => !previous.has(key));
+      if (toAdd.length > 0) {
         const { error } = await supabase.from('admin_permissions').insert(
-          permissions.map(key => ({ user_id: userId, permission_key: key, tenant_id: tenantId }))
+          toAdd.map(key => ({ tenant_id: tenantId, user_id: userId, permission_key: key }))
         );
-        if (error) {
-          // Compensating recovery; a proper atomic RPC still requires backend work.
-          if (previous.length) await supabase.from('admin_permissions').insert(
-            previous.map(key => ({ user_id: userId, permission_key: key, tenant_id: tenantId }))
-          );
-          throw error;
-        }
+        if (error) throw error;
+      }
+      const toRemove = [...previous].filter(key => !next.has(key) && key !== RESTRICTED_ACCESS_MARKER);
+      if (toRemove.length > 0) {
+        const { error } = await supabase.from('admin_permissions').delete()
+          .eq('tenant_id', tenantId).eq('user_id', userId).in('permission_key', toRemove);
+        if (error) throw error;
       }
     },
     onSuccess: () => {
@@ -180,14 +200,16 @@ export function AdminManagement() {
   const removeAdmin = useMutation({
     mutationFn: async (userId: string) => {
       if (!isOwnerOrPlatform || !tenantId) throw new Error('Owner permission required');
-      const { error: permissionError } = await supabase.from('admin_permissions').delete()
-        .eq('tenant_id', tenantId).eq('user_id', userId);
-      if (permissionError) throw permissionError;
+      // Remove membership BEFORE grants. A failed permission cleanup must
+      // never leave an admin with zero rows interpreted as Full Access.
       const { error } = await supabase.from('tenant_members').delete()
         .eq('tenant_id', tenantId)
         .eq('user_id', userId)
         .eq('role', 'admin');
       if (error) throw error;
+      const { error: permissionError } = await supabase.from('admin_permissions').delete()
+        .eq('tenant_id', tenantId).eq('user_id', userId);
+      if (permissionError) throw permissionError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users', tenantId] });
