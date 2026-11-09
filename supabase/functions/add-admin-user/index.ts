@@ -1,5 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+const ALLOWED_PERMISSIONS = new Set([
+  'restricted_access', 'manage_packages', 'manage_providers', 'manage_orders',
+  'view_transactions', 'view_sales', 'view_profit', 'manage_users',
+  'manage_settings', 'manage_devices', 'manage_bulk_sms', 'view_audit_log',
+  'manage_admins',
+]);
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-tenant-id",
@@ -40,7 +47,14 @@ Deno.serve(async (req) => {
     const email = (body.email || "").trim().toLowerCase();
     const password = (body.password || "").trim();
     const full_name = (body.full_name || "").trim();
-    const permissions = body.permissions || [];
+    const requestedPermissions = body.permissions;
+    if (!Array.isArray(requestedPermissions) ||
+      !requestedPermissions.every((key: unknown) => typeof key === 'string' && ALLOWED_PERMISSIONS.has(key))) {
+      throw new Error('Invalid staff permissions');
+    }
+    const permissions: string[] = requestedPermissions.length
+      ? [...new Set(['restricted_access', ...requestedPermissions])]
+      : [];
 
     if (!tenantId) throw new Error("Tenant lama helin. Fadlan bogga dib u fur.");
 
@@ -59,17 +73,9 @@ Deno.serve(async (req) => {
         .maybeSingle(),
     ]);
 
-    let canManage = membership?.role === "owner" || platformRole?.role === "super_admin";
-    if (!canManage && membership) {
-      const { data: permission } = await supabaseAdmin
-        .from("admin_permissions")
-        .select("id")
-        .eq("tenant_id", tenantId)
-        .eq("user_id", caller.id)
-        .eq("permission_key", "manage_admins")
-        .maybeSingle();
-      canManage = Boolean(permission);
-    }
+    // Owner-only: staff cannot create a new full-access account or grant
+    // permissions they do not possess (privilege escalation).
+    const canManage = membership?.role === "owner" || platformRole?.role === "super_admin";
     if (!canManage) {
       return new Response(
         JSON.stringify({ error: "Ma lihid fasax aad admin ugu darto tenant-kan." }),
