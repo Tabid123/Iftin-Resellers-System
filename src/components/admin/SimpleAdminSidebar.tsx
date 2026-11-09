@@ -24,6 +24,7 @@ import {
 import najaxLogo from '@/assets/najax-logo.jpeg';
 import { useTenant } from '@/contexts/TenantContext';
 import { useTenantCapabilities } from '@/hooks/useTenantCapabilities';
+import { useStaffAccess } from '@/hooks/useStaffAccess';
 
 interface MenuItem {
   label: string;
@@ -146,12 +147,13 @@ export function SimpleAdminSidebar() {
   const isSo = language === 'so';
   const { tenant } = useTenant();
   const { canSee } = useTenantCapabilities();
+  const { canView, isOwnerOrPlatform } = useStaffAccess();
 
   // Reseller-ka API partner ah wuxuu arkaa oo kaliya modules-ka u shaqeeya.
   const visibleGroups = menuGroups
     .map((group) => {
-      if (!group.children) return canSee(group.path) ? group : null;
-      const children = group.children.filter((c) => canSee(c.path));
+      if (!group.children) return canSee(group.path) && canView(group.path) ? group : null;
+      const children = group.children.filter((c) => canSee(c.path) && canView(c.path));
       return children.length ? { ...group, children } : null;
     })
     .filter(Boolean) as MenuItem[];
@@ -165,7 +167,7 @@ export function SimpleAdminSidebar() {
             <div className="text-white font-semibold text-base">{tenant?.name || (import.meta.env.VITE_TENANT_NAME as string) || 'App'}</div>
             <div className="flex items-center gap-1 text-xs text-blue-400">
               <span className="w-2 h-2 bg-green-400 rounded-full inline-block" />
-              Owner
+              {isOwnerOrPlatform ? 'Owner' : 'Staff'}
             </div>
           </div>
         </div>
