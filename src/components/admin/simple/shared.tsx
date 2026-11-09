@@ -155,6 +155,50 @@ export const EmptyState = ({ message }: { message: string }) => (
   <div className="text-center py-12"><span className="text-4xl">📭</span><p className="text-gray-400 text-sm mt-2">{message}</p></div>
 );
 
+// Compress newly uploaded banner and category artwork before it reaches
+// Supabase Storage. Unique filenames make the resulting public URLs immutable,
+// allowing CDNs and the storefront to cache them for a long time.
+async function optimizeStorefrontImage(file: File, bucket: string): Promise<File> {
+  if (
+    !['banners', 'category-images'].includes(bucket) ||
+    !/^image\\/(jpeg|png|webp)$/.test(file.type)
+  ) return file;
+
+  const sourceUrl = URL.createObjectURL(file);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = reject;
+      element.src = sourceUrl;
+    });
+    const maxWidth = bucket === 'banners' ? 1200 : 480;
+    const maxHeight = bucket === 'banners' ? 540 : 480;
+    const scale = Math.min(1, maxWidth / image.naturalWidth, maxHeight / image.naturalHeight);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return file;
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, 'image/webp', 0.72);
+    });
+    if (!blob || blob.type !== 'image/webp' || blob.size >= file.size * 0.9) return file;
+
+    const baseName = file.name.replace(/\\.[^.]+$/, '') || 'image';
+    return new File([blob], baseName + '.webp', {
+      type: 'image/webp',
+      lastModified: Date.now(),
+    });
+  } catch {
+    return file;
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
+}
+
 // ========== IMAGE UPLOADER ==========
 export const ImageUploader = ({ value, onChange, bucket, label }: { value: string; onChange: (url: string) => void; bucket: string; label: string }) => {
   const [uploading, setUploading] = useState(false);
@@ -164,14 +208,17 @@ export const ImageUploader = ({ value, onChange, bucket, label }: { value: strin
     if (!file) return;
     setUploading(true);
     try {
-      const ext = file.name.split('.').pop();
-      // New uploads live in the workspace's own folder, so one workspace can
-      // never overwrite or delete another's artwork. Existing flat files keep
-      // working: their public URLs are untouched.
+      const optimized = await optimizeStorefrontImage(file, bucket);
+      const ext = optimized.name.split('.').pop();
+      // Unique paths prevent stale CDN images and keep tenant uploads isolated.
       const workspaceId = activeWorkspaceId();
       if (!workspaceId) throw new Error('Workspace not ready yet');
       const fileName = `${workspaceId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await supabase.storage.from(bucket).upload(fileName, file, { upsert: true });
+      const { error } = await supabase.storage.from(bucket).upload(fileName, optimized, {
+        upsert: false,
+        contentType: optimized.type || undefined,
+        cacheControl: '31536000',
+      });
       if (error) throw error;
       const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(fileName);
       onChange(urlData.publicUrl);
