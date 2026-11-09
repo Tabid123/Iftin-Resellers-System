@@ -364,12 +364,13 @@ class DeliveryApiClient(
         val simSlot: Int?
     )
     
-    suspend fun getPendingBulkSms(deviceId: String): List<BulkSmsTask> = withContext(Dispatchers.IO) {
+    suspend fun getPendingBulkSms(deviceId: String, accessToken: String, tenantId: String): List<BulkSmsTask> = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder()
                 .url("$supabaseRestUrl/bulk_sms_queue?device_id=eq.$deviceId&status=eq.pending&limit=10&order=created_at.asc")
                 .addHeader("apikey", anonKey)
-                .addHeader("Authorization", "Bearer $anonKey")
+                .addHeader("Authorization", "Bearer $accessToken")
+                .addHeader("x-tenant-id", tenantId)
                 .get()
                 .build()
             
@@ -397,12 +398,13 @@ class DeliveryApiClient(
         }
     }
     
-    suspend fun getBulkSmsCampaignMessage(campaignId: String): String? = withContext(Dispatchers.IO) {
+    suspend fun getBulkSmsCampaignMessage(campaignId: String, accessToken: String, tenantId: String): String? = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder()
                 .url("$supabaseRestUrl/bulk_sms_campaigns?id=eq.$campaignId&select=message")
                 .addHeader("apikey", anonKey)
-                .addHeader("Authorization", "Bearer $anonKey")
+                .addHeader("Authorization", "Bearer $accessToken")
+                .addHeader("x-tenant-id", tenantId)
                 .get()
                 .build()
             
@@ -426,7 +428,9 @@ class DeliveryApiClient(
         queueId: String,
         campaignId: String,
         status: String,
-        errorMessage: String?
+        errorMessage: String?,
+        accessToken: String,
+        tenantId: String
     ): Boolean = withContext(Dispatchers.IO) {
         try {
             // 1. Update queue item
@@ -439,13 +443,15 @@ class DeliveryApiClient(
             val queueRequest = Request.Builder()
                 .url("$supabaseRestUrl/bulk_sms_queue?id=eq.$queueId")
                 .addHeader("apikey", anonKey)
-                .addHeader("Authorization", "Bearer $anonKey")
+                .addHeader("Authorization", "Bearer $accessToken")
+                .addHeader("x-tenant-id", tenantId)
                 .addHeader("Prefer", "return=minimal")
                 .patch(queueJson.toString().toRequestBody(JSON_MEDIA_TYPE))
                 .build()
             
-            sharedHttpClient.newCall(queueRequest).execute().use { /* fire */ }
-            
+            val updated = sharedHttpClient.newCall(queueRequest).execute().use { it.isSuccessful }
+            if (!updated) return@withContext false
+
             // 2. Campaign counter RPC (increment_bulk_sms_counter) does not exist in this
             // backend yet — bulk SMS counters stay disabled until it is added.
             return@withContext true
