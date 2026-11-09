@@ -121,10 +121,10 @@ const OrderAccordionItem = ({ item, idx, expandedId, setExpandedId, isSo, action
 
 // ========== DAILY ORDERS ==========
 export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
-  const { can } = useStaffAccess();
+  const { can, mode } = useStaffAccess();
   const mayReadProfit = can('view_profit');
   const mayReadSales = can('view_sales');
-  const mayManageOrders = can('manage_orders');
+  const mayManageOrders = mode === 'full' && can('manage_orders');
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -142,6 +142,21 @@ export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
       const tid = getTenantId();
       const from = page * ADMIN_PAGE_SIZE;
       const to = from + ADMIN_PAGE_SIZE - 1;
+      if (mode === 'restricted') {
+        // The backend returns only fields this staff member is authorized to see.
+        // Never fetch raw order prices/costs in the limited-staff client.
+        const { data, error } = await (supabase as any).rpc('get_staff_orders', {
+          p_start: startOfDay(date).toISOString(),
+          p_end: endOfDay(date).toISOString(),
+          p_status: 'all',
+          p_page: page,
+          p_page_size: ADMIN_PAGE_SIZE,
+        });
+        if (error) throw error;
+        setTotalRows(Number(data?.total || 0));
+        setOrders(Array.isArray(data?.rows) ? data.rows : []);
+        return;
+      }
       let dayQuery = supabase.from('orders').select(
         `id,customer_phone,sender_phone,receiver_phone,package_id,provider_id,package_name,data_amount${mayReadSales ? ',selling_price' : ''}${mayReadProfit ? ',cost_price' : ''},status,delivery_status,delivery_notes,delivered_at,payment_source,created_at,tenant_id`,
         { count: 'exact' },
@@ -159,7 +174,7 @@ export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
       toast.error('Failed to load orders');
     }
     finally { setLoading(false); }
-  }, [selectedDate, page, mayReadProfit, mayReadSales]);
+  }, [selectedDate, page, mayReadProfit, mayReadSales, mode]);
 
   useEffect(() => { loadOrders(); }, [loadOrders]);
   useRealtimeRefresh(['orders'], loadOrders, 800, { notify: true, lang: isSo ? 'so' : 'en' });
@@ -222,10 +237,10 @@ export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
 
 // ========== GENERIC ORDER LIST ==========
 export const OrdersListView = ({ isSo, type }: { isSo: boolean; type: string }) => {
-  const { can } = useStaffAccess();
+  const { can, mode } = useStaffAccess();
   const mayReadProfit = can('view_profit');
   const mayReadSales = can('view_sales');
-  const mayManageOrders = can('manage_orders');
+  const mayManageOrders = mode === 'full' && can('manage_orders');
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -240,6 +255,28 @@ export const OrdersListView = ({ isSo, type }: { isSo: boolean; type: string }) 
     const tid = getTenantId();
     const from = page * ADMIN_PAGE_SIZE;
     const to = from + ADMIN_PAGE_SIZE - 1;
+    if (mode === 'restricted') {
+      try {
+        const { data, error } = await (supabase as any).rpc('get_staff_orders', {
+          p_start: type === 'sales' ? today.toISOString() : null,
+          p_end: null,
+          p_status: ['sales', 'failed', 'pending', 'delivered'].includes(type) ? type : 'all',
+          p_page: page,
+          p_page_size: ADMIN_PAGE_SIZE,
+        });
+        if (error) throw error;
+        setTotalRows(Number(data?.total || 0));
+        setOrders(Array.isArray(data?.rows) ? data.rows : []);
+      } catch (error) {
+        console.error('[OrdersList] restricted load failed', error);
+        setTotalRows(0);
+        setOrders([]);
+        toast.error('Failed to load orders');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
     let query = supabase.from('orders').select(
       `id,customer_phone,sender_phone,receiver_phone,package_id,provider_id,package_name,data_amount${mayReadSales ? ',selling_price' : ''}${mayReadProfit ? ',cost_price' : ''},status,delivery_status,delivery_notes,delivered_at,payment_source,created_at,tenant_id`,
       { count: 'exact' },
@@ -256,7 +293,7 @@ export const OrdersListView = ({ isSo, type }: { isSo: boolean; type: string }) 
     setTotalRows(count ?? 0);
     setOrders(mayReadProfit ? await attachPackageCosts(data || []) : (data || []));
     setLoading(false);
-  }, [type, page, mayReadProfit, mayReadSales]);
+  }, [type, page, mayReadProfit, mayReadSales, mode]);
 
   useEffect(() => { loadOrders(); }, [loadOrders]);
   useRealtimeRefresh(['orders'], loadOrders, 800, { notify: true, lang: isSo ? 'so' : 'en' });
