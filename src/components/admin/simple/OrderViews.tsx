@@ -32,13 +32,13 @@ const attachPackageCosts = async (rows: any[]): Promise<any[]> => {
 };
 
 // ========== ORDER ACCORDION ITEM ==========
-const OrderAccordionItem = ({ item, idx, expandedId, setExpandedId, isSo, actions, onReload }: {
+const OrderAccordionItem = ({ item, idx, expandedId, setExpandedId, isSo, actions, onReload, mayReadSales, mayReadProfit }: {
   item: any; idx: number; expandedId: string | null; setExpandedId: (id: string | null) => void;
   isSo: boolean; actions: ReturnType<typeof useOrderActions>; onReload?: () => void;
+  mayReadSales: boolean; mayReadProfit: boolean;
 }) => {
   const [resendOpen, setResendOpen] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);
-  const { can } = useStaffAccess();
   const isExpanded = expandedId === item.id;
   const statusColor = item.delivery_status === 'delivered' ? 'bg-green-100 text-green-700' : item.delivery_status === 'failed' ? 'bg-red-100 text-red-700' : item.delivery_status === 'pending' ? 'bg-yellow-100 text-yellow-700' : item.status === 'cancelled' ? 'bg-gray-200 text-gray-600' : 'bg-gray-100 text-gray-600';
   const isCancellable = item.status !== 'cancelled' && item.delivery_status !== 'delivered';
@@ -60,7 +60,7 @@ const OrderAccordionItem = ({ item, idx, expandedId, setExpandedId, isSo, action
           </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          {can('view_sales') && <span className="font-bold text-sm">${Number(item.selling_price).toFixed(2)}</span>}
+          {mayReadSales && <span className="font-bold text-sm">${Number(item.selling_price).toFixed(2)}</span>}
           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${statusColor}`}>{item.delivery_status || item.status}</span>
           {item.payment_source && <span className={`text-[8px] px-1 py-0.5 rounded font-bold ${
             item.payment_source === 'ussd_online' ? 'bg-blue-100 text-blue-700' :
@@ -87,8 +87,8 @@ const OrderAccordionItem = ({ item, idx, expandedId, setExpandedId, isSo, action
             { icon: Phone, label: isSo ? 'Qaataha' : 'Receiver', value: `+252${formatPhone(item.receiver_phone)}`, color: 'text-green-500' },
             { icon: User, label: isSo ? 'Macmiilka' : 'Customer', value: `+252${formatPhone(item.customer_phone)}`, color: 'text-purple-500' },
             ...(item.sender_phone ? [{ icon: Phone, label: isSo ? 'Diraha' : 'Sender', value: `+252${formatPhone(item.sender_phone)}`, color: 'text-orange-500' }] : []),
-            ...(can('view_sales') ? [{ icon: DollarSign, label: isSo ? 'Iibka' : 'Price', value: `${Number(item.selling_price).toFixed(2)}`, color: 'text-emerald-500' }] : []),
-            ...(can('view_profit') ? [{ icon: DollarSign, label: isSo ? 'Kharash' : 'Cost', value: `${orderDisplayCost(item).toFixed(2)}`, color: 'text-red-500' }] : []),
+            ...(mayReadSales ? [{ icon: DollarSign, label: isSo ? 'Iibka' : 'Price', value: `${Number(item.selling_price).toFixed(2)}`, color: 'text-emerald-500' }] : []),
+            ...(mayReadProfit ? [{ icon: DollarSign, label: isSo ? 'Kharash' : 'Cost', value: `${orderDisplayCost(item).toFixed(2)}`, color: 'text-red-500' }] : []),
             { icon: Calendar, label: isSo ? 'Taariikhda' : 'Date', value: `${formatDate(item.created_at)} ${formatTime(item.created_at)}`, color: 'text-teal-500' },
             ...(item.delivered_at ? [{ icon: CheckCircle, label: isSo ? 'La gaarsiiyay' : 'Delivered', value: `${formatDate(item.delivered_at)} ${formatTime(item.delivered_at)}`, color: 'text-green-600' }] : []),
             ...(item.payment_source ? [{ icon: CreditCard, label: isSo ? 'Nooca' : 'Type', value: 
@@ -212,7 +212,7 @@ export const DailyOrdersCustomView = ({ isSo }: { isSo: boolean }) => {
       ]} activeKey={statusFilter} onSelect={setStatusFilter} />
       <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder={isSo ? 'Raadi...' : 'Search...'} />
       {loading ? <LazyFallback /> : filtered.length === 0 ? <EmptyState message={isSo ? 'Wax dalab ah lama helin' : 'No orders found'} /> : (
-        <div className="space-y-2">{filtered.map((item, idx) => <OrderAccordionItem key={item.id} item={item} idx={page * ADMIN_PAGE_SIZE + idx} expandedId={expandedId} setExpandedId={setExpandedId} isSo={isSo} actions={actions} onReload={loadOrders} />)}</div>
+        <div className="space-y-2">{filtered.map((item, idx) => <OrderAccordionItem key={item.id} item={item} idx={page * ADMIN_PAGE_SIZE + idx} expandedId={expandedId} setExpandedId={setExpandedId} isSo={isSo} actions={actions} onReload={loadOrders} mayReadSales={mayReadSales} mayReadProfit={mayReadProfit} />)}</div>
       )}
       <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
     </div>
@@ -274,7 +274,7 @@ export const OrdersListView = ({ isSo, type }: { isSo: boolean; type: string }) 
       ]} />
       <SearchInput value={search} onChange={setSearch} placeholder={isSo ? 'Raadi lambarka ama package...' : 'Search phone or package...'} />
       {loading ? <LazyFallback /> : filtered.length === 0 ? <EmptyState message={isSo ? 'Wax dalab ah lama helin' : 'No orders found'} /> : (
-        <div className="space-y-2">{filtered.map((item, idx) => <OrderAccordionItem key={item.id} item={item} idx={page * ADMIN_PAGE_SIZE + idx} expandedId={expandedId} setExpandedId={setExpandedId} isSo={isSo} actions={actions} onReload={loadOrders} />)}</div>
+        <div className="space-y-2">{filtered.map((item, idx) => <OrderAccordionItem key={item.id} item={item} idx={page * ADMIN_PAGE_SIZE + idx} expandedId={expandedId} setExpandedId={setExpandedId} isSo={isSo} actions={actions} onReload={loadOrders} mayReadSales={mayReadSales} mayReadProfit={mayReadProfit} />)}</div>
       )}
       <AdminPagination page={page} total={totalRows} pageSize={ADMIN_PAGE_SIZE} onPageChange={setPage} isSo={isSo} />
     </div>
