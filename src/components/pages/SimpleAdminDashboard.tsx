@@ -100,7 +100,7 @@ const SimpleAdminDashboard = () => {
   const tenantState = useTenant();
   const tenant = tenantState.tenant;
   const tenantReady = tenantState.status === 'ready' || tenantState.status === 'platform';
-  const { isPartner } = useTenantCapabilities();
+  const { isPartner, can } = useTenantCapabilities();
   const [clock, setClock] = useState(new Date());
   const [selectedPeriod, setSelectedPeriod] = useState<'today' | 'week' | 'month' | 'year'>('today');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -360,17 +360,18 @@ const SimpleAdminDashboard = () => {
   const periodLabel = selectedDate ? format(selectedDate, 'dd/MM') : selectedPeriod === 'today' ? 'Maanta' : selectedPeriod === 'week' ? 'Isbuucan' : selectedPeriod === 'month' ? 'Bisha' : 'Sanadka';
 
   const statCards = ([
-    { label: "Wallet & Faa'iido", value: `$${wallet.available.toFixed(2)}`, sub: `La baxsan karo · Faa'idada ${periodLabel.toLowerCase()}: $${stats.todayProfit.toFixed(2)}`, color: 'from-emerald-500 to-teal-700', darkFooter: 'bg-emerald-800', link: '/dashboard/iftin-wallet', fullWidth: true, isWallet: true, partnerOnly: true },
-    { label: 'Warbixin', value: stats.todayOrderCount, icon: '📊', sub: 'Shirkad walba & taariikh', color: 'from-indigo-500 to-indigo-700', darkFooter: 'bg-indigo-800', link: '/dashboard/warbixin', partnerOnly: true },
-    { label: `Dalabyada ${periodLabel}`, value: stats.todayOrderCount, icon: '🛒', sub: `${stats.todayFailed} fashilmay · ${stats.todayPending} sugaya`, color: 'from-teal-400 to-teal-600', darkFooter: 'bg-teal-700', link: '/dashboard/daily-orders' },
-    { label: `Dakhliga ${periodLabel}`, value: `$${stats.todaySales.toFixed(2)}`, icon: '💰', sub: `${stats.todayDelivered} dalab la diray`, color: 'from-red-500 to-red-700', darkFooter: 'bg-red-800', link: '/dashboard/transactions', deviceOnly: true },
+    { label: "Wallet & Faa'iido", value: `$${wallet.available.toFixed(2)}`, sub: `La baxsan karo · Faa'idada ${periodLabel.toLowerCase()}: $${stats.todayProfit.toFixed(2)}`, color: 'from-emerald-500 to-teal-700', darkFooter: 'bg-emerald-800', link: '/dashboard/iftin-wallet', fullWidth: true, isWallet: true, partnerOnly: true, permission: 'view_profit' },
+    { label: 'Warbixin', value: stats.todayOrderCount, icon: '📊', sub: 'Shirkad walba & taariikh', color: 'from-indigo-500 to-indigo-700', darkFooter: 'bg-indigo-800', link: '/dashboard/warbixin', partnerOnly: true, permission: 'view_transactions' },
+    { label: `Dalabyada ${periodLabel}`, value: stats.todayOrderCount, icon: '🛒', sub: `${stats.todayFailed} fashilmay · ${stats.todayPending} sugaya`, color: 'from-teal-400 to-teal-600', darkFooter: 'bg-teal-700', link: '/dashboard/daily-orders', permission: 'manage_orders' },
+    { label: `Dakhliga ${periodLabel}`, value: `$${stats.todaySales.toFixed(2)}`, icon: '💰', sub: `${stats.todayDelivered} dalab la diray`, color: 'from-red-500 to-red-700', darkFooter: 'bg-red-800', link: '/dashboard/transactions', deviceOnly: true, permission: 'view_sales_today' },
     { label: `Faaidada ${periodLabel}`, value: `$${stats.todayProfit.toFixed(2)}`, icon: '📈', sub: `Qarash: $${stats.todayCost.toFixed(2)}`, color: 'from-green-600 to-green-800', darkFooter: 'bg-green-900', link: '/dashboard/transactions', deviceOnly: true },
-    { label: 'Unmatched', value: unmatchedCount, icon: '⚠️', sub: `${unmatchedCount} unmatched · ${stats.todayFailed} fashilmay`, color: 'from-blue-500 to-blue-700', darkFooter: 'bg-blue-800', link: '/dashboard/unmatched', deviceOnly: true },
-    { label: 'Orders', value: stats.todayOrderCount, icon: '📦', sub: `${stats.todayDelivered} guul · ${stats.todayFailed} fashil`, color: 'from-pink-500 to-pink-700', darkFooter: 'bg-pink-800', link: '/dashboard/abdiqafar', deviceOnly: true },
-    { label: 'Devices Online', value: stats.devicesOnline, icon: '📱', color: 'from-yellow-400 to-yellow-600', darkFooter: 'bg-yellow-700', link: '/dashboard/devices', deviceOnly: true },
+    { label: 'Unmatched', value: unmatchedCount, icon: '⚠️', sub: `${unmatchedCount} unmatched · ${stats.todayFailed} fashilmay`, color: 'from-blue-500 to-blue-700', darkFooter: 'bg-blue-800', link: '/dashboard/unmatched', deviceOnly: true, permission: 'manage_orders' },
+    { label: 'Orders', value: stats.todayOrderCount, icon: '📦', sub: `${stats.todayDelivered} guul · ${stats.todayFailed} fashil`, color: 'from-pink-500 to-pink-700', darkFooter: 'bg-pink-800', link: '/dashboard/abdiqafar', deviceOnly: true, permission: 'manage_orders' },
+    { label: 'Devices Online', value: stats.devicesOnline, icon: '📱', color: 'from-yellow-400 to-yellow-600', darkFooter: 'bg-yellow-700', link: '/dashboard/devices', deviceOnly: true, permission: 'manage_devices' },
   ] as any[]).filter((c) => {
     if (!isPartner && c.partnerOnly) return false;
     if (isPartner && c.deviceOnly) return false;
+    if (c.permission && !can(c.permission)) return false;
     return true;
   });
 
@@ -457,11 +458,11 @@ const SimpleAdminDashboard = () => {
                   <div className={`${card.darkFooter} text-white text-center py-2 text-xs flex items-center justify-center gap-1 shrink-0`}><span>➡</span> More Info</div>
                 </div>
               ))}
-              <div className="rounded-lg overflow-hidden shadow-md cursor-pointer active:scale-95 transition-transform flex flex-col" onClick={() => navigate('/dashboard/blocked')}>
+              {can('manage_users') && <div className="rounded-lg overflow-hidden shadow-md cursor-pointer active:scale-95 transition-transform flex flex-col" onClick={() => navigate('/dashboard/blocked')}>
                 <div className="bg-gradient-to-br from-gray-600 to-gray-800 text-white p-4 text-center flex-1"><div className="text-3xl font-bold">🚫</div><div className="text-sm mt-1 opacity-90">Blocked Users</div></div>
                 <div className="bg-gray-900 text-white text-center py-2 text-xs flex items-center justify-center gap-1 shrink-0"><span>➡</span> More Info</div>
-              </div>
-              {!isPartner && (
+              </div>}
+              {!isPartner && can('manage_devices') && (
                 <div className="rounded-lg overflow-hidden shadow-md cursor-pointer active:scale-95 transition-transform flex flex-col" onClick={() => navigate('/dashboard/sms-logs')}>
                   <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 text-white p-4 text-center flex-1"><div className="text-3xl font-bold">💬</div><div className="text-sm mt-1 opacity-90">SMS Logs</div></div>
                   <div className="bg-indigo-950 text-white text-center py-2 text-xs flex items-center justify-center gap-1 shrink-0"><span>➡</span> More Info</div>
@@ -469,7 +470,7 @@ const SimpleAdminDashboard = () => {
               )}
             </div>
 
-            {!isPartner && (
+            {!isPartner && can('manage_devices') && (
             <div className="space-y-3">
               <div className="flex items-center gap-3"><div className="flex-1 h-px bg-gray-300 dark:bg-gray-700" /><span className="text-gray-500 dark:text-gray-400 text-sm font-medium">Devices & SIM Balances</span><div className="flex-1 h-px bg-gray-300 dark:bg-gray-700" /></div>
               {deviceCards.length === 0 && !loading && <p className="text-center text-gray-400 text-sm py-4">Wax device ah lama helin</p>}
@@ -485,7 +486,7 @@ const SimpleAdminDashboard = () => {
                         const colors = getProviderColor(sim.provider_name, sim.sim_number);
                         return (
                           <div key={si} className={`rounded-lg border ${colors.border} shadow-sm overflow-hidden`}>
-                            <div className={`${colors.bg} px-2 py-1 flex items-center justify-between`}><div className="flex items-center gap-1 min-w-0"><CachedImage src={sim.provider_logo} alt={sim.provider_name} bundledName={sim.provider_name} className="w-4 h-4 rounded-full object-contain bg-white flex-shrink-0" /><span className="font-semibold text-[10px] text-white truncate">SIM{sim.sim_slot}: {sim.provider_name}</span></div><button onClick={() => { setSelectedSimForDelivery({ device_id: device.device_id, device_name: device.device_name, sim_slot: sim.sim_slot, provider_name: sim.provider_name }); setManualDeliveryOpen(true); }} className="w-5 h-5 rounded-full bg-white/30 text-white flex items-center justify-center flex-shrink-0"><Plus className="w-3 h-3" /></button></div>
+                            <div className={`${colors.bg} px-2 py-1 flex items-center justify-between`}><div className="flex items-center gap-1 min-w-0"><CachedImage src={sim.provider_logo} alt={sim.provider_name} bundledName={sim.provider_name} className="w-4 h-4 rounded-full object-contain bg-white flex-shrink-0" /><span className="font-semibold text-[10px] text-white truncate">SIM{sim.sim_slot}: {sim.provider_name}</span></div><button disabled={!can('manual_transactions')} onClick={() => { setSelectedSimForDelivery({ device_id: device.device_id, device_name: device.device_name, sim_slot: sim.sim_slot, provider_name: sim.provider_name }); setManualDeliveryOpen(true); }} className={`w-5 h-5 rounded-full bg-white/30 text-white flex items-center justify-center flex-shrink-0 ${!can('manual_transactions') ? 'opacity-30 cursor-not-allowed' : ''}`}><Plus className="w-3 h-3" /></button></div>
                             <div className="bg-white dark:bg-gray-800 px-2 py-1.5">
                               <div className="flex items-center justify-between mb-1"><span className="text-[9px] text-gray-400">{sim.sim_number}</span>{sim.evoucher_rate > 0 && <span className="text-[8px] bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-1 py-px rounded font-bold">Rate: {(sim.evoucher_rate * 100).toFixed(1)}%</span>}</div>
                               {isHormuud ? (
@@ -529,7 +530,7 @@ const SimpleAdminDashboard = () => {
           </main>
         </div>
 
-        {selectedSimForDelivery && (
+        {can('manual_transactions') && selectedSimForDelivery && (
           <AddManualDeliveryDialog open={manualDeliveryOpen} onOpenChange={(open) => { setManualDeliveryOpen(open); if (!open) setSelectedSimForDelivery(null); }} deviceId={selectedSimForDelivery.device_id} deviceName={selectedSimForDelivery.device_name} simSlot={selectedSimForDelivery.sim_slot} providerName={selectedSimForDelivery.provider_name} onSuccess={fetchData} />
         )}
       </div>
