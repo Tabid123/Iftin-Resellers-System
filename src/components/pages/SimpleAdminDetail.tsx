@@ -10,6 +10,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { useTenantCapabilities } from '@/hooks/useTenantCapabilities';
+import { useStaffAccess } from '@/hooks/useStaffAccess';
 import { ArrowLeft, Menu, Globe, Moon, Sun, Loader2 } from 'lucide-react';
 import najaxLogo from '@/assets/najax-logo.jpeg';
 import { prefetchAdminViews } from '@/lib/prefetchAdminViews';
@@ -137,7 +138,8 @@ const SimpleAdminDetail = () => {
   const config = DETAIL_CONFIGS[type || ''] || DETAIL_CONFIGS.customers;
   const isSo = language === 'so';
   const { canSee, isPartner } = useTenantCapabilities();
-  const allowed = canSee(type);
+  const { canView, ready: accessReady } = useStaffAccess();
+  const allowed = canSee(type) && canView(type);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -158,6 +160,7 @@ const SimpleAdminDetail = () => {
   }, []);
 
   const renderView = () => {
+    if (!accessReady) return <LazyFallback />;
     if (!allowed) {
       return (
         <div className="text-center py-16 px-4">
@@ -166,8 +169,8 @@ const SimpleAdminDetail = () => {
           </p>
           <p className="text-xs text-gray-400 mt-2">
             {isSo
-              ? 'Dalabyada waxaa lagu gaarsiiyaa API — devices, SIM iyo USSD lama maamulo halkan.'
-              : 'Orders are delivered via API — devices, SIMs and USSD are not managed here.'}
+              ? 'Ma lihid oggolaansho aad ku aragto boggan. La xiriir mulkiilaha.'
+              : 'You do not have access to this page. Ask the owner to grant permission.'}
           </p>
         </div>
       );
