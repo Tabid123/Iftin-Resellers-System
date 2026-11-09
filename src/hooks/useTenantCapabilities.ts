@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
+import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 
 export type DeliveryMode = 'android_device' | 'api_partner';
 
@@ -35,11 +36,61 @@ const PARTNER_ONLY = new Set<string>([
 ]);
 
 
+
+/** One permission check for sidebar items AND directly opened detail URLs. */
+const VIEW_PERMISSION: Record<string, string> = {
+  'transactions': 'view_transactions',
+  'warbixin': 'view_transactions',
+  'sms-lacago': 'view_transactions',
+  'bank-transactions': 'view_transactions',
+  'evoucher-rates': 'view_transactions',
+  'iftin-payments': 'view_transactions',
+  'iftin-wallet': 'view_profit',
+  'daily-orders': 'manage_orders',
+  'orders': 'manage_orders',
+  'abdiqafar': 'manage_orders',
+  'all-orders': 'manage_orders',
+  'sales': 'manage_orders',
+  'pending': 'manage_orders',
+  'failed': 'manage_orders',
+  'delivered': 'manage_orders',
+  'unmatched': 'manage_orders',
+  'deliveries': 'manage_orders',
+  'customers': 'manage_users',
+  'offline-registrations': 'manage_users',
+  'blocked': 'manage_users',
+  'providers': 'manage_providers',
+  'packages': 'manage_packages',
+  'categories': 'manage_packages',
+  'featured': 'manage_packages',
+  'delivery-rules': 'manage_packages',
+  'system-codes': 'manage_packages',
+  'discovery-pricing': 'manage_packages',
+  'iftin-pricing': 'manage_packages',
+  'devices': 'manage_devices',
+  'sim-pins': 'manage_devices',
+  'sms-logs': 'manage_devices',
+  'auto-topup': 'manage_devices',
+  'bulk-sms': 'manage_bulk_sms',
+  'send-notification': 'manage_settings',
+  'payment-settings': 'manage_settings',
+  'integrations': 'manage_settings',
+  'iftin-payment-numbers': 'manage_settings',
+  'offline-payment': 'manage_settings',
+  'banners': 'manage_settings',
+  'app-settings': 'manage_settings',
+  'apps': 'manage_settings',
+  'admin-management': 'manage_admins',
+  'audit-log': 'view_audit_log',
+  'fraud-alerts': 'view_audit_log',
+};
+
 const CACHE_KEY = 'najax.tenant_delivery_mode';
 const cache = new Map<string, DeliveryMode>();
 
 export function useTenantCapabilities() {
   const { tenant } = useTenant();
+  const { can, loadingPermissions } = useAdminPermissions();
   const tenantId = tenant?.id ?? null;
   const [mode, setMode] = useState<DeliveryMode>(() => {
     if (tenantId && cache.has(tenantId)) return cache.get(tenantId)!;
@@ -70,11 +121,13 @@ export function useTenantCapabilities() {
   const isPartner = mode === 'api_partner';
   const canSee = (view?: string) => {
     if (!view) return true;
-    const key = view.replace(/^\/dashboard\/?/, '');
+    const key = view.replace(/^\/dashboard\/?/, '').split('?')[0];
     if (!key) return true;
-    if (isPartner) return !PARTNER_HIDDEN.has(key);
-    return !PARTNER_ONLY.has(key);
+    if (isPartner && PARTNER_HIDDEN.has(key)) return false;
+    if (!isPartner && PARTNER_ONLY.has(key)) return false;
+    const permission = VIEW_PERMISSION[key];
+    return permission ? can(permission) : false;
   };
 
-  return { mode, isPartner, canSee };
+  return { mode, isPartner, canSee, can, loadingPermissions };
 }
