@@ -54,7 +54,6 @@ export const useGlobalImagePreloader = () => {
       try {
         const providers = workspaceStorage.getJson<any[]>('offline_providers', [], workspaceId);
         const categories = workspaceStorage.getJson<any[]>('offline_categories', [], workspaceId);
-        const banners = workspaceStorage.getJson<any[]>('offline_banners', [], workspaceId);
         const paymentProviders = workspaceStorage.getJson<any[]>(
           'offline_payment_providers',
           [],
@@ -67,13 +66,14 @@ export const useGlobalImagePreloader = () => {
         const orderedUrls: string[] = [
           ...providers.map((p: any) => p.provider_logo).filter(Boolean),
           ...categories.map((c: any) => c.category_image).filter(Boolean),
-          ...banners.map((b: any) => b.banner_image).filter(Boolean),
           ...paymentProviders.map((pp: any) => pp.provider_logo).filter(Boolean),
           ...bundledStaticImages,
         ];
 
         const uniqueUrls = [...new Set(orderedUrls)];
-        preloadInBatches(uniqueUrls);
+        // Avoid downloading every image (especially banners) on each startup.
+        // The visible component fetches remaining artwork when needed.
+        preloadInBatches(uniqueUrls.slice(0, 24));
 
         console.log(`[ImagePreloader] Prioritized ${uniqueUrls.length} tenant images for instant storefront paint`);
       } catch (error) {
