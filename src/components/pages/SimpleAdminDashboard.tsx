@@ -128,8 +128,6 @@ const SimpleAdminDashboard = () => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const emergency = localStorage.getItem('adminEmergencySession');
-      if (emergency === 'true') return;
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { navigate('/dashboard/login'); return; }
       const [{ data: roleData }, memberships] = await Promise.all([
