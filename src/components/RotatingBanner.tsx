@@ -59,6 +59,7 @@ const RotatingBanner = () => {
   const [bannerReady, setBannerReady] = useState(Boolean(initialCachedBanner));
   const [lastGoodImage, setLastGoodImage] = useState<string | null>(initialCachedBanner);
   const [offlineImage, setOfflineImage] = useState<string | null>(null);
+  const [cacheCheckedFor, setCacheCheckedFor] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => onStorefront('banners-changed', () => setReloadKey((n) => n + 1)), []);
@@ -111,43 +112,56 @@ const RotatingBanner = () => {
     setBannerReady(false);
   }, [currentBanner, banners, lastGoodImage]);
 
+  // A URL change means the admin replaced this banner. Reuse the local blob
+  // only if both the tenant/banner identity and remote source still match.
+  const selectedBanner = banners[currentBanner];
+  const selectedIdentity = workspaceId && selectedBanner?.media_type !== 'video'
+    ? `${bannerCacheKey(workspaceId, selectedBanner)}:${selectedBanner.banner_image}`
+    : null;
+
   useEffect(() => {
     if (!banners.length) return;
     const item = banners[currentBanner];
     if (!item || item.media_type === 'video') return;
+    // Give the selected banner time to load and cache before rotating.
+    if (cacheCheckedFor !== selectedIdentity) return;
     const delay = item.rotation_interval ? item.rotation_interval * 1000 : 4000;
     const timer = window.setTimeout(
       () => setCurrentBanner((prev) => (prev + 1) % banners.length),
       delay,
     );
     return () => window.clearTimeout(timer);
-  }, [banners, currentBanner]);
-
-  useEffect(() => {
-    if (!workspaceId || typeof navigator === 'undefined' || !navigator.onLine) return;
-    for (const banner of banners) {
-      if (!banner?.banner_image || banner.media_type === 'video') continue;
-      void cacheBannerImage(bannerCacheKey(workspaceId, banner), banner.banner_image);
-    }
-  }, [workspaceId, banners]);
+  }, [banners, currentBanner, cacheCheckedFor, selectedIdentity]);
 
   useEffect(() => {
     let cancelled = false;
     let objectUrl: string | null = null;
     setOfflineImage(null);
+    setCacheCheckedFor(null);
 
     const item = banners[currentBanner];
     if (!workspaceId || !item || item.media_type === 'video') return;
+    const key = bannerCacheKey(workspaceId, item);
+    const identity = `${key}:${item.banner_image}`;
 
-    void readCachedBannerImage(bannerCacheKey(workspaceId, item)).then((url) => {
-      if (!url) return;
+    // Fetch at most once per image and display the cached blob *even online*.
+    // Previously an IndexedDB copy was downloaded in the background while
+    // <img> separately downloaded the full banner from Supabase on every load.
+    void (async () => {
+      let url = await readCachedBannerImage(key, item.banner_image);
+      if (!url && typeof navigator !== 'undefined' && navigator.onLine) {
+        await cacheBannerImage(key, item.banner_image);
+        url = await readCachedBannerImage(key, item.banner_image);
+      }
+
       if (cancelled) {
-        URL.revokeObjectURL(url);
+        if (url) URL.revokeObjectURL(url);
         return;
       }
       objectUrl = url;
       setOfflineImage(url);
-    });
+      setCacheCheckedFor(identity);
+    })();
 
     return () => {
       cancelled = true;
@@ -167,7 +181,9 @@ const RotatingBanner = () => {
   const item = banners[currentBanner];
   if (!item) return null;
   const isVideo = item.media_type === 'video';
-  const displayedBannerImage = offlineImage && isReallyOnline !== true ? offlineImage : item.banner_image;
+  const displayedBannerImage = cacheCheckedFor === selectedIdentity
+    ? (offlineImage || item.banner_image)
+    : null;
 
   return (
     <div className="w-full space-y-2">
@@ -187,7 +203,10 @@ const RotatingBanner = () => {
           />
         ) : (
           <>
-            {!bannerReady && lastGoodImage && (
+            {!displayedBannerImage && (
+              <div className="absolute inset-0 bg-muted" aria-hidden="true" />
+            )}
+            {!bannerReady && lastGoodImage && !lastGoodImage.startsWith('blob:') && (
               <img
                 src={lastGoodImage}
                 alt=""
@@ -195,11 +214,8 @@ const RotatingBanner = () => {
                 className="absolute inset-0 h-full w-full object-cover"
               />
             )}
-            {!bannerReady && !lastGoodImage && (
-              <div className="absolute inset-0 bg-muted" aria-hidden="true" />
-            )}
-            <img
-              key={`${item.banner_image}:${offlineImage ? 'cached' : 'remote'}:${isReallyOnline === false ? 'offline' : 'online'}`}
+            {displayedBannerImage && <img
+              key={`${item.banner_image}:${offlineImage ? 'cached' : 'remote'}`}
               src={displayedBannerImage}
               alt={item.alt_text || 'Promotional banner'}
               className="relative h-full w-full object-cover"
@@ -239,7 +255,7 @@ const RotatingBanner = () => {
                   window.setTimeout(() => setReloadKey((n) => n + 1), 1500);
                 }
               }}
-            />
+            />}
           </>
         )}
       </div>
