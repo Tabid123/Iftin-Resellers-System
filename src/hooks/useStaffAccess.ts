@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { mayViewStaffPage, RESTRICTED_ACCESS_MARKER } from '@/lib/staffAccessRules';
@@ -7,9 +7,10 @@ type AccessMode = 'loading' | 'full' | 'restricted' | 'denied';
 interface AccessState {
   mode: AccessMode;
   keys: ReadonlySet<string>;
+  privileged: boolean;
 }
 
-const INITIAL: AccessState = { mode: 'loading', keys: new Set<string>() };
+const INITIAL: AccessState = { mode: 'loading', keys: new Set<string>(), privileged: false };
 
 /**
  * Fetch access using the authenticated user and CURRENT tenant, not profile
@@ -24,11 +25,16 @@ export function useStaffAccess() {
   const tenantState = useTenant();
   const tenantId = tenantState.tenant?.id ?? null;
   const [access, setAccess] = useState<AccessState>(INITIAL);
+  const requestId = useRef(0);
 
   const refresh = useCallback(async () => {
+    const id = ++requestId.current;
     setAccess(INITIAL);
+    const update = (next: AccessState) => {
+      if (requestId.current === id) setAccess(next);
+    };
     if (!tenantId) {
-      setAccess({ mode: 'denied', keys: new Set() });
+      update({ mode: 'denied', keys: new Set(), privileged: false });
       return;
     }
 
@@ -50,11 +56,11 @@ export function useStaffAccess() {
       }
 
       if (membershipResult.data?.role === 'owner' || platformResult.data?.role === 'super_admin') {
-        setAccess({ mode: 'full', keys: new Set() });
+        update({ mode: 'full', keys: new Set(), privileged: true });
         return;
       }
       if (membershipResult.data?.role !== 'admin') {
-        setAccess({ mode: 'denied', keys: new Set() });
+        update({ mode: 'denied', keys: new Set(), privileged: false });
         return;
       }
 
@@ -62,10 +68,10 @@ export function useStaffAccess() {
       // Previous accounts can have no permission records, meaning Full Access.
       // New restricted staff ALWAYS receive the explicit marker row.
       const restricted = keys.has(RESTRICTED_ACCESS_MARKER) || keys.size > 0;
-      setAccess({ mode: restricted ? 'restricted' : 'full', keys });
+      update({ mode: restricted ? 'restricted' : 'full', keys, privileged: false });
     } catch {
       // Never treat an RPC/RLS/network error as Full Access.
-      setAccess({ mode: 'denied', keys: new Set() });
+      update({ mode: 'denied', keys: new Set(), privileged: false });
     }
   }, [tenantId]);
 
@@ -81,8 +87,10 @@ export function useStaffAccess() {
     [access],
   );
 
-  const canView = useCallback((view?: string) =>
-    mayViewStaffPage(view, access.mode, access.keys), [access]);
+  const canView = useCallback((view?: string) => {
+    if ((view ?? '').replace(/^\/dashboard\/?/, '') === 'admin-management' && !access.privileged) return false;
+    return mayViewStaffPage(view, access.mode, access.keys);
+  }, [access]);
 
-  return { ...access, ready: access.mode !== 'loading', isOwnerOrPlatform: access.mode === 'full', can, canView, refresh };
+  return { ...access, ready: access.mode !== 'loading', isOwnerOrPlatform: access.privileged, can, canView, refresh };
 }
