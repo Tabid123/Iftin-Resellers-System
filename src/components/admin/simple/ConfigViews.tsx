@@ -17,6 +17,7 @@ import { findPriceConflicts, parseSecretPrices, secretPricesOf } from '@/lib/sec
 import { calculateUsdProfit } from '@/lib/iftinProfit';
 import { activeWorkspaceId } from '@/lib/workspaceKeys';
 import { useTenant } from '@/contexts/TenantContext';
+import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 
 // ========== PROVIDERS ==========
 export const ProvidersCustomView = ({ isSo }: { isSo: boolean }) => {
@@ -154,6 +155,7 @@ export const ProvidersCustomView = ({ isSo }: { isSo: boolean }) => {
 
 // ========== PACKAGES ==========
 export const PackagesCustomView = ({ isSo }: { isSo: boolean }) => {
+  const { can } = useAdminPermissions();
   const [packages, setPackages] = useState<any[]>([]);
   const [providers, setProviders] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
@@ -443,7 +445,7 @@ Save anyway?`;
             { icon: Calendar, label: 'Validity', value: /^\d+$/.test(String(item.validity_days ?? '')) ? `${item.validity_days} days` : String(item.validity_days ?? '—'), color: 'text-blue-500' },
             { icon: DollarSign, label: isSo ? 'Iibka' : 'Sell Price', value: `$${Number(item.selling_price).toFixed(2)}`, color: 'text-emerald-500' },
             ...(secretPricesOf(item).length > 0 ? [{ icon: DollarSign, label: '🔒 Qiimooyin Gaar ah', value: secretPricesOf(item).map((price) => `$${price}`).join(', '), color: 'text-amber-600' }] : []),
-            { icon: DollarSign, label: isSo ? 'Kharash' : 'Cost', value: `${Number(item.cost_price || 0).toFixed(2)}`, color: 'text-red-500' },
+            ...(can('view_profit') ? [{ icon: DollarSign, label: isSo ? 'Kharash' : 'Cost', value: `${Number(item.cost_price || 0).toFixed(2)}`, color: 'text-red-500' }] : []),
             {
               icon: item.hide_cost_price ? Lock : Unlock,
               label: isSo ? 'Macaamiisha' : 'Customers',
@@ -452,7 +454,7 @@ Save anyway?`;
                 : (isSo ? 'Cost muuqda' : 'Cost visible'),
               color: item.hide_cost_price ? 'text-amber-600' : 'text-emerald-600'
             },
-            { icon: DollarSign, label: isSo ? "Faa'iido" : 'Profit', value: `${profit.toFixed(2)}`, color: 'text-green-600' },
+            ...(can('view_profit') ? [{ icon: DollarSign, label: isSo ? "Faa'iido" : 'Profit', value: `${profit.toFixed(2)}`, color: 'text-green-600' }] : []),
             ...(evRate > 0 ? [{ icon: Hash, label: 'E-Voucher', value: `${(evRate * 100).toFixed(1)}%`, color: 'text-amber-500' }] : []),
             { icon: Settings, label: 'Connection', value: item.connection_type_label || '—', color: 'text-gray-500' },
             ...(item.ussd_code ? [{ icon: Code, label: 'USSD', value: item.ussd_code, color: 'text-indigo-500' }] : []),
