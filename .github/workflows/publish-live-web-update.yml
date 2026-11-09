@@ -1,17 +1,19 @@
 name: Publish local live web update
 
+# Online tenant apps already use the live website; the bundled offline
+# package needs periodic updates, not a fresh ~9 MB ZIP after every commit.
 on:
   push:
     branches: [main]
     paths:
-      - "src/**"
-      - "public/**"
-      - "scripts/**"
-      - "vite.config.ts"
-      - "package.json"
-      - "bun.lock"
       - ".github/workflows/publish-live-web-update.yml"
+  schedule:
+    - cron: "0 3 * * 0"  # Sunday, 06:00 Mogadishu
   workflow_dispatch:
+
+concurrency:
+  group: offline-bundle-publish-main
+  cancel-in-progress: true
 
 jobs:
   publish:
@@ -25,6 +27,12 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Safely prune old OTA ZIPs before publishing
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: bun scripts/prune-live-update-storage.mjs
 
       - name: Prepare generic native bootstrap
         run: |
@@ -114,3 +122,9 @@ jobs:
           curl -fsS -X POST "$SUPABASE_URL/storage/v1/object/apks/live-updates/manifest.json"             -H "Authorization: Bearer $SERVICE_KEY"             -H "x-upsert: true"             -H "Content-Type: application/json"             --data-binary "@manifest.json"
 
           echo "Published local live update $VERSION"
+
+      - name: Prune superseded OTA ZIPs after publishing
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: bun scripts/prune-live-update-storage.mjs
