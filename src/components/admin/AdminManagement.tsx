@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Loader2, Shield, UserPlus, Trash2, Mail, User, Lock, Eye, EyeOff } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import { ADMIN_PERMISSION_KEYS, NO_ACCESS_KEY, serializeAdminPermissions } from '@/hooks/useAdminPermissions';
+import { ADMIN_PERMISSION_KEYS, NO_ACCESS_KEY, RESTRICTED_ACCESS_KEY, serializeAdminPermissions } from '@/hooks/useAdminPermissions';
 
 const PERMISSION_KEYS = ADMIN_PERMISSION_KEYS;
 
@@ -167,7 +167,7 @@ export function AdminManagement() {
     setEditingUser(admin);
     setEditPermissions(admin.permissions.length === 0
       ? PERMISSION_KEYS.map(p => p.key)
-      : admin.permissions.filter(key => key !== NO_ACCESS_KEY));
+      : admin.permissions.filter(key => key !== NO_ACCESS_KEY && key !== RESTRICTED_ACCESS_KEY));
   };
 
   const togglePermission = (key: string, list: string[], setter: (v: string[]) => void) => {
@@ -236,12 +236,12 @@ export function AdminManagement() {
                             {language === 'so' ? 'Fasax Ma Leh' : 'No Access'}
                           </Badge>
                         ) : (
-                          admin.permissions.slice(0, 3).map(p => (
+                          admin.permissions.filter(p => p !== RESTRICTED_ACCESS_KEY).slice(0, 3).map(p => (
                             <Badge key={p} variant="secondary" className="text-xs">{p.replace('manage_', '').replace('view_', '')}</Badge>
                           ))
                         )}
-                        {admin.permissions.length > 3 && (
-                          <Badge variant="outline" className="text-xs">+{admin.permissions.length - 3}</Badge>
+                        {admin.permissions.filter(p => p !== RESTRICTED_ACCESS_KEY).length > 3 && (
+                          <Badge variant="outline" className="text-xs">+{admin.permissions.filter(p => p !== RESTRICTED_ACCESS_KEY).length - 3}</Badge>
                         )}
                       </div>
                     </TableCell>
