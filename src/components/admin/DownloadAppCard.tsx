@@ -1,5 +1,6 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/contexts/TenantContext";
 import { Download, Smartphone } from "lucide-react";
@@ -49,9 +50,25 @@ export const DownloadAppCard: React.FC = () => {
   const href = isAbsolute ? rawUrl : signedUrl;
   if (!href) return null;
 
+  const handleDownload = async (event: React.MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    if (!tenant?.id) return;
+    try {
+      const { error } = await (supabase as any).rpc("record_tenant_apk_download", {
+        p_tenant_id: tenant.id,
+        p_app_id: null,
+      });
+      if (error) throw error;
+      window.open(href, "_blank", "noopener,noreferrer");
+    } catch (error: any) {
+      toast.error(error?.message || "APK download could not be recorded");
+    }
+  };
+
   return (
     <a
       href={href}
+      onClick={handleDownload}
       target="_blank"
       rel="noopener noreferrer"
       className="block rounded-lg overflow-hidden shadow-md active:scale-95 transition-transform"
