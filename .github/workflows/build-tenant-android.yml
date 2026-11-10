@@ -29,6 +29,19 @@ on:
         description: "Version code (integer, must increase per release)"
         required: false
         default: "1"
+      signing_profile:
+        description: "Signing profile for an existing Play Store app"
+        type: choice
+        required: true
+        default: default
+        options:
+          - default
+          - faanoole_play
+      publish_apk_to_supabase:
+        description: "Publish APK to tenant downloads (Play Store profile always skips this)"
+        type: boolean
+        required: true
+        default: true
 
 jobs:
   build:
@@ -147,6 +160,19 @@ jobs:
         env:
           APP_ID: ${{ inputs.app_id }}
           SPLASH_COLOR: ${{ inputs.splash_color }}
+
+      - name: Validate Faanoole Play Store update identity
+        if: ${{ inputs.signing_profile == 'faanoole_play' }}
+        run: |
+          set -euo pipefail
+          if [ "$TENANT_SLUG" != "faanoole" ] || [ "$APP_ID" != "com.faanoole.app" ]; then
+            echo "::error::Faanoole Play signing requires tenant_slug=faanoole and app_id=com.faanoole.app"
+            exit 1
+          fi
+          if ! [[ "$APP_VERSION_CODE" =~ ^[0-9]+$ ]] || [ "$APP_VERSION_CODE" -le 21 ]; then
+            echo "::error::Faanoole Play update version_code must be greater than the previous version 21"
+            exit 1
+          fi
 
       - name: Generate packaged offline tenant snapshot
         env:
@@ -406,16 +432,39 @@ jobs:
             --splashBackgroundColor "$SPLASH_COLOR" || echo "Asset generation failed; keeping the existing Android artwork."
 
       - name: Decode keystore
+        env:
+          SIGNING_PROFILE: ${{ inputs.signing_profile }}
+          DEFAULT_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          FAANOOLE_PLAY_KEYSTORE_BASE64: ${{ secrets.FAANOOLE_PLAY_KEYSTORE_BASE64 }}
+          FAANOOLE_PLAY_KEYSTORE_PASSWORD: ${{ secrets.FAANOOLE_PLAY_KEYSTORE_PASSWORD }}
+          FAANOOLE_PLAY_KEY_ALIAS: ${{ secrets.FAANOOLE_PLAY_KEY_ALIAS }}
+          FAANOOLE_PLAY_KEY_PASSWORD: ${{ secrets.FAANOOLE_PLAY_KEY_PASSWORD }}
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/iftin.keystore"
+          set -euo pipefail
+          if [ "$SIGNING_PROFILE" = "faanoole_play" ]; then
+            for var in FAANOOLE_PLAY_KEYSTORE_BASE64 FAANOOLE_PLAY_KEYSTORE_PASSWORD FAANOOLE_PLAY_KEY_ALIAS FAANOOLE_PLAY_KEY_PASSWORD; do
+              if [ -z "${!var}" ]; then
+                echo "::error::Missing required Faanoole Play signing secret: $var"
+                exit 1
+              fi
+            done
+            printf '%s' "$FAANOOLE_PLAY_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/iftin.keystore"
+          else
+            if [ -z "$DEFAULT_KEYSTORE_BASE64" ]; then
+              echo "::error::Missing default ANDROID_KEYSTORE_BASE64 secret"
+              exit 1
+            fi
+            printf '%s' "$DEFAULT_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/iftin.keystore"
+          fi
+          test -s "$RUNNER_TEMP/iftin.keystore"
           echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/iftin.keystore" >> "$GITHUB_ENV"
 
       - name: Build signed APK and AAB
         working-directory: android
         env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ inputs.signing_profile == 'faanoole_play' && secrets.FAANOOLE_PLAY_KEYSTORE_PASSWORD || secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ inputs.signing_profile == 'faanoole_play' && secrets.FAANOOLE_PLAY_KEY_ALIAS || secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ inputs.signing_profile == 'faanoole_play' && secrets.FAANOOLE_PLAY_KEY_PASSWORD || secrets.ANDROID_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
           ./gradlew assembleRelease bundleRelease --no-daemon
@@ -429,6 +478,7 @@ jobs:
             android/app/build/outputs/bundle/release/*.aab
 
       - name: Publish APK to Supabase Storage and update tenant
+        if: ${{ inputs.publish_apk_to_supabase && inputs.signing_profile != 'faanoole_play' }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
