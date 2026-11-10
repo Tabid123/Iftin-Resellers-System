@@ -277,6 +277,9 @@ class UssdAccessibilityService : AccessibilityService() {
         if (discoveryActive) startDiscoveryMenuWatcher()
         val timeSinceLastClick = System.currentTimeMillis() - lastClickTime
         if (!discoveryActive && timeSinceLastClick < DEBOUNCE_MS) {
+            if (Ussd870Flow.isActive(this) && Ussd870Flow.isSomtel101Flow(this)) {
+                kickFlowWatcher(DEBOUNCE_MS - timeSinceLastClick)
+            }
             Log.d(TAG, "⏳ Debounce: ignoring event (${timeSinceLastClick}ms since last click)")
             return
         }
