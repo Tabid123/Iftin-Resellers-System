@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Loader2, Trash2, Upload, Smartphone, Eye, EyeOff, Plus, CheckCircle2, Search, Share2 } from 'lucide-react'
+import { Loader2, Trash2, Upload, Smartphone, Eye, EyeOff, Plus, CheckCircle2, Search, Share2, Download, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 
 type AppRow = {
@@ -23,6 +23,16 @@ type AppRow = {
 }
 
 type TenantRow = { id: string; name: string }
+type DownloadEvent = {
+  id: string
+  tenant_id: string
+  platform_app_id: string | null
+  app_name: string
+  apk_version: string | null
+  file_ref: string
+  source: string
+  created_at: string
+}
 
 const db = supabase as any
 const platformStorage = supabase.storage
@@ -35,6 +45,9 @@ export default function AppsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [platformFilter, setPlatformFilter] = useState('all')
   const [showUpload, setShowUpload] = useState(false)
+  const [showDownloads, setShowDownloads] = useState(false)
+  const [downloads, setDownloads] = useState<DownloadEvent[]>([])
+  const [downloadError, setDownloadError] = useState<string | null>(null)
 
   const [name, setName] = useState('')
   const [version, setVersion] = useState('')
@@ -50,12 +63,15 @@ export default function AppsPage() {
 
   const load = async () => {
     setLoading(true)
-    const [{ data: appData }, { data: tenantData }] = await Promise.all([
+    const [{ data: appData }, { data: tenantData }, downloadsResult] = await Promise.all([
       db.from('platform_apps').select('*').order('display_order').order('created_at', { ascending: false }),
       supabase.from('tenants').select('id, name').order('name'),
+      db.from('apk_download_events').select('id, tenant_id, platform_app_id, app_name, apk_version, file_ref, source, created_at').order('created_at', { ascending: false }).limit(500),
     ])
     setApps((appData ?? []) as AppRow[])
     setTenants((tenantData ?? []) as TenantRow[])
+    setDownloads((downloadsResult.data ?? []) as DownloadEvent[])
+    setDownloadError(downloadsResult.error?.message ?? null)
     setLoading(false)
   }
 
@@ -150,6 +166,12 @@ export default function AppsPage() {
     }
     return [...map.values()]
   })()
+
+  const tenantName = (id: string) => tenants.find((tenant) => tenant.id === id)?.name ?? id.slice(0, 8)
+  const currentAndroid = groups.filter(group => group.platform === 'android')
+  const currentApkFiles = new Set(currentAndroid.map(group => group.file_url))
+  const currentDownloadEvents = downloads.filter(event => currentApkFiles.has(event.file_ref))
+  const currentDownloadTenantCount = new Set(currentDownloadEvents.map(event => event.tenant_id)).size
 
   const filteredGroups = groups.filter((group) => {
     const q = searchQuery.trim().toLowerCase()
@@ -310,15 +332,69 @@ export default function AppsPage() {
               Apps-ka reseller-yada ka maamul, daabac ama APK-ga cusub ku beddel.
             </p>
           </div>
-          <Button
-            type="button"
-            onClick={() => setShowUpload((value) => !value)}
-            className="h-9 rounded-full bg-[#0b5ed7] px-5 text-sm font-semibold text-white hover:bg-[#094fb6]"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Upload App
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" onClick={() => { setShowDownloads((value) => !value); void load() }}
+              className="h-9 rounded-full bg-white text-xs sm:text-sm">
+              <Download className="mr-2 h-4 w-4" />
+              APK Downloads ({currentDownloadTenantCount})
+            </Button>
+            <Button
+              type="button"
+              onClick={() => setShowUpload((value) => !value)}
+              className="h-9 rounded-full bg-[#0b5ed7] px-5 text-sm font-semibold text-white hover:bg-[#094fb6]"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Upload App
+            </Button>
+          </div>
         </div>
+
+        {showDownloads ? (
+          <section className="mb-7 overflow-hidden rounded-xl border border-black/10 bg-white shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/5 p-4 sm:p-5">
+              <div>
+                <h2 className="text-base font-semibold text-slate-950">APK Downloads</h2>
+                <p className="mt-1 text-xs text-slate-500">Soo-dejin la bilaabay (ma aha caddayn in APK la rakibay). Diiwaangelintu waxay bilaabatay markii feature-kan la hawlgeliyey.</p>
+              </div>
+              <Button type="button" size="sm" variant="outline" onClick={() => void load()}>
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Refresh
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 gap-3 border-b border-black/5 p-4 sm:grid-cols-3">
+              <div><div className="text-xs text-slate-500">Tenants soo dejiyey APK-ga hadda</div><div className="mt-1 text-xl font-bold">{currentDownloadTenantCount}</div></div>
+              <div><div className="text-xs text-slate-500">Gujinno APK-ga hadda</div><div className="mt-1 text-xl font-bold">{currentDownloadEvents.length}</div></div>
+              <div><div className="text-xs text-slate-500">Dhammaan gujinnada la diiwaangeliyey</div><div className="mt-1 text-xl font-bold">{downloads.length}</div></div>
+            </div>
+            {downloadError ? (
+              <p className="p-4 text-sm text-red-600">Download logs: {downloadError}</p>
+            ) : downloads.length === 0 ? (
+              <p className="p-6 text-sm text-slate-500">Weli ma jiro tenant APK-ga ka soo dejistay badhanka cusub. Downloads hore lama diiwaangelin.</p>
+            ) : (
+              <div className="max-h-[520px] overflow-auto">
+                <table className="w-full min-w-[660px] text-left text-xs sm:text-sm">
+                  <thead className="sticky top-0 bg-slate-50 text-slate-600"><tr>
+                    <th className="px-4 py-3 font-semibold">Tenant</th>
+                    <th className="px-4 py-3 font-semibold">App</th>
+                    <th className="px-4 py-3 font-semibold">Version</th>
+                    <th className="px-4 py-3 font-semibold">Status</th>
+                    <th className="px-4 py-3 font-semibold">Waqtiga</th>
+                  </tr></thead>
+                  <tbody>
+                    {downloads.map(event => (
+                      <tr key={event.id} className="border-t border-slate-100">
+                        <td className="px-4 py-3 font-medium">{tenantName(event.tenant_id)}</td>
+                        <td className="px-4 py-3">{event.app_name}</td>
+                        <td className="px-4 py-3">v{event.apk_version || '—'}</td>
+                        <td className="px-4 py-3"><span className="rounded-full bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-700">Download started</span></td>
+                        <td className="whitespace-nowrap px-4 py-3">{new Date(event.created_at).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        ) : null}
 
         {showUpload ? (
           <form
