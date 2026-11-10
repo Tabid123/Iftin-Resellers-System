@@ -408,28 +408,41 @@ jobs:
         env:
           LOGO_URL: ${{ inputs.logo_url }}
           SPLASH_COLOR: ${{ inputs.splash_color }}
+          SIGNING_PROFILE: ${{ inputs.signing_profile }}
         run: |
+          require_play_branding() {
+            if [ "$SIGNING_PROFILE" = "faanoole_play" ]; then
+              echo "::error::$1"
+              exit 1
+            fi
+          }
           if [ -z "${LOGO_URL//[[:space:]]/}" ]; then
+            require_play_branding "Faanoole Play Store release needs a public Faanoole logo_url (PNG)."
             echo "No tenant logo URL supplied; keeping the default Android artwork."
             exit 0
           fi
           case "$LOGO_URL" in
             https://*|http://*) ;;
             *)
-              echo "Logo URL must begin with https:// or http://; keeping the default Android artwork."
+              require_play_branding "Faanoole Play Store release logo_url must be an HTTPS or HTTP URL."
+              echo "Invalid logo URL; keeping the default Android artwork."
               exit 0
               ;;
           esac
           mkdir -p assets
           if ! curl --retry 3 --retry-delay 2 -fsSL "$LOGO_URL" -o assets/logo.png; then
+            require_play_branding "Faanoole logo could not be downloaded."
             echo "Tenant logo could not be downloaded; keeping the default Android artwork."
             exit 0
           fi
           cp assets/logo.png assets/icon.png
           cp assets/logo.png assets/splash.png
-          npx @capacitor/assets generate --android \
+          if ! npx @capacitor/assets generate --android \
             --iconBackgroundColor "$SPLASH_COLOR" \
-            --splashBackgroundColor "$SPLASH_COLOR" || echo "Asset generation failed; keeping the existing Android artwork."
+            --splashBackgroundColor "$SPLASH_COLOR"; then
+            require_play_branding "Faanoole icon/splash asset generation failed."
+            echo "Asset generation failed; keeping the existing Android artwork."
+          fi
 
       - name: Decode keystore
         env:
