@@ -441,7 +441,7 @@ class UssdAccessibilityService : AccessibilityService() {
                             }
                             submitFlowStep(root, step, input)
                             root.recycle()
-                        }, INPUT_SETTLE_DELAY_MS)
+                        }, if (!step.isPinField && Ussd870Flow.isSomtel101Flow(this)) 250L else INPUT_SETTLE_DELAY_MS)
                         source.recycle()
                         return
                     } else {
