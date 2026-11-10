@@ -53,14 +53,21 @@ export const DownloadAppCard: React.FC = () => {
   const handleDownload = async (event: React.MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
     if (!tenant?.id) return;
+    const popup = window.open("about:blank", "_blank");
     try {
       const { error } = await (supabase as any).rpc("record_tenant_apk_download", {
         p_tenant_id: tenant.id,
         p_app_id: null,
       });
       if (error) throw error;
-      window.open(href, "_blank", "noopener,noreferrer");
+      if (popup) {
+        popup.opener = null;
+        popup.location.replace(href);
+      } else {
+        window.location.assign(href);
+      }
     } catch (error: any) {
+      popup?.close();
       toast.error(error?.message || "APK download could not be recorded");
     }
   };
