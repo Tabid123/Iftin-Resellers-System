@@ -46,6 +46,9 @@ export function AppsView({ isSo = true }: { isSo?: boolean }) {
   }, [tenant?.id]);
 
   const download = async (app: AppRow) => {
+    // Open synchronously while the user is clicking to avoid popup blockers
+    // after signed-URL retrieval and the authenticated audit RPC.
+    const popup = window.open('about:blank', '_blank');
     try {
       setBusyId(app.id);
       let href = app.file_url;
@@ -63,8 +66,14 @@ export function AppsView({ isSo = true }: { isSo?: boolean }) {
         p_app_id: app.id,
       });
       if (trackingError) throw trackingError;
-      window.open(href, '_blank', 'noopener,noreferrer');
+      if (popup) {
+        popup.opener = null;
+        popup.location.replace(href);
+      } else {
+        window.location.assign(href);
+      }
     } catch (err: any) {
+      popup?.close();
       toast.error(err?.message || (isSo ? 'Soo dejinta way fashilantay' : 'Download failed'));
     } finally {
       setBusyId(null);
