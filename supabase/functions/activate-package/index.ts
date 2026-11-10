@@ -1279,6 +1279,16 @@ serve(async (req) => {
       
       // Determine final status with provider response heuristics
       const text = String(providerResponse || '').toLowerCase();
+      // Android's generic Phone/Telephony MMI dialog is NOT a carrier delivery receipt.
+      // Never treat "MMI complete" as delivery success merely because it contains "complete".
+      // Only a distinct carrier success SMS/response can prove that a package was sent.
+      const hasExplicitCarrierReceipt = /ku guulaysatay|ku guuleysatay|ugu shubtay|u shubtay|u wareejiso|u wareejisay|transaction id|transcation id|successfully transferred|transfer successful/i.test(text);
+      const androidMmiOnly = /\bmmi complete\b|\bconnection problem\b|\binvalid mmi\b/i.test(text) && !hasExplicitCarrierReceipt;
+      const somtelAndroidMmiNoise = String(existingQueue.provider_name || '').toLowerCase() === 'somtel' && /\bmmi complete\b|\bconnection problem\b|\binvalid mmi\b/i.test(text) && !hasExplicitCarrierReceipt;
+      if (somtelAndroidMmiNoise) {
+        console.warn('Generic Android MMI response captured — await carrier SMS; never auto-complete', { queueId, wasDispatched });
+      }
+
       const successKeywords = [
         'ugu shubtay', 'u shubtay', 'e-voucher', 'haraagaagu waa',
         'success', 'successful', 'complete', 'completed', 'approved',
@@ -1304,8 +1314,8 @@ serve(async (req) => {
         /\b(?:adeeg\w*|data|internet|xirm\w*)\b/i.test(text);
 
       const providerIndicatesFailure =
-        text.length > 0 && (providerAlreadyHasService || failureKeywords.some(k => text.includes(k)));
-      const providerIndicatesSuccess = text.length > 0 && successKeywords.some(k => text.includes(k));
+        !androidMmiOnly && text.length > 0 && (providerAlreadyHasService || failureKeywords.some(k => text.includes(k)));
+      const providerIndicatesSuccess = !androidMmiOnly && text.length > 0 && successKeywords.some(k => text.includes(k));
 
       // STALE CALLBACK GUARD:
       // Some carriers can surface a very late success dialog from the previous USSD session
@@ -1531,7 +1541,7 @@ serve(async (req) => {
       // Save provider response (prefer SMS-confirmed body when applicable)
       const effectiveProviderResponse = smsConfirmedTimeout
         ? (smsConfirmedBody || providerResponse)
-        : providerResponse;
+        : somtelAndroidMmiNoise ? null : providerResponse;
       if (effectiveProviderResponse) {
         updateData.provider_response = effectiveProviderResponse;
       }
@@ -1551,6 +1561,8 @@ serve(async (req) => {
         updateData.completed_at = new Date().toISOString();
       } else if (mismatchError) {
         updateData.error_message = mismatchError;
+      } else if (somtelAndroidMmiNoise) {
+        updateData.error_message = 'Waiting for verified Somtel carrier SMS; do not resend.';
       } else if (errorMessage) {
         updateData.error_message = errorMessage;
       }
@@ -1593,7 +1605,9 @@ serve(async (req) => {
             : (errorMessage || 'Activation failed');
         } else if (finalDeliveryStatus === 'verification_required') {
           orderUpdate.delivery_status = 'verification_required';
-          orderUpdate.delivery_notes = `USSD dispatched but provider callback ambiguous (${(errorMessage || text || 'no response').slice(0, 160)}). MANUAL VERIFICATION REQUIRED — do not auto-resend.`;
+          orderUpdate.delivery_notes = somtelAndroidMmiNoise
+            ? 'Somtel carrier response pending — waiting for verified carrier SMS; do not resend.'
+            : `USSD dispatched but provider callback ambiguous (${(errorMessage || text || 'no response').slice(0, 160)}). MANUAL VERIFICATION REQUIRED — do not auto-resend.`;
         } else if (finalDeliveryStatus === 'awaiting_sms') {
           orderUpdate.delivery_status = 'awaiting_sms';
           orderUpdate.delivery_notes = `${mismatchError} Waiting for matching SMS Logs confirmation; no auto-resend.`;
