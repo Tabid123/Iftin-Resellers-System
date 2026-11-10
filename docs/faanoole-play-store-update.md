@@ -45,14 +45,14 @@ After this workflow change is merged to `main`, open GitHub → Actions → **Bu
 | Input | Value |
 | --- | --- |
 | `tenant_slug` | `faanoole` (confirm it exists in the tenants database) |
-| `app_name` | `Faanoole` |
+| `app_name` | `Faanoole App` |
 | `app_id` | `com.faanoole.app` |
 | `version_code` | `22` (or higher than *all* version codes in Play Console) |
 | `version_name` | `1.0.16` |
 | `signing_profile` | `faanoole_play` |
 | `publish_apk_to_supabase` | `false` |
-| `logo_url` | Public square Faanoole app icon URL; verify artwork before release |
-| `splash_color` | Faanoole brand color, such as `#0F4C81` only if appropriate |
+| `logo_url` | **Required** public URL of the square Faanoole PNG app icon. The tenant database currently stores a `data:image/jpeg;base64,...` value, not a public URL. Host/export the image as PNG before building. |
+| `splash_color` | `#311838` (the tenant's current primary color in the database) |
 
 The workflow builds both signed APK and AAB. **Only upload the signed AAB** from the `faanoole-android` Actions artifact to the existing Play Console listing. It intentionally does not publish the APK to the tenant's Supabase downloads when using `faanoole_play` signing, to avoid breaking sideloaded update paths.
 
@@ -63,4 +63,4 @@ Before promotion, verify `com.faanoole.app`, the actual maximum version code, Fa
 - The repository default app id `com.iftin.agents` is **not** the Faanoole Play Store package. Always supply the Faanoole app id in the workflow.
 - The old shared `ANDROID_KEYSTORE_*` secrets are for other builds; **do not replace them** with the Faanoole upload key.
 - A Google Play **upload-key reset** is not an **app-signing-key upgrade**. Updating the upload key alone does not change the on-device app signature.
-- A build will fail if the Faanoole-specific secrets are missing, if the app ID is wrong, or if the version code is `21` or lower.
+- A build will fail if the Faanoole-specific secrets are missing, if the app ID is wrong, if the logo cannot be generated, or if the version code is `21` or lower.
