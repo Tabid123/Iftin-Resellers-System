@@ -55,6 +55,14 @@ export function AppsView({ isSo = true }: { isSo?: boolean }) {
         if (error) throw error;
         href = data.signedUrl;
       }
+      // The server verifies that the signed-in user belongs to this tenant and
+      // that the requested app is assigned to this tenant.
+      if (!tenant?.id) throw new Error('Tenant account required for APK download');
+      const { error: trackingError } = await (supabase as any).rpc('record_tenant_apk_download', {
+        p_tenant_id: tenant.id,
+        p_app_id: app.id,
+      });
+      if (trackingError) throw trackingError;
       window.open(href, '_blank', 'noopener,noreferrer');
     } catch (err: any) {
       toast.error(err?.message || (isSo ? 'Soo dejinta way fashilantay' : 'Download failed'));
