@@ -157,6 +157,7 @@ object Ussd870Flow {
     fun parseMenuItems(dialogText: String?): List<Pair<Int, String>> {
         if (dialogText.isNullOrBlank()) return emptyList()
         val normalized = dialogText.replace(Regex("""\s+\|\s+"""), "\n")
+            .replace(Regex("""[ \t]+(?=\d+\.[ \t]+(?:\$|Back\b))""", RegexOption.IGNORE_CASE), "\n")
         val lineRegex = Regex("""^\s*(\d+)\s*(?:[\.\)\-:]\s*|\s+)(.+)$""")
         val out = LinkedHashMap<Int, String>()
         for (raw in normalized.split('\n')) {
@@ -277,7 +278,7 @@ object Ussd870Flow {
                 // Canonicalize them before scoring so e.g. "Unlimited Internet 3 Saac"
                 // matches "Internet aan xadidnayn, 3 Saac" without weakening duration checks.
                 .replace(Regex("""\baan\s+xadidnayn\b"""), " unlimited ")
-                .replace(Regex("""\b(hours?|saacadood)\b"""), " saac ")
+                .replace(Regex("""\b(hours?|hrs?|saacadood)\b"""), " saac ")
                 .replace(Regex("""\s+"""), " ")
                 .trim()
         }
@@ -302,6 +303,7 @@ object Ussd870Flow {
         // Accessibility extraction sometimes joins every node with " | " instead of new lines.
         // Convert those separators back to line breaks so numbered menu rows can be parsed.
         val normalizedDialog = dialogText.replace(Regex("""\s+\|\s+"""), "\n")
+            .replace(Regex("""[ \t]+(?=\d+\.[ \t]+(?:\$|Back\b))""", RegexOption.IGNORE_CASE), "\n")
         val lines = normalizedDialog.split('\n').toMutableList()
 
         // Some Android accessibility trees split menu rows into separate nodes like:
@@ -428,6 +430,7 @@ object Ussd870Flow {
             ?.replace(',', '.')?.toDoubleOrNull() ?: return null
 
         val normalized = dialogText.replace(Regex("""\s+\|\s+"""), "\n")
+            .replace(Regex("""[ \t]+(?=\d+\.[ \t]+(?:\$|Back\b))""", RegexOption.IGNORE_CASE), "\n")
         val lineRegex = Regex("""^\s*(\d+)\s*(?:[\.\)\-:]\s*|\s+)(.+)$""")
         val matches = mutableListOf<Int>()
         for (raw in normalized.split('\n')) {
@@ -734,6 +737,12 @@ object Ussd870Flow {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val done = completedSteps(prefs)
         val lower = dialogText.lowercase()
+        if (isSomtel101Flow(context) && 2 !in done) {
+            return STEPS.firstOrNull { it.order == 2 && parseMenuItems(dialogText).isNotEmpty() }
+        }
+        if (isSomtel101Flow(context) && lower.contains("somtel services") &&
+            !isPackageMenuDialog(dialogText)
+        ) return null
 
         val pinStep = STEPS.firstOrNull { it.isPinField && it.order !in done }
         if (pinStep != null && pinStep.keywords.any { lower.contains(it.lowercase()) }) {
@@ -778,6 +787,16 @@ object Ussd870Flow {
     /** Hel qiimaha la geliyo tallaabada la helay. dialogText waa loo baahan yahay keyword resolution. */
     fun inputFor(context: Context, step: Step, dialogText: String?): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (isSomtel101Flow(context) && step.order in 2..3) {
+            val field = prefs.getString(KEY_MENU_PATH, "").orEmpty().split(',')
+                .getOrNull(step.order - 2)?.trim().orEmpty()
+            if (field.isEmpty() || field.startsWith("*101")) return ""
+            val row = field.toIntOrNull()
+            if (row != null) return field.takeIf { parseMenuItems(dialogText).any { it.first == row } }.orEmpty()
+            return resolveMenuField(field, dialogText, allowDefault = false).ifBlank {
+                if (step.order == 3) findNumberForPrice(dialogText, field)?.toString().orEmpty() else ""
+            }
+        }
         return step.getInput(prefs, dialogText)
     }
 }
