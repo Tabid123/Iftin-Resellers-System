@@ -172,6 +172,13 @@ export default function AppsPage() {
   const currentApkFiles = new Set(currentAndroid.map(group => group.file_url))
   const currentDownloadEvents = downloads.filter(event => currentApkFiles.has(event.file_ref))
   const currentDownloadTenantCount = new Set(currentDownloadEvents.map(event => event.tenant_id)).size
+  const tenantApkStatus = tenants.map(tenant => {
+    const app = apps.filter(a => a.platform === 'android' && a.is_active && (a.tenant_id === tenant.id || a.tenant_id === null))
+      .sort((a, b) => (b.apk_updated_at || b.created_at).localeCompare(a.apk_updated_at || a.created_at))[0]
+    if (!app) return null
+    const events = downloads.filter(event => event.tenant_id === tenant.id && event.file_ref === app.file_url)
+    return { tenant, app, events, latest: events[0] || null }
+  }).filter((x): x is NonNullable<typeof x> => x !== null)
 
   const filteredGroups = groups.filter((group) => {
     const q = searchQuery.trim().toLowerCase()
@@ -367,7 +374,26 @@ export default function AppsPage() {
             </div>
             {downloadError ? (
               <p className="p-4 text-sm text-red-600">Download logs: {downloadError}</p>
-            ) : downloads.length === 0 ? (
+            ) : (
+              <div className="overflow-x-auto border-b border-slate-100">
+                <h3 className="px-4 pt-4 text-sm font-semibold text-slate-900">Xaaladda APK-ga cusub ee tenant kasta</h3>
+                <table className="mt-2 w-full min-w-[610px] text-left text-xs sm:text-sm">
+                  <thead className="bg-slate-50 text-slate-600"><tr>
+                    <th className="px-4 py-3">Tenant</th><th className="px-4 py-3">APK</th><th className="px-4 py-3">Xaalad</th><th className="px-4 py-3">Gujinno</th><th className="px-4 py-3">Ugu dambeysay</th>
+                  </tr></thead>
+                  <tbody>{tenantApkStatus.map(({ tenant, app, events, latest }) => (
+                    <tr key={tenant.id} className="border-t border-slate-100">
+                      <td className="px-4 py-3 font-medium">{tenant.name}</td>
+                      <td className="px-4 py-3">v{app.version || '—'}</td>
+                      <td className="px-4 py-3"><span className={latest ? 'font-medium text-emerald-700' : 'text-amber-700'}>{latest ? 'Download clicked' : 'Weli lama diiwaangelin'}</span></td>
+                      <td className="px-4 py-3">{events.length}</td>
+                      <td className="whitespace-nowrap px-4 py-3">{latest ? new Date(latest.created_at).toLocaleString() : '—'}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            )}
+            {downloadError ? null : downloads.length === 0 ? (
               <p className="p-6 text-sm text-slate-500">Weli ma jiro tenant APK-ga ka soo dejistay badhanka cusub. Downloads hore lama diiwaangelin.</p>
             ) : (
               <div className="max-h-[520px] overflow-auto">
