@@ -683,6 +683,8 @@ object Ussd870Flow {
     }
 
     /** True marka flow-ka firfircoon uu yahay Somnet *866* (dhaqdhaqaaqiisu ka gaabis). */
+    fun isSomtel101Flow(context: Context): Boolean = currentPrefix(context) == "*101*"
+
     fun isSomnet866(context: Context): Boolean = currentPrefix(context) == "*866*"
 
     fun finish(context: Context) {
