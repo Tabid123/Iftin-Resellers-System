@@ -16,6 +16,8 @@ interface Row {
   current_period_end: string | null
   trial_ends_at: string | null
   first_year_price: number | null
+  billing_cycle: 'monthly' | 'yearly'
+  monthly_price: number | null
   renewal_yearly_price: number | null
   created_at: string
   subscription_plans?: { name: string } | null
@@ -53,7 +55,7 @@ export default function ResellersPage() {
     (async () => {
       const { data } = await supabase
         .from('tenants')
-        .select('id, slug, name, status, logo_url, current_period_end, trial_ends_at, first_year_price, renewal_yearly_price, created_at, subscription_plans(name)')
+        .select('id, slug, name, status, logo_url, current_period_end, trial_ends_at, first_year_price, renewal_yearly_price, billing_cycle, monthly_price, created_at, subscription_plans(name)')
         .order('created_at', { ascending: false })
       setRows((data ?? []) as any)
       setLoading(false)
@@ -80,7 +82,7 @@ export default function ResellersPage() {
           <div>
             <h1 className="text-[26px] font-semibold tracking-tight text-[#0c1220]">Resellers</h1>
             <p className="mt-1 text-sm text-slate-500">
-              Reseller-yada ka maamul, status-kooda, yearly pricing-kooda iyo waqtiga ay dhacayaan eeg.
+              Reseller-yada ka maamul, qorshahooda Monthly/Yearly, status-kooda iyo waqtiga ay dhacayaan eeg.
             </p>
           </div>
 
@@ -242,6 +244,8 @@ export default function ResellersPage() {
                     <div className="space-y-0.5 text-[11px]">
                       {r.status === 'trial' ? (
                         <div className="font-medium text-slate-500">3-day trial</div>
+                      ) : r.billing_cycle === 'monthly' ? (
+                        <div className="font-medium text-emerald-700">$15 / bil — Monthly</div>
                       ) : (
                         <>
                           <div className="font-medium text-slate-700">
