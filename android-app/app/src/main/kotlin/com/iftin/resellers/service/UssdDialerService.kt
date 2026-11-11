@@ -1971,9 +1971,20 @@ class UssdDialerService : Service() {
             lastOrderCompletedAt = System.currentTimeMillis()
             activeQueueId = null
             isProcessingOrder = false
-            // Do not tear down an unfinished interactive flow. Accessibility still needs the
-            // active menu path to submit a late-rendering package/PIN dialog and capture result.
-            if (Ussd870Flow.wasRecentlyFinished(this)) {
+            // On Somtel *101#, a 60-second unfinished menu previously left
+            // Ussd870Flow.isActive=true across orders. A later direct *831# job
+            // then incorrectly skipped silent USSD and fell into ACTION_CALL.
+            // Only clean up an UNFINISHED Somtel 101 session after its full
+            // wait: NEVER redial or assume the previous order succeeded.
+            if (Ussd870Flow.isActive(this) &&
+                Ussd870Flow.isSomtel101Flow(this) &&
+                !Ussd870Flow.wasRecentlyFinished(this)
+            ) {
+                android.util.Log.w("UssdDialer",
+                    "🧹 Somtel *101# timed out; closing stale menu before next order (no resend)")
+                UssdAccessibilityService.resetTimedOutSomtel101Session()
+                Ussd870Flow.deactivate(this)
+            } else if (Ussd870Flow.wasRecentlyFinished(this)) {
                 Ussd870Flow.deactivate(this)
             }
         }
