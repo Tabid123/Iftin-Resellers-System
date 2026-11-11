@@ -469,11 +469,10 @@ jobs:
           FAANOOLE_PLAY_KEYSTORE_BASE64: ${{ secrets.FAANOOLE_PLAY_KEYSTORE_BASE64 }}
           FAANOOLE_PLAY_KEYSTORE_PASSWORD: ${{ secrets.FAANOOLE_PLAY_KEYSTORE_PASSWORD }}
           FAANOOLE_PLAY_KEY_ALIAS: ${{ secrets.FAANOOLE_PLAY_KEY_ALIAS }}
-          FAANOOLE_PLAY_KEY_PASSWORD: ${{ secrets.FAANOOLE_PLAY_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           if [ "$SIGNING_PROFILE" = "faanoole_play" ]; then
-            for var in FAANOOLE_PLAY_KEYSTORE_BASE64 FAANOOLE_PLAY_KEYSTORE_PASSWORD FAANOOLE_PLAY_KEY_ALIAS FAANOOLE_PLAY_KEY_PASSWORD; do
+            for var in FAANOOLE_PLAY_KEYSTORE_BASE64 FAANOOLE_PLAY_KEYSTORE_PASSWORD FAANOOLE_PLAY_KEY_ALIAS; do
               if [ -z "${!var}" ]; then
                 echo "::error::Missing required Faanoole Play signing secret: $var"
                 exit 1
@@ -495,8 +494,19 @@ jobs:
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ inputs.signing_profile == 'faanoole_play' && secrets.FAANOOLE_PLAY_KEYSTORE_PASSWORD || secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ inputs.signing_profile == 'faanoole_play' && secrets.FAANOOLE_PLAY_KEY_ALIAS || secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ inputs.signing_profile == 'faanoole_play' && secrets.FAANOOLE_PLAY_KEY_PASSWORD || secrets.ANDROID_KEY_PASSWORD }}
+          # The user created the Faanoole upload key with Java keytool -storetype PKCS12
+          # without -keypass. Java PKCS12 uses the same password for the store and key.
+          # Do not use a separately entered, potentially mismatched key password.
+          ANDROID_KEY_PASSWORD: ${{ inputs.signing_profile == 'faanoole_play' && secrets.FAANOOLE_PLAY_KEYSTORE_PASSWORD || secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          set -euo pipefail
+          if [ "${{ inputs.signing_profile }}" = "faanoole_play" ]; then
+            if ! keytool -list -keystore "$ANDROID_KEYSTORE_PATH" -storetype PKCS12 -storepass:env ANDROID_KEYSTORE_PASSWORD -alias "$ANDROID_KEY_ALIAS" >/dev/null; then
+              echo "::error::Faanoole keystore password, key alias, or keystore file is invalid"
+              exit 1
+            fi
+            echo "Faanoole PKCS12 keystore/alias verified; using matching store/key password"
+          fi
           chmod +x gradlew
           ./gradlew assembleRelease bundleRelease --no-daemon
 
