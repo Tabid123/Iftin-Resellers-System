@@ -409,6 +409,8 @@ jobs:
           LOGO_URL: ${{ inputs.logo_url }}
           SPLASH_COLOR: ${{ inputs.splash_color }}
           SIGNING_PROFILE: ${{ inputs.signing_profile }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           set -euo pipefail
           if [ "$SIGNING_PROFILE" = "faanoole_play" ]; then
