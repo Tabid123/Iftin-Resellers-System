@@ -15,6 +15,7 @@ import { Route as HistoryRouteImport } from './routes/history'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as OfflineModeRouteImport } from './routes/offline-mode'
 import { Route as PaymentSuccessRouteImport } from './routes/payment-success'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as ProvidersRouteImport } from './routes/providers'
@@ -39,6 +40,7 @@ import { Route as TSlugHistoryRouteImport } from './routes/t.$slug.history'
 import { Route as TSlugNotificationsRouteImport } from './routes/t.$slug.notifications'
 import { Route as TSlugOfflineModeRouteImport } from './routes/t.$slug.offline-mode'
 import { Route as TSlugPaymentSuccessRouteImport } from './routes/t.$slug.payment-success'
+import { Route as TSlugPrivacyRouteImport } from './routes/t.$slug.privacy'
 import { Route as TSlugPrivacyPolicyRouteImport } from './routes/t.$slug.privacy-policy'
 import { Route as TSlugProfileRouteImport } from './routes/t.$slug.profile'
 import { Route as TSlugProvidersRouteImport } from './routes/t.$slug.providers'
@@ -77,6 +79,11 @@ const OfflineModeRoute = OfflineModeRouteImport.update({
 const PaymentSuccessRoute = PaymentSuccessRouteImport.update({
   id: '/payment-success',
   path: '/payment-success',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
@@ -200,6 +207,11 @@ const TSlugPaymentSuccessRoute = TSlugPaymentSuccessRouteImport.update({
   path: '/t/$slug/payment-success',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TSlugPrivacyRoute = TSlugPrivacyRouteImport.update({
+  id: '/t/$slug/privacy',
+  path: '/t/$slug/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TSlugPrivacyPolicyRoute = TSlugPrivacyPolicyRouteImport.update({
   id: '/t/$slug/privacy-policy',
   path: '/t/$slug/privacy-policy',
@@ -253,6 +265,7 @@ export interface FileRoutesByFullPath {
   '/notifications': typeof NotificationsRoute
   '/offline-mode': typeof OfflineModeRoute
   '/payment-success': typeof PaymentSuccessRoute
+  '/privacy': typeof PrivacyRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/profile': typeof ProfileRoute
   '/providers': typeof ProvidersRoute
@@ -275,6 +288,7 @@ export interface FileRoutesByFullPath {
   '/t/$slug/notifications': typeof TSlugNotificationsRoute
   '/t/$slug/offline-mode': typeof TSlugOfflineModeRoute
   '/t/$slug/payment-success': typeof TSlugPaymentSuccessRoute
+  '/t/$slug/privacy': typeof TSlugPrivacyRoute
   '/t/$slug/privacy-policy': typeof TSlugPrivacyPolicyRoute
   '/t/$slug/profile': typeof TSlugProfileRoute
   '/t/$slug/providers': typeof TSlugProvidersRoute
@@ -293,6 +307,7 @@ export interface FileRoutesByTo {
   '/notifications': typeof NotificationsRoute
   '/offline-mode': typeof OfflineModeRoute
   '/payment-success': typeof PaymentSuccessRoute
+  '/privacy': typeof PrivacyRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/profile': typeof ProfileRoute
   '/providers': typeof ProvidersRoute
@@ -315,6 +330,7 @@ export interface FileRoutesByTo {
   '/t/$slug/notifications': typeof TSlugNotificationsRoute
   '/t/$slug/offline-mode': typeof TSlugOfflineModeRoute
   '/t/$slug/payment-success': typeof TSlugPaymentSuccessRoute
+  '/t/$slug/privacy': typeof TSlugPrivacyRoute
   '/t/$slug/privacy-policy': typeof TSlugPrivacyPolicyRoute
   '/t/$slug/profile': typeof TSlugProfileRoute
   '/t/$slug/providers': typeof TSlugProvidersRoute
@@ -335,6 +351,7 @@ export interface FileRoutesById {
   '/notifications': typeof NotificationsRoute
   '/offline-mode': typeof OfflineModeRoute
   '/payment-success': typeof PaymentSuccessRoute
+  '/privacy': typeof PrivacyRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/profile': typeof ProfileRoute
   '/providers': typeof ProvidersRoute
@@ -357,6 +374,7 @@ export interface FileRoutesById {
   '/t/$slug/notifications': typeof TSlugNotificationsRoute
   '/t/$slug/offline-mode': typeof TSlugOfflineModeRoute
   '/t/$slug/payment-success': typeof TSlugPaymentSuccessRoute
+  '/t/$slug/privacy': typeof TSlugPrivacyRoute
   '/t/$slug/privacy-policy': typeof TSlugPrivacyPolicyRoute
   '/t/$slug/profile': typeof TSlugProfileRoute
   '/t/$slug/providers': typeof TSlugProvidersRoute
@@ -378,6 +396,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/offline-mode'
     | '/payment-success'
+    | '/privacy'
     | '/privacy-policy'
     | '/profile'
     | '/providers'
@@ -400,6 +419,7 @@ export interface FileRouteTypes {
     | '/t/$slug/notifications'
     | '/t/$slug/offline-mode'
     | '/t/$slug/payment-success'
+    | '/t/$slug/privacy'
     | '/t/$slug/privacy-policy'
     | '/t/$slug/profile'
     | '/t/$slug/providers'
@@ -418,6 +438,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/offline-mode'
     | '/payment-success'
+    | '/privacy'
     | '/privacy-policy'
     | '/profile'
     | '/providers'
@@ -440,6 +461,7 @@ export interface FileRouteTypes {
     | '/t/$slug/notifications'
     | '/t/$slug/offline-mode'
     | '/t/$slug/payment-success'
+    | '/t/$slug/privacy'
     | '/t/$slug/privacy-policy'
     | '/t/$slug/profile'
     | '/t/$slug/providers'
@@ -459,6 +481,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/offline-mode'
     | '/payment-success'
+    | '/privacy'
     | '/privacy-policy'
     | '/profile'
     | '/providers'
@@ -481,6 +504,7 @@ export interface FileRouteTypes {
     | '/t/$slug/notifications'
     | '/t/$slug/offline-mode'
     | '/t/$slug/payment-success'
+    | '/t/$slug/privacy'
     | '/t/$slug/privacy-policy'
     | '/t/$slug/profile'
     | '/t/$slug/providers'
@@ -501,6 +525,7 @@ export interface RootRouteChildren {
   NotificationsRoute: typeof NotificationsRoute
   OfflineModeRoute: typeof OfflineModeRoute
   PaymentSuccessRoute: typeof PaymentSuccessRoute
+  PrivacyRoute: typeof PrivacyRoute
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
   ProfileRoute: typeof ProfileRoute
   ProvidersRoute: typeof ProvidersRoute
@@ -518,6 +543,7 @@ export interface RootRouteChildren {
   TSlugNotificationsRoute: typeof TSlugNotificationsRoute
   TSlugOfflineModeRoute: typeof TSlugOfflineModeRoute
   TSlugPaymentSuccessRoute: typeof TSlugPaymentSuccessRoute
+  TSlugPrivacyRoute: typeof TSlugPrivacyRoute
   TSlugPrivacyPolicyRoute: typeof TSlugPrivacyPolicyRoute
   TSlugProfileRoute: typeof TSlugProfileRoute
   TSlugProvidersRoute: typeof TSlugProvidersRoute
@@ -572,6 +598,13 @@ declare module '@tanstack/react-router' {
       path: '/payment-success'
       fullPath: '/payment-success'
       preLoaderRoute: typeof PaymentSuccessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy-policy': {
@@ -742,6 +775,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TSlugPaymentSuccessRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/t/$slug/privacy': {
+      id: '/t/$slug/privacy'
+      path: '/t/$slug/privacy'
+      fullPath: '/t/$slug/privacy'
+      preLoaderRoute: typeof TSlugPrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/t/$slug/privacy-policy': {
       id: '/t/$slug/privacy-policy'
       path: '/t/$slug/privacy-policy'
@@ -835,6 +875,7 @@ const rootRouteChildren: RootRouteChildren = {
   NotificationsRoute: NotificationsRoute,
   OfflineModeRoute: OfflineModeRoute,
   PaymentSuccessRoute: PaymentSuccessRoute,
+  PrivacyRoute: PrivacyRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
   ProfileRoute: ProfileRoute,
   ProvidersRoute: ProvidersRoute,
@@ -852,6 +893,7 @@ const rootRouteChildren: RootRouteChildren = {
   TSlugNotificationsRoute: TSlugNotificationsRoute,
   TSlugOfflineModeRoute: TSlugOfflineModeRoute,
   TSlugPaymentSuccessRoute: TSlugPaymentSuccessRoute,
+  TSlugPrivacyRoute: TSlugPrivacyRoute,
   TSlugPrivacyPolicyRoute: TSlugPrivacyPolicyRoute,
   TSlugProfileRoute: TSlugProfileRoute,
   TSlugProvidersRoute: TSlugProvidersRoute,
