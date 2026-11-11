@@ -74,14 +74,19 @@ Deno.serve(async (req) => {
     if (!['monthly', 'yearly'].includes(billingCycle)) {
       return json({ error: 'Billing cycle must be monthly or yearly' }, 400)
     }
-    // A monthly commercial contract uses the dedicated $15 plan, not a
-    // legacy $20/$50/$150 feature plan selected by mistake.
-    if (billingCycle === 'monthly') {
-      const { data: plan, error: planError } = await admin.from('subscription_plans')
-        .select('id, price_monthly, is_active').eq('id', plan_id).single()
-      if (planError || !plan || !plan.is_active || Number(plan.price_monthly) !== 15) {
-        return json({ error: 'Monthly customers must use the active $15 plan' }, 400)
-      }
+    // All commercial tenants (including trial) must use the current
+    // canonical plan. Legacy Business/Enterprise plans remain archived so
+    // existing audit/payment references are never deleted.
+    const expectedPlanName = billingCycle === 'monthly' ? 'Monthly $15' : 'Yearly'
+    const { data: chosenPlan, error: planError } = await admin
+      .from('subscription_plans')
+      .select('id, name, price_monthly, is_active')
+      .eq('id', plan_id)
+      .single()
+    if (planError || !chosenPlan || !chosenPlan.is_active ||
+        chosenPlan.name !== expectedPlanName ||
+        (billingCycle === 'monthly' && Number(chosenPlan.price_monthly) !== 15)) {
+      return json({ error: 'Please select the active ' + expectedPlanName + ' plan' }, 400)
     }
     const firstYearPrice = Number(first_year_price ?? 50)
     const renewalYearlyPrice = Number(renewal_yearly_price ?? 150)
