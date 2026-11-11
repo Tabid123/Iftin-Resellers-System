@@ -640,7 +640,7 @@ export default function ResellerDetailPage() {
               <select className="h-9 rounded-md border bg-background px-3 text-sm"
                 value={tenant.plan_id ?? ''}
                 onChange={e => update({ plan_id: e.target.value })}>
-                {plans.map(p => (
+                {plans.filter(p => tenant.billing_cycle === 'monthly' ? Number(p.price_monthly) === 15 : p.name !== 'Monthly $15').map(p => (
                   <option key={p.id} value={p.id}>{p.name} — ${p.price_monthly}</option>
                 ))}
               </select>
