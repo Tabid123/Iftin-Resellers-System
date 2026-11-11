@@ -19,6 +19,7 @@ export default function ResellerNewPage() {
     name: '', slug: '', owner_email: '', owner_password: '',
     plan_id: '', primary_color: '276 100% 20%',
     is_trial: false,
+    billing_cycle: 'yearly' as 'yearly' | 'monthly',
     period_days: 365,
     first_year_price: 50,
     renewal_yearly_price: 150,
@@ -36,7 +37,8 @@ export default function ResellerNewPage() {
       .eq('is_active', true).then(({ data }) => {
         const list = data ?? []
         setPlans(list)
-        if (list[0]) setForm(f => ({ ...f, plan_id: (list[0] as any).id }))
+        const starter = list.find(p => p.name === 'Starter') ?? list.find(p => p.name !== 'Monthly $15')
+        if (starter) setForm(f => ({ ...f, plan_id: starter.id }))
       })
     supabase.from('tenants').select('id, name, slug').order('name').then(({ data }) => {
       const list = data ?? []
@@ -53,7 +55,7 @@ export default function ResellerNewPage() {
       // Slug waa subdomain kaliya (tusaale "marwan"), ma aha domain buuxa
       const slug = form.slug.toLowerCase().trim().split('.')[0].replace(/[^a-z0-9-]/g, '')
       if (slug.length < 2) throw new Error('Slug waa inuu noqdaa ugu yaraan 2 xaraf (tusaale: marwan)')
-      if (!form.is_trial) {
+      if (!form.is_trial && form.billing_cycle === 'yearly') {
         if (!Number.isFinite(form.first_year_price) || form.first_year_price < 0) {
           throw new Error('Qiimaha sanadka 1aad geli')
         }
@@ -62,6 +64,11 @@ export default function ResellerNewPage() {
         }
       }
 
+      const selectedPlan = plans.find(p => p.id === form.plan_id)
+      if (!form.is_trial && form.billing_cycle === 'monthly' &&
+          (!selectedPlan || Number(selectedPlan.price_monthly) !== 15)) {
+        throw new Error('Monthly reseller-ka waa inuu doortaa plan-ka $15')
+      }
       const { data, error } = await supabase.functions.invoke('platform-create-tenant', {
         body: { ...form, slug },
       })
@@ -166,41 +173,47 @@ export default function ResellerNewPage() {
                 <select className="w-full h-10 rounded-md border bg-background px-3"
                   value={form.plan_id}
                   onChange={e => setForm({ ...form, plan_id: e.target.value })}>
-                  {plans.map(p => (
+                  {plans.filter(p => form.billing_cycle === 'monthly' ? Number(p.price_monthly) === 15 : p.name !== 'Monthly $15').map(p => (
                     <option key={p.id} value={p.id}>
-                      {p.name}
+                      {p.name} — ${p.price_monthly}/bil (feature limits)
                     </option>
                   ))}
                 </select>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Plan-ku wuxuu xakameeyaa features-ka; qiimaha reseller-ka hoos ayaa si gaar ah looga qorayaa.
+                  {form.billing_cycle === 'monthly' ? 'Monthly $15 — hal bil adeeg ah.' : 'Plan-ku wuxuu xakameeyaa features-ka; qiimaha sannadlaha ah hoos ayaa laga qorayaa.'}
                 </p>
               </div>
 
               <div>
-                <Label>Nooca reseller-ka</Label>
+                <Label>Nooca lacag-bixinta</Label>
                 <select
                   className="w-full h-10 rounded-md border bg-background px-3"
-                  value={form.is_trial ? 'trial' : 'paid'}
+                  value={form.is_trial ? 'trial' : form.billing_cycle}
                   onChange={e => {
                     const trial = e.target.value === 'trial'
+                    const monthly = e.target.value === 'monthly'
+                    const nextPlan = plans.find(p => monthly ? Number(p.price_monthly) === 15 : p.name === 'Starter') ??
+                      plans.find(p => monthly ? Number(p.price_monthly) === 15 : p.name !== 'Monthly $15')
                     setForm({
                       ...form,
                       is_trial: trial,
-                      period_days: trial ? 3 : 365,
+                      billing_cycle: monthly ? 'monthly' : 'yearly',
+                      plan_id: nextPlan?.id ?? form.plan_id,
+                      period_days: trial ? 3 : monthly ? 30 : 365,
                     })
                   }}
                 >
-                  <option value="paid">Paid — 1 sano</option>
+                  <option value="yearly">Yearly — $50 sanadka koowaad</option>
+                  <option value="monthly">Monthly — $15 / bishii</option>
                   <option value="trial">Trial — 3 maalmood</option>
                 </select>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Paid reseller-ku hal sano ayuu furanyahay. Trial-ku waa 3 maalmood.
+                  Monthly: bil kalandar ah. Yearly: hal sano. Trial: 3 maalmood.
                 </p>
               </div>
             </div>
 
-            {!form.is_trial ? (
+            {!form.is_trial && form.billing_cycle === 'yearly' ? (
               <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-4 space-y-3">
                 <div>
                   <div className="text-sm font-semibold">Yearly Pricing</div>
@@ -238,7 +251,7 @@ export default function ResellerNewPage() {
               </div>
             ) : (
               <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                Trial reseller — 3 maalmood. Qiime Year 1 ama renewal lama qorayo ilaa paid laga dhigo.
+                {form.is_trial ? 'Trial reseller — 3 maalmood bilaash ah.' : 'Monthly reseller — $15 bishii, wuxuu dhacayaa bisha xigta. Renewal-ku waa $15.'}
               </div>
             )}
             <div className="rounded-lg border p-3 space-y-3 bg-muted/30">
