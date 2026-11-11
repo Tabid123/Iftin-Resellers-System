@@ -46,6 +46,7 @@ Deno.serve(async (req) => {
       support_phone,
       logo_url,
       is_trial = false,
+      billing_cycle = 'yearly',
       first_year_price = 50,
       renewal_yearly_price = 150,
       period_days,
@@ -69,9 +70,22 @@ Deno.serve(async (req) => {
     if (reserved.includes(slug)) return json({ error: 'slug is reserved' }, 400)
 
     const trial = is_trial === true
+    const billingCycle = trial ? 'yearly' : billing_cycle
+    if (!['monthly', 'yearly'].includes(billingCycle)) {
+      return json({ error: 'Billing cycle must be monthly or yearly' }, 400)
+    }
+    // A monthly commercial contract uses the dedicated $15 plan, not a
+    // legacy $20/$50/$150 feature plan selected by mistake.
+    if (billingCycle === 'monthly') {
+      const { data: plan, error: planError } = await admin.from('subscription_plans')
+        .select('id, price_monthly, is_active').eq('id', plan_id).single()
+      if (planError || !plan || !plan.is_active || Number(plan.price_monthly) !== 15) {
+        return json({ error: 'Monthly customers must use the active $15 plan' }, 400)
+      }
+    }
     const firstYearPrice = Number(first_year_price ?? 50)
     const renewalYearlyPrice = Number(renewal_yearly_price ?? 150)
-    if (!trial) {
+    if (!trial && billingCycle === 'yearly') {
       if (!Number.isFinite(firstYearPrice) || firstYearPrice < 0) {
         return json({ error: 'Qiimaha sanadka 1aad waa inuu noqdaa tiro sax ah' }, 400)
       }
@@ -84,6 +98,13 @@ Deno.serve(async (req) => {
     const periodEndDate = new Date(createdAt)
     if (trial) {
       periodEndDate.setDate(periodEndDate.getDate() + 3)
+    } else if (billingCycle === 'monthly') {
+      // Calendar-month anniversary; avoid overflow (Jan 31 -> Feb 28).
+      const day = periodEndDate.getUTCDate()
+      periodEndDate.setUTCDate(1)
+      periodEndDate.setUTCMonth(periodEndDate.getUTCMonth() + 1)
+      const lastDay = new Date(Date.UTC(periodEndDate.getUTCFullYear(), periodEndDate.getUTCMonth() + 1, 0)).getUTCDate()
+      periodEndDate.setUTCDate(Math.min(day, lastDay))
     } else {
       periodEndDate.setFullYear(periodEndDate.getFullYear() + 1)
     }
@@ -99,9 +120,11 @@ Deno.serve(async (req) => {
         support_phone: support_phone ? String(support_phone).replace(/\D/g, '').slice(-9) : null,
         logo_url: logo_url ?? null,
         plan_id: plan_id ?? null,
+        billing_cycle: billingCycle,
+        monthly_price: billingCycle === 'monthly' ? 15 : null,
         status: trial ? 'trial' : 'active',
-        first_year_price: trial ? null : firstYearPrice,
-        renewal_yearly_price: trial ? null : renewalYearlyPrice,
+        first_year_price: trial || billingCycle === 'monthly' ? null : firstYearPrice,
+        renewal_yearly_price: trial || billingCycle === 'monthly' ? null : renewalYearlyPrice,
         trial_ends_at: trial ? periodEnd : null,
         delivery_mode: delivery_mode === 'api_partner' ? 'api_partner' : 'android_device',
         delivery_tenant_id: delivery_mode === 'api_partner' ? (delivery_tenant_id ?? null) : null,
@@ -135,19 +158,18 @@ Deno.serve(async (req) => {
     })
     if (mErr) return json({ error: mErr.message }, 500)
 
-    // 4) initial subscription record uses the reseller's real yearly commercial
-    // price, not the legacy plan price_monthly field.
+    // 4) Match the commercial billing term, independent of feature limits.
     if (plan_id) {
       await admin.from('tenant_subscriptions').insert({
         tenant_id: tenant.id,
         plan_id,
         period_start: new Date().toISOString(),
         period_end: trial ? periodEnd : tenant.current_period_end,
-        amount: trial ? 0 : firstYearPrice,
-        payment_method: trial ? 'trial' : 'initial_yearly',
+        amount: trial ? 0 : billingCycle === 'monthly' ? 15 : firstYearPrice,
+        payment_method: trial ? 'trial' : billingCycle === 'monthly' ? 'initial_monthly' : 'initial_yearly',
         paid_at: trial ? null : new Date().toISOString(),
         recorded_by: claims.claims.sub,
-        notes: trial ? '3-day trial' : 'Year 1 reseller subscription',
+        notes: trial ? '3-day trial' : billingCycle === 'monthly' ? 'Monthly reseller subscription - $15' : 'Year 1 reseller subscription',
       })
     }
 
