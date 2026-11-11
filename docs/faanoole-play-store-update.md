@@ -51,10 +51,10 @@ After this workflow change is merged to `main`, open GitHub → Actions → **Bu
 | `version_name` | `1.0.16` |
 | `signing_profile` | `faanoole_play` |
 | `publish_apk_to_supabase` | `false` |
-| `logo_url` | **Required** public URL of the square Faanoole PNG app icon. The tenant database currently stores a `data:image/jpeg;base64,...` value, not a public URL. Host/export the image as PNG before building. |
+| `logo_url` | **Leave blank.** Faanoole Play builds fetch the exact verified tenant logo from Supabase, validate its SHA-256, and convert it into 1024 × 1024 PNG automatically. |
 | `splash_color` | `#311838` (the tenant's current primary color in the database) |
 
-The workflow builds both signed APK and AAB. **Only upload the signed AAB** from the `faanoole-android` Actions artifact to the existing Play Console listing. It intentionally does not publish the APK to the tenant's Supabase downloads when using `faanoole_play` signing, to avoid breaking sideloaded update paths.
+The Faanoole Play logo is sourced from the existing tenant database (verified against the original Faanoole logo), so no public logo host or URL is required. If the tenant logo changes, the build intentionally fails until the new artwork is reviewed. The workflow builds both signed APK and AAB. **Only upload the signed AAB** from the `faanoole-android` Actions artifact to the existing Play Console listing. It intentionally does not publish the APK to the tenant's Supabase downloads when using `faanoole_play` signing, to avoid breaking sideloaded update paths.
 
 Before promotion, verify `com.faanoole.app`, the actual maximum version code, Faanoole branding, offline startup, tenant isolation, push notifications, payments and core ordering in an internal-test release. Verify all required store declarations and policy compliance for the rewritten app. Production release must be an explicit separate action.
 
