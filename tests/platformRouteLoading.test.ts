@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { loadRouteChunk } from '@tanstack/router-core';
+import { createRootRoute, createRouter } from '@tanstack/react-router';
 
 vi.mock('../src/lib/lazyPages', () => ({
   lazyPage: () => () => null,
@@ -21,6 +21,7 @@ describe('platform route component loading', () => {
     const { Route } = await load();
     expect(Route.options.codeSplitGroupings).toEqual([]);
     expect(typeof Route.options.component).toBe('function');
-    await expect(Promise.resolve(loadRouteChunk(Route))).resolves.toBeUndefined();
+    const router = createRouter({ routeTree: createRootRoute() });
+    await expect(Promise.resolve(router.loadRouteChunk(Route))).resolves.toBeUndefined();
   });
 });
