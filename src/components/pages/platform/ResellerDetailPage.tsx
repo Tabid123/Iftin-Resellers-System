@@ -496,7 +496,7 @@ export default function ResellerDetailPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Qiimahan reseller-kan ayuu gaar u yahay. Plan-ka legacy-ga ah ee monthly laguma xisaabinayo lacagta reseller-ka.
+            Qiimahan sannadlaha ah reseller-kan ayuu gaar u yahay.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
@@ -637,13 +637,9 @@ export default function ResellerDetailPage() {
                 Impersonate
               </Button>
               <div className="flex-1" />
-              <select className="h-9 rounded-md border bg-background px-3 text-sm"
-                value={tenant.plan_id ?? ''}
-                onChange={e => update({ plan_id: e.target.value })}>
-                {plans.filter(p => tenant.billing_cycle === 'monthly' ? Number(p.price_monthly) === 15 : p.name !== 'Monthly $15').map(p => (
-                  <option key={p.id} value={p.id}>{p.name} — ${p.price_monthly}</option>
-                ))}
-              </select>
+              <div className="rounded-md border bg-slate-50 px-3 py-2 text-sm font-medium">
+                {tenant.billing_cycle === 'monthly' ? 'Monthly — $15 / bishii' : 'Yearly — heshiiska sannadlaha'}
+              </div>
             </div>
 
             {newCreds && (
