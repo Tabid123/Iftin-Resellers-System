@@ -4,6 +4,7 @@ const Page = lazyPage("PlatformDashboard");
 
 
 export const Route = createFileRoute("/admin/")({
+  codeSplitGroupings: [],
   head: () => ({
     meta: [
       { title: "Platform Console — Iftin Agents" },

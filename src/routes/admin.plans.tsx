@@ -4,6 +4,7 @@ const Page = lazyPage("PlansPage");
 
 
 export const Route = createFileRoute("/admin/plans")({
+  codeSplitGroupings: [],
   head: () => ({
     meta: [
       { title: "Plans — Platform Console" },

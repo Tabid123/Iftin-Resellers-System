@@ -15,6 +15,9 @@
 
 # Current work
 
+- [x] Remove the second component-chunk loading boundary from platform admin route shells; seven loading tests pass and public login entry opens without runtime errors.
+- [ ] Verify reseller details with an authenticated super-admin session; external unmanaged authentication is unavailable to browser tooling.
+
 - [ ] Handle existing owner emails as a safe conflict during tenant creation and verify the deployed response.
 
 - [x] Restore returning tenant website visitors from their saved verified phone after the page hydrates; keep offline registration step when incomplete.
