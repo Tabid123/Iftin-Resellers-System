@@ -32,13 +32,9 @@ export default function PlansPage() {
                 <Input type="number" defaultValue={p.price_monthly}
                   onBlur={e => +e.target.value !== p.price_monthly && save(p.id, { price_monthly: +e.target.value })} />
               </div>
-              <div><label className="text-xs text-muted-foreground">Max devices</label>
-                <Input type="number" defaultValue={p.max_devices}
-                  onBlur={e => +e.target.value !== p.max_devices && save(p.id, { max_devices: +e.target.value })} />
-              </div>
-              <div><label className="text-xs text-muted-foreground">Max orders/mo</label>
-                <Input type="number" defaultValue={p.max_orders_monthly}
-                  onBlur={e => +e.target.value !== p.max_orders_monthly && save(p.id, { max_orders_monthly: +e.target.value })} />
+              <div className="grid grid-cols-2 gap-3 rounded-lg border bg-slate-50 p-3 text-xs">
+                <div><span className="block text-muted-foreground">Qalabka</span><span className="font-semibold">Xad ma leh</span></div>
+                <div><span className="block text-muted-foreground">Dalabyada bishii</span><span className="font-semibold">Xad ma leh</span></div>
               </div>
               <div><label className="text-xs text-muted-foreground">Max admins</label>
                 <Input type="number" defaultValue={p.max_admins}
