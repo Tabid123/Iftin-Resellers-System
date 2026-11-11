@@ -38,34 +38,57 @@ Deno.serve(async (req) => {
     }
 
     const { data: tenant } = await admin
-      .from('tenants').select('current_period_end, plan_id').eq('id', tenant_id).single()
+      .from('tenants').select('current_period_end, plan_id, billing_cycle, monthly_price').eq('id', tenant_id).single()
     if (!tenant) return json({ error: 'tenant not found' }, 404)
 
     const start = new Date()
-    const baseline = tenant.current_period_end
-      ? new Date(tenant.current_period_end)
-      : start
+    const billingCycle = tenant.billing_cycle === 'monthly' ? 'monthly' : 'yearly'
+    const requestedAmount = Number(amount)
+    if (!Number.isFinite(requestedAmount) || requestedAmount < 0) {
+      return json({ error: 'Invalid payment amount' }, 400)
+    }
+    if (billingCycle === 'monthly' && requestedAmount !== Number(tenant.monthly_price ?? 15)) {
+      return json({ error: 'Monthly renewal amount must be $15' }, 400)
+    }
+    const days = Number(period_days)
+    if (billingCycle !== 'monthly' && (!Number.isInteger(days) || days < 1 || days > 3660)) {
+      return json({ error: 'Invalid period days' }, 400)
+    }
+    const baseline = tenant.current_period_end ? new Date(tenant.current_period_end) : start
     const from = baseline > start ? baseline : start
-    const period_end = new Date(from.getTime() + period_days * 86400000)
+    const period_end = new Date(from)
+    if (billingCycle === 'monthly') {
+      // Billing anniversaries use calendar months, never a fixed 30 days.
+      const day = period_end.getUTCDate()
+      period_end.setUTCDate(1)
+      period_end.setUTCMonth(period_end.getUTCMonth() + 1)
+      const lastDay = new Date(Date.UTC(period_end.getUTCFullYear(), period_end.getUTCMonth() + 1, 0)).getUTCDate()
+      period_end.setUTCDate(Math.min(day, lastDay))
+    } else {
+      period_end.setUTCDate(period_end.getUTCDate() + days)
+    }
 
-    await admin.from('tenant_subscriptions').insert({
+    const { error: subscriptionError } = await admin.from('tenant_subscriptions').insert({
       tenant_id,
       plan_id: tenant.plan_id,
-      period_start: start.toISOString(),
+      period_start: from.toISOString(),
       period_end: period_end.toISOString(),
       amount,
       payment_method: payment_method ?? 'manual',
       paid_at: start.toISOString(),
       recorded_by: claims.claims.sub,
-      notes: notes ?? null,
+      notes: billingCycle === 'monthly' ? [notes, 'Monthly renewal - $15'].filter(Boolean).join(' | ') : (notes ?? null),
     })
 
-    await admin
+    if (subscriptionError) return json({ error: subscriptionError.message }, 500)
+
+    const { error: updateError } = await admin
       .from('tenants')
       .update({ current_period_end: period_end.toISOString(), status: 'active' })
       .eq('id', tenant_id)
+    if (updateError) return json({ error: updateError.message }, 500)
 
-    return json({ ok: true, period_end: period_end.toISOString() })
+    return json({ ok: true, period_end: period_end.toISOString(), billing_cycle: billingCycle })
   } catch (e) {
     return json({ error: (e as Error).message }, 500)
   }
