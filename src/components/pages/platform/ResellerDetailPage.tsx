@@ -256,6 +256,7 @@ export default function ResellerDetailPage() {
       setTrialEnds(toDateInput((t as any).trial_ends_at))
       setFirstYearPrice((t as any).first_year_price != null ? String((t as any).first_year_price) : '50')
       setRenewalYearlyPrice((t as any).renewal_yearly_price != null ? String((t as any).renewal_yearly_price) : '')
+      setPayForm(f => ({ ...f, amount: t.billing_cycle === 'monthly' ? Number(t.monthly_price ?? 15) : f.amount, period_days: t.billing_cycle === 'monthly' ? 30 : 365 }))
     }
   }
   useEffect(() => { load() }, [id])
@@ -346,7 +347,7 @@ export default function ResellerDetailPage() {
       })
       if (error || (data as any)?.error) throw new Error((data as any)?.error ?? error?.message)
       toast({ title: '✅ Lacag waa la qoray' })
-      setPayForm({ amount: 0, payment_method: 'EVC', period_days: 365, notes: '' })
+      setPayForm({ amount: tenant?.billing_cycle === 'monthly' ? Number(tenant.monthly_price ?? 15) : 0, payment_method: 'EVC', period_days: tenant?.billing_cycle === 'monthly' ? 30 : 365, notes: '' })
       load()
     } catch (e: any) {
       toast({ title: 'Khalad', description: e.message, variant: 'destructive' })
@@ -489,7 +490,7 @@ export default function ResellerDetailPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      {tenant.billing_cycle !== "monthly" ? <Card>
         <CardHeader>
           <CardTitle className="text-base">Yearly Pricing</CardTitle>
         </CardHeader>
@@ -529,7 +530,10 @@ export default function ResellerDetailPage() {
             Keydi yearly pricing
           </Button>
         </CardContent>
-      </Card>
+      </Card> : <Card>
+        <CardHeader><CardTitle className="text-base">Monthly — $15/bishii</CardTitle></CardHeader>
+        <CardContent><p className="text-sm text-muted-foreground">Hal bil kalandar ah ayaa la siinayaa reseller-ka. Renewal kasta waa $15, waxaana maamulaha uu diiwaangeliyaa lacag-bixinta.</p></CardContent>
+      </Card>}
 
 
 
@@ -671,6 +675,7 @@ export default function ResellerDetailPage() {
               <div>
                 <Label>Amount ($)</Label>
                 <Input type="number" required min={0} step="0.01"
+                  readOnly={tenant.billing_cycle === "monthly"}
                   value={payForm.amount}
                   onChange={e => setPayForm({ ...payForm, amount: +e.target.value })} />
               </div>
@@ -680,8 +685,8 @@ export default function ResellerDetailPage() {
                   onChange={e => setPayForm({ ...payForm, payment_method: e.target.value })} />
               </div>
               <div>
-                <Label>Period (maalmood)</Label>
-                <Input type="number" min={1} value={payForm.period_days}
+                <Label>{tenant.billing_cycle === "monthly" ? "1 bil kalandar (30 maalmood la isticmaalayo kaliya bandhigga)" : "Period (maalmood)"}</Label>
+                <Input type="number" min={1} readOnly={tenant.billing_cycle === "monthly"} value={payForm.period_days}
                   onChange={e => setPayForm({ ...payForm, period_days: +e.target.value })} />
               </div>
               <div>
@@ -749,8 +754,8 @@ export default function ResellerDetailPage() {
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Keydi taariikhaha
             </Button>
-            <Button size="sm" variant="outline" onClick={() => extendDays(30)} disabled={saving}>+30 maalmood</Button>
-            <Button size="sm" variant="outline" onClick={() => extendDays(7)} disabled={saving}>+7 maalmood</Button>
+            {tenant.billing_cycle !== "monthly" && <Button size="sm" variant="outline" onClick={() => extendDays(30)} disabled={saving}>+30 maalmood</Button>}
+            {tenant.billing_cycle !== "monthly" && <Button size="sm" variant="outline" onClick={() => extendDays(7)} disabled={saving}>+7 maalmood</Button>}
             <Button size="sm" variant="secondary" onClick={giveTrial3} disabled={saving}>
               Sii 3 maalmood trial
             </Button>
