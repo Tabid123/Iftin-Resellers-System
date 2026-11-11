@@ -28,7 +28,7 @@ On **Settings → Secrets and variables → Actions**, create these repository s
 | `FAANOOLE_PLAY_KEYSTORE_BASE64` | Base64 encoding of the **new** `.jks` file |
 | `FAANOOLE_PLAY_KEYSTORE_PASSWORD` | The new keystore password |
 | `FAANOOLE_PLAY_KEY_ALIAS` | `faanoole-upload` |
-| `FAANOOLE_PLAY_KEY_PASSWORD` | The new key password |
+| `FAANOOLE_PLAY_KEY_PASSWORD` | Legacy/optional: no longer used by the Faanoole Play signing profile; PKCS12 signing uses the keystore password for the private key |
 
 On Windows PowerShell, use this to copy the Base64 data for the first secret, using your actual keystore path:
 
@@ -36,7 +36,7 @@ On Windows PowerShell, use this to copy the Base64 data for the first secret, us
 [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\faanoole-upload.jks")) | Set-Clipboard
 ```
 
-Avoid screenshots or sharing the private key and passwords. Existing general Android signing secrets remain untouched.
+Avoid screenshots or sharing the private key and passwords. Existing general Android signing secrets remain untouched. **Important:** the Faanoole upload keystore was generated with `-storetype PKCS12` without a separate `-keypass`; the workflow therefore uses `FAANOOLE_PLAY_KEYSTORE_PASSWORD` for both keystore and key decryption. A mismatched `FAANOOLE_PLAY_KEY_PASSWORD` value will be ignored, preventing the `Get Key failed: Given final block not properly padded` signing error.
 
 ## 4. Build the **Faanoole** release AAB
 
