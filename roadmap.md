@@ -15,6 +15,8 @@
 
 # Current work
 
+- [ ] Fix the reseller detail component-loading crash and verify all platform admin route shells.
+
 - [ ] Handle existing owner emails as a safe conflict during tenant creation and verify the deployed response.
 
 - [x] Restore returning tenant website visitors from their saved verified phone after the page hydrates; keep offline registration step when incomplete.

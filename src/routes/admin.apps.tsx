@@ -3,6 +3,7 @@ import { PageSuspense, lazyPage } from "@/lib/lazyPages";
 const Page = lazyPage("AppsPage");
 
 export const Route = createFileRoute("/admin/apps")({
+  codeSplitGroupings: [],
   head: () => ({
     meta: [
       { title: "Apps — Platform Console" },

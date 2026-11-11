@@ -11,6 +11,8 @@
 
 ## Project architecture
 
+- Platform admin route shells disable automatic route splitting because their pages already use React.lazy; this avoids a second component-chunk loading boundary.
+
 - Tenant creation rejects duplicate owner emails before inserting a tenant and never reuses or changes existing Auth accounts; rollback deletes only the newly created owner.
 
 - Tenant APKs load the packaged app offline, then switch to `https://iftinagents.com/t/<slug>` online so published web UI changes reach installed apps.

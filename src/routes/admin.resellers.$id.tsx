@@ -4,6 +4,7 @@ const Page = lazyPage("ResellerDetailPage");
 
 
 export const Route = createFileRoute("/admin/resellers/$id")({
+  codeSplitGroupings: [],
   head: () => ({
     meta: [
       { title: "Reseller Details — Platform Console" },
