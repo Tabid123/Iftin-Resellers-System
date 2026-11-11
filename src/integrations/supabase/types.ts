@@ -62,6 +62,7 @@ export type Database = {
           is_charging: boolean | null
           is_primary_hormuud_sim: boolean
           last_ping_at: string | null
+          physical_device_id: string | null
           provider_name: string
           sim_number: string
           sim1_enabled: boolean
@@ -90,6 +91,7 @@ export type Database = {
           is_charging?: boolean | null
           is_primary_hormuud_sim?: boolean
           last_ping_at?: string | null
+          physical_device_id?: string | null
           provider_name: string
           sim_number: string
           sim1_enabled?: boolean
@@ -118,6 +120,7 @@ export type Database = {
           is_charging?: boolean | null
           is_primary_hormuud_sim?: boolean
           last_ping_at?: string | null
+          physical_device_id?: string | null
           provider_name?: string
           sim_number?: string
           sim1_enabled?: boolean
@@ -134,6 +137,57 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "android_devices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      apk_download_events: {
+        Row: {
+          apk_version: string | null
+          app_name: string
+          created_at: string
+          file_ref: string
+          id: string
+          platform_app_id: string | null
+          requested_by: string
+          source: string
+          tenant_id: string
+        }
+        Insert: {
+          apk_version?: string | null
+          app_name: string
+          created_at?: string
+          file_ref: string
+          id?: string
+          platform_app_id?: string | null
+          requested_by: string
+          source: string
+          tenant_id: string
+        }
+        Update: {
+          apk_version?: string | null
+          app_name?: string
+          created_at?: string
+          file_ref?: string
+          id?: string
+          platform_app_id?: string | null
+          requested_by?: string
+          source?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "apk_download_events_platform_app_id_fkey"
+            columns: ["platform_app_id"]
+            isOneToOne: false
+            referencedRelation: "platform_apps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "apk_download_events_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -1090,6 +1144,7 @@ export type Database = {
           last_attempt_at: string | null
           order_id: string
           package_code: string | null
+          processing_started_at: string | null
           provider_name: string
           provider_response: string | null
           receiver_phone: string
@@ -1114,6 +1169,7 @@ export type Database = {
           last_attempt_at?: string | null
           order_id: string
           package_code?: string | null
+          processing_started_at?: string | null
           provider_name: string
           provider_response?: string | null
           receiver_phone: string
@@ -1138,6 +1194,7 @@ export type Database = {
           last_attempt_at?: string | null
           order_id?: string
           package_code?: string | null
+          processing_started_at?: string | null
           provider_name?: string
           provider_response?: string | null
           receiver_phone?: string
@@ -2399,8 +2456,8 @@ export type Database = {
           id: string
           is_active: boolean
           max_admins: number
-          max_devices: number
-          max_orders_monthly: number
+          max_devices: number | null
+          max_orders_monthly: number | null
           name: string
           price_monthly: number
           updated_at: string
@@ -2412,8 +2469,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           max_admins?: number
-          max_devices?: number
-          max_orders_monthly?: number
+          max_devices?: number | null
+          max_orders_monthly?: number | null
           name: string
           price_monthly?: number
           updated_at?: string
@@ -2425,8 +2482,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           max_admins?: number
-          max_devices?: number
-          max_orders_monthly?: number
+          max_devices?: number | null
+          max_orders_monthly?: number | null
           name?: string
           price_monthly?: number
           updated_at?: string
@@ -2500,6 +2557,32 @@ export type Database = {
           },
         ]
       }
+      tenant_slug_aliases: {
+        Row: {
+          alias: string
+          created_at: string
+          tenant_id: string
+        }
+        Insert: {
+          alias: string
+          created_at?: string
+          tenant_id: string
+        }
+        Update: {
+          alias?: string
+          created_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_slug_aliases_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_subscriptions: {
         Row: {
           amount: number
@@ -2564,6 +2647,7 @@ export type Database = {
           apk_url: string | null
           apk_version: string | null
           balance_due: number
+          billing_cycle: string
           created_at: string
           credit_limit: number
           current_period_end: string | null
@@ -2571,14 +2655,17 @@ export type Database = {
           delivery_mode: string
           delivery_tenant_id: string | null
           demo_reset_at: string | null
+          first_year_price: number | null
           id: string
           is_demo: boolean
           logo_url: string | null
+          monthly_price: number | null
           name: string
           notes: string | null
           owner_user_id: string | null
           plan_id: string | null
           primary_color: string | null
+          renewal_yearly_price: number | null
           slug: string
           status: string
           support_phone: string | null
@@ -2593,6 +2680,7 @@ export type Database = {
           apk_url?: string | null
           apk_version?: string | null
           balance_due?: number
+          billing_cycle?: string
           created_at?: string
           credit_limit?: number
           current_period_end?: string | null
@@ -2600,14 +2688,17 @@ export type Database = {
           delivery_mode?: string
           delivery_tenant_id?: string | null
           demo_reset_at?: string | null
+          first_year_price?: number | null
           id?: string
           is_demo?: boolean
           logo_url?: string | null
+          monthly_price?: number | null
           name: string
           notes?: string | null
           owner_user_id?: string | null
           plan_id?: string | null
           primary_color?: string | null
+          renewal_yearly_price?: number | null
           slug: string
           status?: string
           support_phone?: string | null
@@ -2622,6 +2713,7 @@ export type Database = {
           apk_url?: string | null
           apk_version?: string | null
           balance_due?: number
+          billing_cycle?: string
           created_at?: string
           credit_limit?: number
           current_period_end?: string | null
@@ -2629,14 +2721,17 @@ export type Database = {
           delivery_mode?: string
           delivery_tenant_id?: string | null
           demo_reset_at?: string | null
+          first_year_price?: number | null
           id?: string
           is_demo?: boolean
           logo_url?: string | null
+          monthly_price?: number | null
           name?: string
           notes?: string | null
           owner_user_id?: string | null
           plan_id?: string | null
           primary_color?: string | null
+          renewal_yearly_price?: number | null
           slug?: string
           status?: string
           support_phone?: string | null
@@ -2986,6 +3081,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      activate_reseller_device: {
+        Args: {
+          p_device_id: string
+          p_device_name?: string
+          p_provider_name?: string
+          p_sim_number?: string
+          p_sim1_provider?: string
+          p_sim2_number?: string
+          p_sim2_provider?: string
+          p_tenant_id: string
+        }
+        Returns: string
+      }
       adjust_tenant_balance: {
         Args: { _delta: number; _tenant_id: string }
         Returns: number
@@ -3076,6 +3184,10 @@ export type Database = {
             }
             Returns: Json
           }
+      expire_delivery_processing: {
+        Args: { p_tenant_id: string }
+        Returns: Json
+      }
       flag_unserved_deliveries: { Args: never; Returns: number }
       get_active_categories: {
         Args: { p_provider_id?: string }
@@ -3275,6 +3387,16 @@ export type Database = {
         Args: { p_end?: string; p_start: string }
         Returns: Json
       }
+      get_staff_orders: {
+        Args: {
+          p_end?: string
+          p_page?: number
+          p_page_size?: number
+          p_start?: string
+          p_status?: string
+        }
+        Returns: Json
+      }
       get_tenant_app_settings: {
         Args: never
         Returns: {
@@ -3395,10 +3517,18 @@ export type Database = {
         Args: { p_name: string }
         Returns: boolean
       }
+      is_provider_delivery_failure: {
+        Args: { p_response: string }
+        Returns: boolean
+      }
       is_super_admin: { Args: never; Returns: boolean }
       mark_delivery_dispatched: {
         Args: { p_device_id: string; p_queue_id: string }
         Returns: boolean
+      }
+      record_tenant_apk_download: {
+        Args: { p_app_id?: string; p_tenant_id: string }
+        Returns: string
       }
       release_discovery_session:
         | { Args: { p_id: string }; Returns: Json }
