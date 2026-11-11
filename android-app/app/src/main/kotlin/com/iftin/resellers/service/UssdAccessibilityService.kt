@@ -118,15 +118,6 @@ class UssdAccessibilityService : AccessibilityService() {
             instance?.closeCurrentUssdSession()
         }
 
-        /**
-         * Stop a timed-out Somtel *101# menu before the next USSD job.
-         * This is only called after the dialer has already waited for the full
-         * interactive timeout; it must never resend the carrier request.
-         */
-        fun resetTimedOutSomtel101Session() {
-            instance?.resetTimedOutSomtel101SessionInternal()
-        }
-
         @Volatile
         var heldMenuLive: String? = null
             private set
@@ -189,36 +180,6 @@ class UssdAccessibilityService : AccessibilityService() {
                 Log.d(TAG, "🧹 Safe pre-dial cleanup result: back=$closed")
             } catch (e: Exception) {
                 Log.w(TAG, "⚠️ Safe pre-dial cleanup failed: ${e.message}")
-            }
-        }
-    }
-
-    private fun resetTimedOutSomtel101SessionInternal() {
-        handler.post {
-            try {
-                stopFinalResultWatcher()
-                stopFlowWatcher()
-                stopDiscoveryMenuWatcher()
-                endHoldKeepAlive()
-                multiDialogRunnable?.let { handler.removeCallbacks(it) }
-                multiDialogRunnable = null
-                holdAwaitingSelection = false
-                heldMenuLive = null
-                flowActionInFlight = false
-                flowActionStep = -1
-                lastFlow870AttemptKey = ""
-                lastFlow870AttemptTime = 0L
-                getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-                    .putBoolean(KEY_EXPECTING_USSD, false)
-                    .remove(KEY_LAST_USSD_RESPONSE)
-                    .remove(KEY_LAST_USSD_RESPONSE_TIME)
-                    .remove(KEY_LAST_USSD_FINAL_RESULT)
-                    .remove(KEY_LAST_USSD_FINAL_RESULT_TIME)
-                    .apply()
-                performGlobalAction(GLOBAL_ACTION_BACK)
-                Log.w(TAG, "Stale Somtel *101# flow safely closed after timeout; no resend")
-            } catch (e: Exception) {
-                Log.e(TAG, "Somtel *101# timeout cleanup failed: ${e.message}")
             }
         }
     }
