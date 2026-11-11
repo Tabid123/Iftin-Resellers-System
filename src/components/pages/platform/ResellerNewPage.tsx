@@ -37,8 +37,8 @@ export default function ResellerNewPage() {
       .eq('is_active', true).then(({ data }) => {
         const list = data ?? []
         setPlans(list)
-        const starter = list.find(p => p.name === 'Starter') ?? list.find(p => p.name !== 'Monthly $15')
-        if (starter) setForm(f => ({ ...f, plan_id: starter.id }))
+        const yearly = list.find(p => p.name === 'Yearly')
+        if (yearly) setForm(f => ({ ...f, plan_id: yearly.id }))
       })
     supabase.from('tenants').select('id, name, slug').order('name').then(({ data }) => {
       const list = data ?? []
@@ -65,9 +65,9 @@ export default function ResellerNewPage() {
       }
 
       const selectedPlan = plans.find(p => p.id === form.plan_id)
-      if (!form.is_trial && form.billing_cycle === 'monthly' &&
-          (!selectedPlan || Number(selectedPlan.price_monthly) !== 15)) {
-        throw new Error('Monthly reseller-ka waa inuu doortaa plan-ka $15')
+      const expectedPlan = form.is_trial || form.billing_cycle === 'yearly' ? 'Yearly' : 'Monthly $15'
+      if (!selectedPlan || selectedPlan.name !== expectedPlan) {
+        throw new Error('Plan-ka ' + expectedPlan + ' lama helin. Dib u fur bogga.')
       }
       const { data, error } = await supabase.functions.invoke('platform-create-tenant', {
         body: { ...form, slug },
@@ -170,18 +170,10 @@ export default function ResellerNewPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label>Plan</Label>
-                <select className="w-full h-10 rounded-md border bg-background px-3"
-                  value={form.plan_id}
-                  onChange={e => setForm({ ...form, plan_id: e.target.value })}>
-                  {plans.filter(p => form.billing_cycle === 'monthly' ? Number(p.price_monthly) === 15 : p.name !== 'Monthly $15').map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} — ${p.price_monthly}/bil (feature limits)
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {form.billing_cycle === 'monthly' ? 'Monthly $15 — hal bil adeeg ah.' : 'Plan-ku wuxuu xakameeyaa features-ka; qiimaha sannadlaha ah hoos ayaa laga qorayaa.'}
-                </p>
+                <div className="flex h-10 items-center rounded-md border bg-slate-50 px-3 text-sm font-semibold">
+                  {form.is_trial ? 'Trial — 3 maalmood' : form.billing_cycle === 'monthly' ? 'Monthly — $15 / bishii' : 'Yearly — $50 sanadka koowaad'}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">Qalabka iyo dalabyada xad ma laha.</p>
               </div>
 
               <div>
@@ -192,8 +184,7 @@ export default function ResellerNewPage() {
                   onChange={e => {
                     const trial = e.target.value === 'trial'
                     const monthly = e.target.value === 'monthly'
-                    const nextPlan = plans.find(p => monthly ? Number(p.price_monthly) === 15 : p.name === 'Starter') ??
-                      plans.find(p => monthly ? Number(p.price_monthly) === 15 : p.name !== 'Monthly $15')
+                    const nextPlan = plans.find(p => p.name === (monthly ? 'Monthly $15' : 'Yearly'))
                     setForm({
                       ...form,
                       is_trial: trial,
