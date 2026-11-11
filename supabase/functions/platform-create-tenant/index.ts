@@ -1,10 +1,11 @@
 // Super-admin only: create a new tenant + owner auth user + member + initial subscription
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { normalizeOwnerEmail, ownerCreationFailure } from './owner.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type',
+    'authorization, x-client-info, apikey, content-type, x-tenant-id',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
@@ -14,8 +15,11 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get('Authorization')
   if (!authHeader?.startsWith('Bearer ')) return json({ error: 'Unauthorized' }, 401)
 
-  const url = Deno.env.get('SUPABASE_URL')!
-  const userClient = createClient(url, Deno.env.get('SUPABASE_ANON_KEY')!, {
+  const url = Deno.env.get('SUPABASE_URL')
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  if (!url || !anonKey || !serviceKey) return json({ error: 'Service configuration missing' }, 500)
+  const userClient = createClient(url, anonKey, {
     global: { headers: { Authorization: authHeader } },
   })
 
@@ -24,10 +28,10 @@ Deno.serve(async (req) => {
   )
   if (!claims?.claims?.sub) return json({ error: 'Unauthorized' }, 401)
 
-  const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+  const admin = createClient(url, serviceKey)
 
   // verify super_admin
-  const { data: roles } = await admin
+  const { data: roles } = await userClient
     .from('user_roles')
     .select('role')
     .eq('user_id', claims.claims.sub)
@@ -68,6 +72,12 @@ Deno.serve(async (req) => {
     }
     const reserved = ['admin', 'www', 'api', 'app', 'mail', 'status']
     if (reserved.includes(slug)) return json({ error: 'slug is reserved' }, 400)
+    if (typeof owner_email !== 'string' || !normalizeOwnerEmail(owner_email)) {
+      return json({ error: 'Owner email loo baahan yahay' }, 400)
+    }
+    if (prepare_data === true && template_key !== 'xog-dhameystiran-iftin') {
+      return json({ error: 'template_not_allowed' }, 400)
+    }
 
     const trial = is_trial === true
     const billingCycle = trial ? 'yearly' : billing_cycle
@@ -115,6 +125,19 @@ Deno.serve(async (req) => {
     }
     const periodEnd = periodEndDate.toISOString()
 
+    // Auth owns email uniqueness (including concurrent requests). Reject an
+    // existing account before creating any tenant; never reset or reuse it.
+    const { data: u, error: uErr } = await admin.auth.admin.createUser({
+      email: normalizeOwnerEmail(owner_email),
+      password: owner_password,
+      email_confirm: true,
+    })
+    if (uErr || !u.user) {
+      const failure = ownerCreationFailure(uErr)
+      return json(failure.body, failure.status)
+    }
+    const ownerId = u.user.id
+
     // 1) tenant
     const { data: tenant, error: tErr } = await admin
       .from('tenants')
@@ -142,26 +165,22 @@ Deno.serve(async (req) => {
       })
       .select()
       .single()
-    if (tErr || !tenant) return json({ error: tErr?.message ?? 'tenant insert failed' }, 500)
-
-    // 2) auth user
-    const { data: u, error: uErr } = await admin.auth.admin.createUser({
-      email: owner_email,
-      password: owner_password,
-      email_confirm: true,
-    })
-    if (uErr || !u.user) {
-      await admin.from('tenants').delete().eq('id', tenant.id)
-      return json({ error: uErr?.message ?? 'owner create failed' }, 500)
+    if (tErr || !tenant) {
+      await admin.auth.admin.deleteUser(ownerId)
+      return json({ error: tErr?.message ?? 'tenant insert failed' }, tErr?.code === '23505' ? 409 : 500)
     }
 
     // 3) tenant member (owner)
     const { error: mErr } = await admin.from('tenant_members').insert({
       tenant_id: tenant.id,
-      user_id: u.user.id,
+      user_id: ownerId,
       role: 'owner',
     })
-    if (mErr) return json({ error: mErr.message }, 500)
+    if (mErr) {
+      await admin.from('tenants').delete().eq('id', tenant.id)
+      await admin.auth.admin.deleteUser(ownerId)
+      return json({ error: mErr.message }, 500)
+    }
 
     // 4) Match the commercial billing term, independent of feature limits.
     if (plan_id) {
@@ -181,17 +200,12 @@ Deno.serve(async (req) => {
     // 5) Optional independent tenant copy from a ready Master Template.
     let template_result = null
     if (prepare_data === true) {
-      if (template_key !== 'xog-dhameystiran-iftin') {
-        await admin.auth.admin.deleteUser(u.user.id)
-        await admin.from('tenants').delete().eq('id', tenant.id)
-        return json({ error: 'template_not_allowed' }, 400)
-      }
       const { data: cloned, error: cloneErr } = await admin.rpc(
         'apply_master_template_to_tenant',
         { p_tenant_id: tenant.id, p_template_key: template_key },
       )
       if (cloneErr) {
-        await admin.auth.admin.deleteUser(u.user.id)
+        await admin.auth.admin.deleteUser(ownerId)
         await admin.from('tenants').delete().eq('id', tenant.id)
         return json({ error: cloneErr.message }, 500)
       }

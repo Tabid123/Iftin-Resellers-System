@@ -15,6 +15,8 @@
 
 # Current work
 
+- [ ] Handle existing owner emails as a safe conflict during tenant creation and verify the deployed response.
+
 - [x] Restore returning tenant website visitors from their saved verified phone after the page hydrates; keep offline registration step when incomplete.
 - [x] Keep the login form hidden until saved-phone restoration finishes, so returning visitors never see it flash.
 - [x] Keep newly verified visitors on Offline Mode; prevent the departing login page from overriding OTP navigation with Providers.
