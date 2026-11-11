@@ -409,41 +409,59 @@ jobs:
           LOGO_URL: ${{ inputs.logo_url }}
           SPLASH_COLOR: ${{ inputs.splash_color }}
           SIGNING_PROFILE: ${{ inputs.signing_profile }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          require_play_branding() {
-            if [ "$SIGNING_PROFILE" = "faanoole_play" ]; then
-              echo "::error::$1"
+          set -euo pipefail
+          if [ "$SIGNING_PROFILE" = "faanoole_play" ]; then
+            if [ -n "$LOGO_URL" ]; then
+              echo "::error::Leave logo_url blank for Faanoole Play; use the verified tenant artwork"
               exit 1
             fi
-          }
-          if [ -z "${LOGO_URL//[[:space:]]/}" ]; then
-            require_play_branding "Faanoole Play Store release needs a public Faanoole logo_url (PNG)."
-            echo "No tenant logo URL supplied; keeping the default Android artwork."
-            exit 0
-          fi
-          case "$LOGO_URL" in
-            https://*|http://*) ;;
-            *)
-              require_play_branding "Faanoole Play Store release logo_url must be an HTTPS or HTTP URL."
-              echo "Invalid logo URL; keeping the default Android artwork."
+            node scripts/prepare-faanoole-play-logo.mjs
+            original_logo="$(cat assets/faanoole-play-logo-path.txt)"
+            python3 -m venv "$RUNNER_TEMP/faanoole-art-venv"
+            "$RUNNER_TEMP/faanoole-art-venv/bin/pip" install --disable-pip-version-check Pillow==11.3.0
+            "$RUNNER_TEMP/faanoole-art-venv/bin/python" - "$original_logo" <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          import sys
+          original = Image.open(sys.argv[1]).convert('RGB')
+          if original.width != original.height:
+              raise SystemExit('Faanoole artwork must be square')
+          Path('assets').mkdir(exist_ok=True)
+          original.resize((1024, 1024), Image.Resampling.LANCZOS).save('assets/logo.png')
+          print('Faanoole verified logo converted to 1024x1024 PNG')
+          PY
+          else
+            if [ -z "$LOGO_URL" ]; then
+              echo "No tenant logo URL supplied; keeping the default Android artwork."
               exit 0
-              ;;
-          esac
-          mkdir -p assets
-          if ! curl --retry 3 --retry-delay 2 -fsSL "$LOGO_URL" -o assets/logo.png; then
-            require_play_branding "Faanoole logo could not be downloaded."
-            echo "Tenant logo could not be downloaded; keeping the default Android artwork."
-            exit 0
+            fi
+            case "$LOGO_URL" in
+              https://*|http://*) ;;
+              *)
+                echo "Invalid logo URL; keeping the default Android artwork."
+                exit 0
+                ;;
+            esac
+            mkdir -p assets
+            if ! curl --retry 3 --retry-delay 2 -fsSL "$LOGO_URL" -o assets/logo.png; then
+              echo "Tenant logo could not be downloaded; keeping the default Android artwork."
+              exit 0
+            fi
           fi
           cp assets/logo.png assets/icon.png
           cp assets/logo.png assets/splash.png
           if ! npx @capacitor/assets generate --android \
             --iconBackgroundColor "$SPLASH_COLOR" \
             --splashBackgroundColor "$SPLASH_COLOR"; then
-            require_play_branding "Faanoole icon/splash asset generation failed."
+            if [ "$SIGNING_PROFILE" = "faanoole_play" ]; then
+              echo "::error::Faanoole icon/splash asset generation failed"
+              exit 1
+            fi
             echo "Asset generation failed; keeping the existing Android artwork."
           fi
-
       - name: Decode keystore
         env:
           SIGNING_PROFILE: ${{ inputs.signing_profile }}
