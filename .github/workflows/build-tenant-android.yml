@@ -37,6 +37,7 @@ on:
         options:
           - default
           - faanoole_play
+          - sharfaan_play
       publish_apk_to_supabase:
         description: "Publish APK to tenant downloads (Play Store profile always skips this)"
         type: boolean
@@ -171,6 +172,19 @@ jobs:
           fi
           if ! [[ "$APP_VERSION_CODE" =~ ^[0-9]+$ ]] || [ "$APP_VERSION_CODE" -le 21 ]; then
             echo "::error::Faanoole Play update version_code must be greater than the previous version 21"
+            exit 1
+          fi
+
+      - name: Validate Sharfaan Play Store update identity
+        if: ${{ inputs.signing_profile == 'sharfaan_play' }}
+        run: |
+          set -euo pipefail
+          if [ "$TENANT_SLUG" != "sharfaan" ] || [ "$APP_ID" != "com.sharfandata.app" ]; then
+            echo "::error::Sharfaan Play signing requires tenant_slug=sharfaan and app_id=com.sharfandata.app"
+            exit 1
+          fi
+          if ! [[ "$APP_VERSION_CODE" =~ ^[0-9]+$ ]] || [ "$APP_VERSION_CODE" -le 0 ]; then
+            echo "::error::Sharfaan version_code must be a positive integer and higher than the highest used Play Console version code"
             exit 1
           fi
 
@@ -413,25 +427,30 @@ jobs:
           SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           set -euo pipefail
-          if [ "$SIGNING_PROFILE" = "faanoole_play" ]; then
+          if [ "$SIGNING_PROFILE" = "faanoole_play" ] || [ "$SIGNING_PROFILE" = "sharfaan_play" ]; then
             if [ -n "$LOGO_URL" ]; then
-              echo "::error::Leave logo_url blank for Faanoole Play; use the verified tenant artwork"
+              echo "::error::Leave logo_url blank for Play Store signing profiles; using verified tenant artwork"
               exit 1
             fi
-            node scripts/prepare-faanoole-play-logo.mjs
-            original_logo="$(cat assets/faanoole-play-logo-path.txt)"
-            python3 -m venv "$RUNNER_TEMP/faanoole-art-venv"
-            "$RUNNER_TEMP/faanoole-art-venv/bin/pip" install --disable-pip-version-check Pillow==11.3.0
-            "$RUNNER_TEMP/faanoole-art-venv/bin/python" - "$original_logo" <<'PY'
+            if [ "$SIGNING_PROFILE" = "faanoole_play" ]; then
+              node scripts/prepare-faanoole-play-logo.mjs
+              original_logo="$(cat assets/faanoole-play-logo-path.txt)"
+            else
+              node scripts/prepare-sharfaan-play-logo.mjs
+              original_logo="$(cat assets/sharfaan-play-logo-path.txt)"
+            fi
+            python3 -m venv "$RUNNER_TEMP/play-art-venv"
+            "$RUNNER_TEMP/play-art-venv/bin/pip" install --disable-pip-version-check Pillow==11.3.0
+            "$RUNNER_TEMP/play-art-venv/bin/python" - "$original_logo" <<'PY'
           from PIL import Image
           from pathlib import Path
           import sys
           original = Image.open(sys.argv[1]).convert('RGB')
           if original.width != original.height:
-              raise SystemExit('Faanoole artwork must be square')
+              raise SystemExit('Play Store artwork must be square')
           Path('assets').mkdir(exist_ok=True)
           original.resize((1024, 1024), Image.Resampling.LANCZOS).save('assets/logo.png')
-          print('Faanoole verified logo converted to 1024x1024 PNG')
+          print('Verified Play Store logo converted to 1024x1024 PNG')
           PY
           else
             if [ -z "$LOGO_URL" ]; then
@@ -456,8 +475,8 @@ jobs:
           if ! npx @capacitor/assets generate --android \
             --iconBackgroundColor "$SPLASH_COLOR" \
             --splashBackgroundColor "$SPLASH_COLOR"; then
-            if [ "$SIGNING_PROFILE" = "faanoole_play" ]; then
-              echo "::error::Faanoole icon/splash asset generation failed"
+            if [ "$SIGNING_PROFILE" = "faanoole_play" ] || [ "$SIGNING_PROFILE" = "sharfaan_play" ]; then
+              echo "::error::Play Store icon/splash asset generation failed"
               exit 1
             fi
             echo "Asset generation failed; keeping the existing Android artwork."
@@ -469,6 +488,9 @@ jobs:
           FAANOOLE_PLAY_KEYSTORE_BASE64: ${{ secrets.FAANOOLE_PLAY_KEYSTORE_BASE64 }}
           FAANOOLE_PLAY_KEYSTORE_PASSWORD: ${{ secrets.FAANOOLE_PLAY_KEYSTORE_PASSWORD }}
           FAANOOLE_PLAY_KEY_ALIAS: ${{ secrets.FAANOOLE_PLAY_KEY_ALIAS }}
+          SHARFAAN_PLAY_KEYSTORE_BASE64: ${{ secrets.SHARFAAN_PLAY_KEYSTORE_BASE64 }}
+          SHARFAAN_PLAY_KEYSTORE_PASSWORD: ${{ secrets.SHARFAAN_PLAY_KEYSTORE_PASSWORD }}
+          SHARFAAN_PLAY_KEY_ALIAS: ${{ secrets.SHARFAAN_PLAY_KEY_ALIAS }}
         run: |
           set -euo pipefail
           if [ "$SIGNING_PROFILE" = "faanoole_play" ]; then
@@ -479,6 +501,14 @@ jobs:
               fi
             done
             printf '%s' "$FAANOOLE_PLAY_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/iftin.keystore"
+          elif [ "$SIGNING_PROFILE" = "sharfaan_play" ]; then
+            for var in SHARFAAN_PLAY_KEYSTORE_BASE64 SHARFAAN_PLAY_KEYSTORE_PASSWORD SHARFAAN_PLAY_KEY_ALIAS; do
+              if [ -z "${!var}" ]; then
+                echo "::error::Missing required Sharfaan Play signing secret: $var"
+                exit 1
+              fi
+            done
+            printf '%s' "$SHARFAAN_PLAY_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/iftin.keystore"
           else
             if [ -z "$DEFAULT_KEYSTORE_BASE64" ]; then
               echo "::error::Missing default ANDROID_KEYSTORE_BASE64 secret"
@@ -492,20 +522,20 @@ jobs:
       - name: Build signed APK and AAB
         working-directory: android
         env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ inputs.signing_profile == 'faanoole_play' && secrets.FAANOOLE_PLAY_KEYSTORE_PASSWORD || secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ inputs.signing_profile == 'faanoole_play' && secrets.FAANOOLE_PLAY_KEY_ALIAS || secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ inputs.signing_profile == 'faanoole_play' && secrets.FAANOOLE_PLAY_KEYSTORE_PASSWORD || inputs.signing_profile == 'sharfaan_play' && secrets.SHARFAAN_PLAY_KEYSTORE_PASSWORD || secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ inputs.signing_profile == 'faanoole_play' && secrets.FAANOOLE_PLAY_KEY_ALIAS || inputs.signing_profile == 'sharfaan_play' && secrets.SHARFAAN_PLAY_KEY_ALIAS || secrets.ANDROID_KEY_ALIAS }}
           # The user created the Faanoole upload key with Java keytool -storetype PKCS12
           # without -keypass. Java PKCS12 uses the same password for the store and key.
           # Do not use a separately entered, potentially mismatched key password.
-          ANDROID_KEY_PASSWORD: ${{ inputs.signing_profile == 'faanoole_play' && secrets.FAANOOLE_PLAY_KEYSTORE_PASSWORD || secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ inputs.signing_profile == 'faanoole_play' && secrets.FAANOOLE_PLAY_KEYSTORE_PASSWORD || inputs.signing_profile == 'sharfaan_play' && secrets.SHARFAAN_PLAY_KEYSTORE_PASSWORD || secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          if [ "${{ inputs.signing_profile }}" = "faanoole_play" ]; then
+          if [ "${{ inputs.signing_profile }}" = "faanoole_play" ] || [ "${{ inputs.signing_profile }}" = "sharfaan_play" ]; then
             if ! keytool -list -keystore "$ANDROID_KEYSTORE_PATH" -storetype PKCS12 -storepass:env ANDROID_KEYSTORE_PASSWORD -alias "$ANDROID_KEY_ALIAS" >/dev/null; then
-              echo "::error::Faanoole keystore password, key alias, or keystore file is invalid"
+              echo "::error::Play Store keystore password, key alias, or keystore file is invalid"
               exit 1
             fi
-            echo "Faanoole PKCS12 keystore/alias verified; using matching store/key password"
+            echo "PKCS12 Play Store keystore/alias verified; using matching store/key password"
           fi
           chmod +x gradlew
           ./gradlew assembleRelease bundleRelease --no-daemon
@@ -519,7 +549,7 @@ jobs:
             android/app/build/outputs/bundle/release/*.aab
 
       - name: Publish APK to Supabase Storage and update tenant
-        if: ${{ inputs.publish_apk_to_supabase && inputs.signing_profile != 'faanoole_play' }}
+        if: ${{ inputs.publish_apk_to_supabase && inputs.signing_profile != 'faanoole_play' && inputs.signing_profile != 'sharfaan_play' }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
