@@ -4,7 +4,7 @@ Goal: replace the existing **Sharfan data** Play Store app with the `sharfaan` t
 
 ## Confirm the existing Play app
 
-The earlier Play Console screenshot showed **Sharfan data** with package name `com.sharfandata.app`. Confirm this in Play Console before building: **Test and release → Latest releases and bundles → All app bundles**. Write down the **highest ever uploaded version code**; do not assume Faanoole's version code 21 or 22 applies.
+The earlier Play Console screenshot showed **Sharfan data** with package name `com.sharfandata.app`. Confirm this in Play Console before building: **Test and release → Latest releases and bundles → All app bundles**. **Confirmed from the 12 November 2026 Play Console screenshot:** highest uploaded Sharfaan version code is **5**, with version name **1.0.3**. The next candidate build is **version code 6 / version name 1.0.4**, unless a newer version is uploaded before the build.
 
 ## If you do not have the old Sharfaan upload keystore
 
@@ -50,8 +50,8 @@ Open GitHub → Actions → **Build tenant Android app** → **Run workflow** on
 | `app_id` | `com.sharfandata.app` (verify from existing app) |
 | `logo_url` | Leave blank — verified Sharfaan tenant PNG is loaded automatically |
 | `splash_color` | `#4f026c` |
-| `version_code` | Set to **higher than the maximum version code** displayed in Sharfaan Play Console |
-| `version_name` | Select a new version name to match the release (e.g. `1.0.16` only if appropriate) |
+| `version_code` | `6` (highest known Play code is 5) |
+| `version_name` | `1.0.4` |
 | `signing_profile` | `sharfaan_play` |
 | `publish_apk_to_supabase` | `false` |
 
