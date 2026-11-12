@@ -183,8 +183,8 @@ jobs:
             echo "::error::Sharfaan Play signing requires tenant_slug=sharfaan and app_id=com.sharfandata.app"
             exit 1
           fi
-          if ! [[ "$APP_VERSION_CODE" =~ ^[0-9]+$ ]] || [ "$APP_VERSION_CODE" -le 0 ]; then
-            echo "::error::Sharfaan version_code must be a positive integer and higher than the highest used Play Console version code"
+          if ! [[ "$APP_VERSION_CODE" =~ ^[0-9]+$ ]] || [ "$APP_VERSION_CODE" -le 5 ]; then
+            echo "::error::Sharfaan version_code must be > 5 (highest previous Play Console version on 12 Nov 2026)"
             exit 1
           fi
 
