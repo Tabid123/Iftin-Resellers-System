@@ -24,7 +24,7 @@ insert into tenants values ('${a}','active',null,null),('${b}','active',null,nul
 insert into tenant_members values ('${a}','${owner}','owner'),('${b}','${other}','owner');`);
 await db.exec(
   readFileSync(
-    new URL("../supabase/migrations/20261114155445_tenant_ecommerce.sql", import.meta.url),
+    new URL("../supabase/migrations/20261114161416_tenant_ecommerce.sql", import.meta.url),
     "utf8",
   ),
 );
@@ -63,6 +63,11 @@ assert.equal((await db.query("select stock from shop_products")).rows[0].stock, 
 await db.exec(place());
 await db.exec(place()); // retries reserve stock only once
 assert.equal((await db.query("select stock from shop_products")).rows[0].stock, 1);
+await actor("authenticated", a, owner);
+const staleStockWrite = await db.query(`update shop_products set stock=50 where id='${product}' and stock=3 returning id`);
+assert.equal(staleStockWrite.rows.length,0);
+assert.equal((await db.query("select stock from shop_products")).rows[0].stock,1);
+await actor("anon",a);
 await denied(place("50000000-0000-4000-8000-000000000002", 2, 30));
 await denied("select * from shop_orders");
 assert.equal(

@@ -127,7 +127,7 @@ export function useTenantCapabilities() {
     // Credentials, status and activation of Somlink are platform-only.
     // Hiding the menu isn't enough: also block direct /dashboard/integrations URLs.
     if (key === 'integrations') return false;
-    if (key === 'shop') return shop.enabled && can('manage_settings');
+    if (['shop', 'ecommerce-categories', 'ecommerce-packages', 'ecommerce-stock', 'ecommerce-orders'].includes(key)) return shop.enabled && can('manage_settings');
     if (isPartner && PARTNER_HIDDEN.has(key)) return false;
     if (!isPartner && PARTNER_ONLY.has(key)) return false;
     const permission = VIEW_PERMISSION[key];

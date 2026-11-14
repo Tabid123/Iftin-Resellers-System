@@ -76,7 +76,11 @@ interface DetailConfig {
 }
 
 const DETAIL_CONFIGS: Record<string, DetailConfig> = {
-  shop: { title: 'Shop', titleSo: 'Dukaanka', headerBg: 'from-blue-600 to-indigo-800' },
+  shop: { title: 'eCommerce', titleSo: 'eCommerce', headerBg: 'from-blue-600 to-indigo-800' },
+  'ecommerce-categories': { title: 'eCommerce — Categories', titleSo: 'eCommerce — Categories', headerBg: 'from-blue-600 to-indigo-800' },
+  'ecommerce-packages': { title: 'eCommerce — Packages / Products', titleSo: 'eCommerce — Packages / Alaabta', headerBg: 'from-blue-600 to-indigo-800' },
+  'ecommerce-stock': { title: 'eCommerce — Stock', titleSo: 'eCommerce — Stock', headerBg: 'from-blue-600 to-indigo-800' },
+  'ecommerce-orders': { title: 'eCommerce — Orders', titleSo: 'eCommerce — Dalabyada', headerBg: 'from-blue-600 to-indigo-800' },
   customers: { title: 'Customers', titleSo: 'Macaamiisha', headerBg: 'from-teal-500 to-teal-700' },
   'offline-registrations': { title: 'Offline Registrations', titleSo: 'Offline Reg', headerBg: 'from-orange-500 to-orange-700' },
   'auto-topup': { title: 'Auto Top-Up', titleSo: 'Auto Top-Up', headerBg: 'from-lime-500 to-lime-700' },
@@ -174,7 +178,11 @@ const SimpleAdminDetail = () => {
       );
     }
     switch (type) {
-      case 'shop': return <ShopAdmin />;
+      case 'shop':
+      case 'ecommerce-packages': return <ShopAdmin key="products" section="products" />;
+      case 'ecommerce-categories': return <ShopAdmin key="categories" section="categories" />;
+      case 'ecommerce-stock': return <ShopAdmin key="stock" section="stock" />;
+      case 'ecommerce-orders': return <ShopAdmin key="orders" section="orders" />;
       // Custom views (lazy-loaded)
       case 'daily-orders': return isPartner ? <IftinDailyOrders isSo={isSo} /> : <DailyOrdersCustomView isSo={isSo} />;
       case 'customers': return <CustomersCustomView isSo={isSo} />;

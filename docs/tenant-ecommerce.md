@@ -6,8 +6,15 @@ row means OFF. No tenant is enabled or seeded with sample products by this chang
 ## Controls and routes
 
 - Platform: open a reseller detail and use **eCommerce — Dukaanka** ON/OFF.
-- Tenant owner: `/dashboard/shop` manages categories, HTTPS product images,
-  product descriptions/prices/stock, visibility and the latest 100 orders.
+- Tenant owner: the **eCommerce** sidebar group contains **Categories**
+  (`/dashboard/ecommerce-categories`), **Packages / Alaabta**
+  (`/dashboard/ecommerce-packages`), **Stock** (`/dashboard/ecommerce-stock`)
+  and **Dalabyada** (`/dashboard/ecommerce-orders`). `/dashboard/shop` remains
+  a compatible entry to products. Owners can add/edit categories and products,
+  HTTPS images, descriptions, prices, availability, stock and order status.
+- Stock edits use the original stock count as an optimistic concurrency check;
+  intervening customer purchases cannot be silently overwritten. Stock summary,
+  inventory search, and order status filters are included.
 - Customer: `/shop`, also `/t/<slug>/shop`, has its own bottom navigation:
   Dukaan, Raadi, Dambiil, Dalabyadayda. Checkout hides this navigation.
 - Enabled tenants show a shop banner between provider tiles and popular bundles.
@@ -38,17 +45,28 @@ on order records, including on projects with broad default table grants.
 
 ## Deployment
 
-1. Review and apply `supabase/migrations/20261114155445_tenant_ecommerce.sql`
+1. Review and apply `supabase/migrations/20261114161416_tenant_ecommerce.sql`
    to the repository's configured project (`bpkddmxpyeyxvjyebull`). It is additive.
 2. Deploy the matching web source. Leave all tenants OFF initially.
 3. Enable one test tenant in the platform detail page, add real categories/products
    as its owner, and exercise the manual checks below before enabling customers.
 
-This work session's hosted migration attempt was blocked by automatic approval
-review. No production database migration or tenant activation was performed.
+The user explicitly approved the hosted migration after the initial approval
+review rejection. Migration `20261114161416_tenant_ecommerce` was applied to
+production successfully. Live verification confirmed zero enabled tenants and
+no catalog/order records; authenticated clients can update order status but
+cannot change order totals, and anonymous clients cannot directly insert orders.
+No tenant has been activated.
+
+Security advisors flag the two intentionally guest-callable `SECURITY DEFINER`
+RPCs (`shop_place_order` and `shop_order_history`). They enforce tenant selection,
+server-owned pricing/stock, or private receipt tokens internally and expose no
+unrestricted order-table access. See the [Supabase linter guidance](https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable).
+Table RLS and privilege checks were verified separately.
 
 ## Verification
 
+- `npx vitest run tests/shopAdmin.test.ts`: eight admin render/access tests pass.
 - `npx tsc --noEmit`
 - `npm run build`
 - Isolated Postgres policy/business-rule test (does not connect to production):
