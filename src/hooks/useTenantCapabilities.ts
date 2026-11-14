@@ -74,7 +74,6 @@ const VIEW_PERMISSION: Record<string, string> = {
   'bulk-sms': 'manage_bulk_sms',
   'send-notification': 'manage_settings',
   'payment-settings': 'manage_settings',
-  'integrations': 'manage_settings',
   'iftin-payment-numbers': 'manage_settings',
   'offline-payment': 'manage_settings',
   'banners': 'manage_settings',
@@ -123,6 +122,9 @@ export function useTenantCapabilities() {
     if (!view) return true;
     const key = view.replace(/^\/dashboard\/?/, '').split('?')[0];
     if (!key) return true;
+    // Credentials, status and activation of Somlink are platform-only.
+    // Hiding the menu isn't enough: also block direct /dashboard/integrations URLs.
+    if (key === 'integrations') return false;
     if (isPartner && PARTNER_HIDDEN.has(key)) return false;
     if (!isPartner && PARTNER_ONLY.has(key)) return false;
     const permission = VIEW_PERMISSION[key];
