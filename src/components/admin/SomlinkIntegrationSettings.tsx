@@ -11,6 +11,7 @@ import { toast } from '@/hooks/use-toast';
 interface SomlinkStatus {
   configured: boolean;
   wallet_phone: string | null;
+  login_phone: string | null;
   is_active: boolean;
   connection_status: 'untested' | 'connected' | 'failed';
   last_tested_at: string | null;
@@ -31,6 +32,7 @@ function readableSomlinkError(code: string) {
   if (code === 'invalid_wallet_phone' || code === 'invalid_wallet_identifier') {
     return 'Geli Somlink wallet phone ama API identifier-ka saxda ah (tusaale FAANOOLEAPI ama 64xxxxxxx).';
   }
+  if (code === 'invalid_somlink_login_phone') return 'Somlink login phone waa inuu noqdaa lambar telefoon (7–15 digits).';
   if (code === 'password_required') return 'Geli Somlink password-ka.';
   if (code === 'super_admin_required') return 'Super Admin oo keliya ayaa Somlink API maamuli kara.';
   return code;
@@ -39,6 +41,7 @@ function readableSomlinkError(code: string) {
 const EMPTY_STATUS: SomlinkStatus = {
   configured: false,
   wallet_phone: null,
+  login_phone: null,
   is_active: false,
   connection_status: 'untested',
   last_tested_at: null,
@@ -50,6 +53,7 @@ export default function SomlinkIntegrationSettings({ tenantId, client }: { tenan
   const [status, setStatus] = useState<SomlinkStatus>(EMPTY_STATUS);
   const [runtimeReady, setRuntimeReady] = useState(false);
   const [walletPhone, setWalletPhone] = useState('');
+  const [loginPhone, setLoginPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -60,6 +64,7 @@ export default function SomlinkIntegrationSettings({ tenantId, client }: { tenan
     const merged = { ...EMPTY_STATUS, ...(next || {}) } as SomlinkStatus;
     setStatus(merged);
     setWalletPhone(merged.wallet_phone || '');
+    setLoginPhone(merged.login_phone || '');
     setPassword('');
   }, []);
 
@@ -111,11 +116,15 @@ export default function SomlinkIntegrationSettings({ tenantId, client }: { tenan
     if (!validSomlinkWalletId(walletPhone)) {
       throw new Error(readableSomlinkError('invalid_wallet_identifier'));
     }
+    if (loginPhone.trim() && !/^\+?[0-9]{7,15}$/.test(loginPhone.trim())) {
+      throw new Error(readableSomlinkError('invalid_somlink_login_phone'));
+    }
     if (!status.configured && !password) throw new Error('Gali Somlink password');
 
     const data = await callIntegration({
       action: 'save',
       wallet_phone: walletPhone.trim(),
+      login_phone: loginPhone.trim(),
       password: password || undefined,
       is_active: requestedActive,
     });
@@ -251,6 +260,21 @@ export default function SomlinkIntegrationSettings({ tenantId, client }: { tenan
               <p className="text-xs text-destructive">Geli lambar 7–15 digits ah ama Somlink API ID qoraal ah (3–128 xaraf).</p>
             )}
             <p className="text-xs text-muted-foreground">Geli aqoonsiga Somlink kuu siisay sida uu yahay; wuxuu noqon karaa lambar ama username.</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="somlink-login">Somlink login phone (optional)</Label>
+            <Input
+              id="somlink-login"
+              type="tel"
+              inputMode="tel"
+              value={loginPhone}
+              onChange={(e) => setLoginPhone(e.target.value)}
+              placeholder="64xxxxxxx ama 25264xxxxxxx"
+              autoComplete="off"
+              aria-invalid={loginPhone.trim().length > 0 && !/^\+?[0-9]{7,15}$/.test(loginPhone.trim())}
+            />
+            <p className="text-xs text-muted-foreground">Somlink login endpoint-ku wuxuu dalbanayaa phone. Haddii Somlink kuu siiyey lambar login oo ka duwan wallet ID-ga qoraalka ah, halkan geli. Haddii kale bannaan uga tag.</p>
           </div>
 
           <div className="space-y-2">
