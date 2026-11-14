@@ -18,6 +18,17 @@ interface SomlinkStatus {
   has_password: boolean;
 }
 
+const SOMLINK_WALLET_PHONE = /^\\+?[0-9]{7,15}$/;
+
+function readableSomlinkError(code: string) {
+  if (code === 'invalid_wallet_phone') {
+    return 'Somlink wallet phone waa inuu noqdaa lambar telefoon (tusaale: 64xxxxxxx), ma aha username.';
+  }
+  if (code === 'password_required') return 'Geli Somlink password-ka.';
+  if (code === 'super_admin_required') return 'Super Admin oo keliya ayaa Somlink API maamuli kara.';
+  return code;
+}
+
 const EMPTY_STATUS: SomlinkStatus = {
   configured: false,
   wallet_phone: null,
@@ -52,7 +63,15 @@ export default function SomlinkIntegrationSettings({ tenantId, client }: { tenan
     const body = { tenant_id: tenantId, ...payload };
     const { data, error } = await client.functions.invoke('somlink-integration', { body });
     if (error || data?.error) {
-      throw new Error(data?.error || error?.message || 'Somlink integration error');
+      let responseBody: any = data;
+      // Supabase FunctionsHttpError stores non-2xx JSON in error.context,
+      // so error.message alone hides the actionable server error.
+      const response = (error as any)?.context;
+      if (!responseBody && response && typeof response.json === 'function') {
+        try { responseBody = await response.json(); } catch { /* use fallback below */ }
+      }
+      const serverError = responseBody?.message || responseBody?.error;
+      throw new Error(serverError ? readableSomlinkError(String(serverError)) : error?.message || 'Somlink integration error');
     }
     return data;
   }, [client, tenantId]);
@@ -82,6 +101,9 @@ export default function SomlinkIntegrationSettings({ tenantId, client }: { tenan
   const saveCredentials = async (requestedActive = status.is_active, quiet = false) => {
     if (!tenantId) throw new Error('Tenant lama helin');
     if (!walletPhone.trim()) throw new Error('Gali Somlink wallet phone');
+    if (!SOMLINK_WALLET_PHONE.test(walletPhone.trim())) {
+      throw new Error(readableSomlinkError('invalid_wallet_phone'));
+    }
     if (!status.configured && !password) throw new Error('Gali Somlink password');
 
     const data = await callIntegration({
@@ -207,7 +229,7 @@ export default function SomlinkIntegrationSettings({ tenantId, client }: { tenan
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="somlink-wallet">Somlink wallet phone</Label>
+            <Label htmlFor="somlink-wallet">Somlink wallet phone (lambar telefoon)</Label>
             <Input
               id="somlink-wallet"
               type="tel"
@@ -216,7 +238,11 @@ export default function SomlinkIntegrationSettings({ tenantId, client }: { tenan
               onChange={(e) => setWalletPhone(e.target.value)}
               placeholder="25264xxxxxxx ama 64xxxxxxx"
               autoComplete="off"
+              aria-invalid={walletPhone.trim().length > 0 && !SOMLINK_WALLET_PHONE.test(walletPhone.trim())}
             />
+            {walletPhone.trim().length > 0 && !SOMLINK_WALLET_PHONE.test(walletPhone.trim()) && (
+              <p className="text-xs text-destructive">Somlink wallet phone waa inuu noqdaa lambar (7–15 digits). Username/xarfo looma isticmaali karo goobtan.</p>
+            )}
           </div>
 
           <div className="space-y-2">
