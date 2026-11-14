@@ -18,7 +18,7 @@ interface SomlinkStatus {
   has_password: boolean;
 }
 
-const SOMLINK_WALLET_PHONE = /^\\+?[0-9]{7,15}$/;
+const SOMLINK_WALLET_PHONE = /^\+?[0-9]{7,15}$/;
 
 function readableSomlinkError(code: string) {
   if (code === 'invalid_wallet_phone') {
