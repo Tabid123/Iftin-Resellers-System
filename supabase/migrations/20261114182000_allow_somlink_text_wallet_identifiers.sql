@@ -85,7 +85,8 @@ begin
   return public.somlink_admin_status(p_tenant_id);
 end;
 $$;
-         and length(regexp_replace(v_wallet, '[^0-9]', '', 'g')) not between 7 and 15) then
+         and (length(regexp_replace(v_wallet, '[^0-9]', '', 'g')) < 7
+           or length(regexp_replace(v_wallet, '[^0-9]', '', 'g')) > 15)) then
     raise exception 'invalid_wallet_identifier';
   end if;
 
