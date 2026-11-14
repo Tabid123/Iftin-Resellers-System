@@ -46,7 +46,12 @@ function safeLoginReason(response: unknown) {
 function safeError(error: unknown) {
   if (error instanceof SomlinkApiError) {
     const base = `${error.message}${error.status ? ` (${error.status})` : ''}`;
-    const hint = error.stage === 'login' ? safeLoginReason(error.response) : '';
+    const hint = error.stage === 'login'
+      ? safeLoginReason(error.response)
+        || (error.status === 400
+          ? 'Somlink ayaa diiday login-ka; hubi password-ka kaydsan iyo in API username-ka loo oggol yahay endpoint-kan.'
+          : '')
+      : '';
     return `${base}${hint ? ` — ${hint}` : ''}`.slice(0, 500);
   }
   return (error instanceof Error ? error.message : 'Unknown error').slice(0, 500);
