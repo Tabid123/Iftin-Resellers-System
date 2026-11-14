@@ -132,7 +132,7 @@ export default function SomlinkIntegrationSettings({ tenantId: explicitTenantId,
       setRuntimeReady(data?.runtime_ready === true);
       toast({
         title: 'Connected ✓',
-        description: data?.runtime_ready === true && data?.integration?.is_active === true
+        description: data?.runtime_ready === true
           ? 'Somlink login waa PASS. Riix Enable Somlink delivery si tenant-kan loogu shido.'
           : 'Somlink login waa PASS. Delivery runtime-ka server-ka weli lama enable-gareyn, sidaas darteed xirmooyinka waa qarsoon yihiin.',
       });
