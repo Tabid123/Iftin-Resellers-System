@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, CheckCircle2, EyeOff, Loader2, PlugZap, ShieldCheck, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, EyeOff, Loader2, PlugZap, ShieldCheck, Trash2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { invokeEdgeFunction } from '@/integrations/supabase/client';
+import { supabase, invokeEdgeFunction } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { toast } from '@/hooks/use-toast';
 
@@ -29,9 +29,9 @@ const EMPTY_STATUS: SomlinkStatus = {
   has_password: false,
 };
 
-export default function SomlinkIntegrationSettings() {
+export default function SomlinkIntegrationSettings({ tenantId: explicitTenantId, client }: { tenantId?: string; client?: typeof supabase } = {}) {
   const { tenant } = useTenant();
-  const tenantId = tenant?.id ?? null;
+  const tenantId = explicitTenantId ?? tenant?.id ?? null;
   const [status, setStatus] = useState<SomlinkStatus>(EMPTY_STATUS);
   const [runtimeReady, setRuntimeReady] = useState(false);
   const [walletPhone, setWalletPhone] = useState('');
@@ -39,6 +39,7 @@ export default function SomlinkIntegrationSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const applyStatus = useCallback((next: Partial<SomlinkStatus> | null | undefined) => {
     const merged = { ...EMPTY_STATUS, ...(next || {}) } as SomlinkStatus;
@@ -47,16 +48,25 @@ export default function SomlinkIntegrationSettings() {
     setPassword('');
   }, []);
 
+  // Platform admin has a separate authentication session from tenant admin.
+  // Use the supplied platform client when configuring another tenant.
+  const callIntegration = useCallback(async (payload: Record<string, unknown>) => {
+    if (!tenantId) throw new Error('Tenant lama helin');
+    const body = { tenant_id: tenantId, ...payload };
+    const { data, error } = client
+      ? await client.functions.invoke('somlink-integration', { body })
+      : await invokeEdgeFunction<any>('somlink-integration', body);
+    if (error || data?.error) {
+      throw new Error(data?.error || error?.message || 'Somlink integration error');
+    }
+    return data;
+  }, [client, tenantId]);
+
   const loadStatus = useCallback(async () => {
     if (!tenantId) return;
     setLoading(true);
     try {
-      const { data, error } = await invokeEdgeFunction<any>('somlink-integration', {
-        action: 'status',
-        tenant_id: tenantId,
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      const data = await callIntegration({ action: 'status' });
       applyStatus(data?.integration);
       setRuntimeReady(data?.runtime_ready === true);
     } catch (error: any) {
@@ -68,7 +78,7 @@ export default function SomlinkIntegrationSettings() {
     } finally {
       setLoading(false);
     }
-  }, [tenantId, applyStatus]);
+  }, [tenantId, applyStatus, callIntegration]);
 
   useEffect(() => {
     void loadStatus();
@@ -79,15 +89,12 @@ export default function SomlinkIntegrationSettings() {
     if (!walletPhone.trim()) throw new Error('Gali Somlink wallet phone');
     if (!status.configured && !password) throw new Error('Gali Somlink password');
 
-    const { data, error } = await invokeEdgeFunction<any>('somlink-integration', {
+    const data = await callIntegration({
       action: 'save',
-      tenant_id: tenantId,
       wallet_phone: walletPhone.trim(),
       password: password || undefined,
       is_active: requestedActive,
     });
-    if (error) throw error;
-    if (data?.error) throw new Error(data.error);
     applyStatus(data?.integration);
     if (typeof data?.runtime_ready === 'boolean') setRuntimeReady(data.runtime_ready);
     if (!quiet) {
@@ -118,20 +125,20 @@ export default function SomlinkIntegrationSettings() {
     try {
       // Save any edited wallet/password first. Credential changes automatically
       // disable the integration until this test succeeds.
+      const previouslyActive = status.is_active && status.connection_status === 'connected';
       await saveCredentials(false, true);
-      const { data, error } = await invokeEdgeFunction<any>('somlink-integration', {
-        action: 'test',
-        tenant_id: tenantId,
-        activate: true,
-      });
-      if (error) throw error;
+      // Existing active integrations stay active after a successful retest.
+      // A new/unconfigured tenant requires an explicit Enable action.
+      const data = await callIntegration({ action: 'test', activate: previouslyActive });
       if (!data?.success) throw new Error(data?.error || 'Somlink connection failed');
       applyStatus(data?.integration);
       setRuntimeReady(data?.runtime_ready === true);
       toast({
         title: 'Connected ✓',
-        description: data?.runtime_ready === true && data?.integration?.is_active === true
-          ? 'Somlink wallet-kan tenant-ka ayaa la xaqiijiyey, xirmooyinkana waa la furay.'
+        description: data?.integration?.is_active === true
+          ? 'Somlink login waa PASS. Tenant-kan wali waa Active.'
+          : data?.runtime_ready === true
+          ? 'Somlink login waa PASS. Riix Enable Somlink delivery si tenant-kan loogu shido.'
           : 'Somlink login waa PASS. Delivery runtime-ka server-ka weli lama enable-gareyn, sidaas darteed xirmooyinka waa qarsoon yihiin.',
       });
     } catch (error: any) {
@@ -168,6 +175,20 @@ export default function SomlinkIntegrationSettings() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!tenantId || !window.confirm('Somlink credentials-ka tenant-kan ma tirtirnaa?')) return;
+    setDeleting(true);
+    try {
+      const data = await callIntegration({ action: 'delete' });
+      applyStatus(data?.integration);
+      toast({ title: 'Somlink credentials waa la tirtiray', description: 'Somlink API tenant-kan waa disabled.' });
+    } catch (error: any) {
+      toast({ title: 'Tirtiristu way fashilantay', description: error?.message || 'Khalad ayaa dhacay.', variant: 'destructive' });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const connected = status.connection_status === 'connected';
   const failed = status.connection_status === 'failed';
 
@@ -182,7 +203,7 @@ export default function SomlinkIntegrationSettings() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <CardTitle className="flex items-center gap-2"><PlugZap className="h-5 w-5" /> Somlink API</CardTitle>
-              <CardDescription className="mt-1">Tenant kasta wuxuu leeyahay wallet credentials u gaar ah.</CardDescription>
+              <CardDescription className="mt-1">{client ? 'Super Admin-ka ayaa tenant-kan Somlink API u xira.' : 'Tenant kasta wuxuu leeyahay wallet credentials u gaar ah.'}</CardDescription>
             </div>
             <div className={`rounded-full px-3 py-1 text-xs font-semibold ${connected ? 'bg-green-100 text-green-700' : failed ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
               {connected ? 'Connected' : failed ? 'Failed' : 'Untested'}
@@ -198,7 +219,7 @@ export default function SomlinkIntegrationSettings() {
               inputMode="tel"
               value={walletPhone}
               onChange={(e) => setWalletPhone(e.target.value)}
-              placeholder="25265xxxxxxx ama 65xxxxxxx"
+              placeholder="25264xxxxxxx ama 64xxxxxxx"
               autoComplete="off"
             />
           </div>
@@ -224,7 +245,7 @@ export default function SomlinkIntegrationSettings() {
                 <p className="font-medium">Enable Somlink delivery</p>
                 <p className="mt-1 text-xs text-muted-foreground">Connected + Active marka ay noqoto ayaa xirmooyinka Somlink macaamiisha u muuqdaan.</p>
               </div>
-              <Switch checked={status.is_active} onCheckedChange={handleActiveChange} disabled={!connected || !runtimeReady || saving || testing} />
+              <Switch checked={status.is_active} onCheckedChange={handleActiveChange} disabled={!connected || !runtimeReady || saving || testing || deleting} />
             </div>
           </div>
 
@@ -250,12 +271,17 @@ export default function SomlinkIntegrationSettings() {
           )}
 
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Button onClick={handleSave} variant="outline" disabled={saving || testing} className="sm:flex-1">
+            <Button onClick={handleSave} variant="outline" disabled={saving || testing || deleting} className="sm:flex-1">
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Save Credentials
             </Button>
-            <Button onClick={handleTest} disabled={saving || testing} className="sm:flex-1">
+            <Button onClick={handleTest} disabled={saving || testing || deleting} className="sm:flex-1">
               {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlugZap className="mr-2 h-4 w-4" />} Test Connection
             </Button>
+            {status.configured && (
+              <Button variant="destructive" onClick={handleDelete} disabled={saving || testing || deleting}>
+                {deleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />} Remove
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>

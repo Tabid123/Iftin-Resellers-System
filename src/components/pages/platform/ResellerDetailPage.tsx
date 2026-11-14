@@ -11,6 +11,7 @@ import { ArrowLeft, Bell, Loader2, Upload, X, KeyRound, Copy, Check, UserCog, Tr
 import ThemePreview from '@/components/platform/ThemePreview'
 import PartnerApiTab from '@/components/platform/PartnerApiTab'
 import WaafiPayIntegrationSettings from '@/components/admin/WaafiPayIntegrationSettings'
+import SomlinkIntegrationSettings from '@/components/admin/SomlinkIntegrationSettings'
 import CachedImage from '@/components/CachedImage'
 
 
@@ -884,6 +885,8 @@ export default function ResellerDetailPage() {
       </Card>
 
       {tenant && <WaafiPayIntegrationSettings tenantId={tenant.id} client={supabase} />}
+
+      {tenant && <SomlinkIntegrationSettings key={tenant.id} tenantId={tenant.id} client={supabase} />}
 
       {tenant && <PartnerApiTab tenant={tenant} onRefresh={load} client={supabase} />}
 
