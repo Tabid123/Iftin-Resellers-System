@@ -19,13 +19,6 @@ function cleanDigits(value: string) {
   return String(value || '').replace(/\D/g, '');
 }
 
-/** Keep text wallet IDs exactly as supplied by Somlink. Existing numeric wallets
- * continue to be sent without an optional + prefix, as before this change. */
-export function normalizeSomlinkWalletIdentifier(value: string) {
-  const identifier = String(value || '').trim();
-  return /^\+?[0-9]+$/.test(identifier) ? cleanDigits(identifier) : identifier;
-}
-
 function normalizeReceiver(value: string) {
   const digits = cleanDigits(value);
   return digits.startsWith('252') ? digits : `252${digits}`;
@@ -115,11 +108,15 @@ export async function somlinkSendData(input: {
   amount: number;
   bundleId: number;
 }) {
+  // Prevent an invalid wallet name from reaching the paid delivery endpoint.
+  if (!/^\\+?[0-9]{7,15}$/.test(String(input.walletPhone || '').trim())) {
+    throw new SomlinkApiError('send', 'Invalid Somlink wallet phone', null, null);
+  }
   try {
     const { response, json } = await postJson(`${SOMLINK_BASE}/data/send_data`, {
       token: normalizeToken(input.token),
       data_phone: normalizeReceiver(input.receiverPhone),
-      wallet_phone: normalizeSomlinkWalletIdentifier(input.walletPhone),
+      wallet_phone: cleanDigits(input.walletPhone),
       amount: Number(input.amount),
       bundle_id: Number(input.bundleId),
     });
