@@ -35,5 +35,8 @@ jobs:
           grep -Fq 'defaultPendingMs: 60_000' src/router.tsx
           grep -Fq 'WEB_SPLASH_MS = 1500' src/components/TenantGate.tsx
 
+      - name: Test Somlink wallet identifiers
+        run: bun run test -- tests/somlinkWallet.test.ts
+
       - name: Build
         run: bun run build
