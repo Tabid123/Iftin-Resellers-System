@@ -18,11 +18,18 @@ interface SomlinkStatus {
   has_password: boolean;
 }
 
-const SOMLINK_WALLET_PHONE = /^\+?[0-9]{7,15}$/;
+// Somlink accounts may be phone numbers OR provider-assigned text identifiers.
+// Keep existing numeric rules and reject control characters; preserve the actual ID.
+function validSomlinkWalletId(value: string) {
+  const id = value.trim();
+  if (id.length < 3 || id.length > 128 || /[\x00-\x1f\x7f]/.test(id)) return false;
+  if (/^\+?[0-9]+$/.test(id)) return /^\+?[0-9]{7,15}$/.test(id);
+  return true;
+}
 
 function readableSomlinkError(code: string) {
-  if (code === 'invalid_wallet_phone') {
-    return 'Somlink wallet phone waa inuu noqdaa lambar telefoon (tusaale: 64xxxxxxx), ma aha username.';
+  if (code === 'invalid_wallet_phone' || code === 'invalid_wallet_identifier') {
+    return 'Geli Somlink wallet phone ama API identifier-ka saxda ah (tusaale FAANOOLEAPI ama 64xxxxxxx).';
   }
   if (code === 'password_required') return 'Geli Somlink password-ka.';
   if (code === 'super_admin_required') return 'Super Admin oo keliya ayaa Somlink API maamuli kara.';
@@ -100,9 +107,9 @@ export default function SomlinkIntegrationSettings({ tenantId, client }: { tenan
 
   const saveCredentials = async (requestedActive = status.is_active, quiet = false) => {
     if (!tenantId) throw new Error('Tenant lama helin');
-    if (!walletPhone.trim()) throw new Error('Gali Somlink wallet phone');
-    if (!SOMLINK_WALLET_PHONE.test(walletPhone.trim())) {
-      throw new Error(readableSomlinkError('invalid_wallet_phone'));
+    if (!walletPhone.trim()) throw new Error('Geli Somlink wallet phone ama API identifier');
+    if (!validSomlinkWalletId(walletPhone)) {
+      throw new Error(readableSomlinkError('invalid_wallet_identifier'));
     }
     if (!status.configured && !password) throw new Error('Gali Somlink password');
 
@@ -229,20 +236,21 @@ export default function SomlinkIntegrationSettings({ tenantId, client }: { tenan
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="somlink-wallet">Somlink wallet phone (lambar telefoon)</Label>
+            <Label htmlFor="somlink-wallet">Somlink wallet / API identifier</Label>
             <Input
               id="somlink-wallet"
-              type="tel"
-              inputMode="tel"
+              type="text"
+              inputMode="text"
               value={walletPhone}
               onChange={(e) => setWalletPhone(e.target.value)}
-              placeholder="25264xxxxxxx ama 64xxxxxxx"
+              placeholder="FAANOOLEAPI ama 64xxxxxxx"
               autoComplete="off"
-              aria-invalid={walletPhone.trim().length > 0 && !SOMLINK_WALLET_PHONE.test(walletPhone.trim())}
+              aria-invalid={walletPhone.trim().length > 0 && !validSomlinkWalletId(walletPhone)}
             />
-            {walletPhone.trim().length > 0 && !SOMLINK_WALLET_PHONE.test(walletPhone.trim()) && (
-              <p className="text-xs text-destructive">Somlink wallet phone waa inuu noqdaa lambar (7–15 digits). Username/xarfo looma isticmaali karo goobtan.</p>
+            {walletPhone.trim().length > 0 && !validSomlinkWalletId(walletPhone) && (
+              <p className="text-xs text-destructive">Geli lambar 7–15 digits ah ama Somlink API ID qoraal ah (3–128 xaraf).</p>
             )}
+            <p className="text-xs text-muted-foreground">Geli aqoonsiga Somlink kuu siisay sida uu yahay; wuxuu noqon karaa lambar ama username.</p>
           </div>
 
           <div className="space-y-2">
