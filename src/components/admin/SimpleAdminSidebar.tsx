@@ -34,6 +34,7 @@ interface MenuItem {
 }
 
 const menuGroups: MenuItem[] = [
+  { label: 'Shop', labelSo: 'Dukaanka', icon: ShoppingCart, path: '/dashboard/shop' },
   { label: 'Dashboard', labelSo: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
   
   {

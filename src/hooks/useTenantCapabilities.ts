@@ -1,3 +1,4 @@
+import { useShop } from '@/components/shop/useShop';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
@@ -89,6 +90,7 @@ const cache = new Map<string, DeliveryMode>();
 
 export function useTenantCapabilities() {
   const { tenant } = useTenant();
+  const shop = useShop();
   const { can, loadingPermissions } = useAdminPermissions();
   const tenantId = tenant?.id ?? null;
   const [mode, setMode] = useState<DeliveryMode>(() => {
@@ -125,6 +127,7 @@ export function useTenantCapabilities() {
     // Credentials, status and activation of Somlink are platform-only.
     // Hiding the menu isn't enough: also block direct /dashboard/integrations URLs.
     if (key === 'integrations') return false;
+    if (key === 'shop') return shop.enabled && can('manage_settings');
     if (isPartner && PARTNER_HIDDEN.has(key)) return false;
     if (!isPartner && PARTNER_ONLY.has(key)) return false;
     const permission = VIEW_PERMISSION[key];

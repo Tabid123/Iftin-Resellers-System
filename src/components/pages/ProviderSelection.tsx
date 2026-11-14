@@ -1,3 +1,4 @@
+import ShopBanner from '@/components/shop/ShopBanner';
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from "@/lib/router-compat";
 import RotatingBanner from '@/components/RotatingBanner';
@@ -297,6 +298,7 @@ const ProviderSelection = () => {
           </div>
         </div>
 
+        <ShopBanner />
         {/* Popular Packages */}
         <div className="px-4 mt-6 mb-4">
           <PopularPackages />

@@ -14,6 +14,8 @@ import { ArrowLeft, Menu, Globe, Moon, Sun, Loader2 } from 'lucide-react';
 import najaxLogo from '@/assets/najax-logo.jpeg';
 import { prefetchAdminViews } from '@/lib/prefetchAdminViews';
 
+const ShopAdmin = lazy(() => import('@/components/shop/ShopAdmin'));
+
 // Lazy-loaded custom views (code-split per view)
 const DailyOrdersCustomView = lazy(() => import('@/components/admin/simple/OrderViews').then(m => ({ default: m.DailyOrdersCustomView })));
 const OrdersListView = lazy(() => import('@/components/admin/simple/OrderViews').then(m => ({ default: m.OrdersListView })));
@@ -74,6 +76,7 @@ interface DetailConfig {
 }
 
 const DETAIL_CONFIGS: Record<string, DetailConfig> = {
+  shop: { title: 'Shop', titleSo: 'Dukaanka', headerBg: 'from-blue-600 to-indigo-800' },
   customers: { title: 'Customers', titleSo: 'Macaamiisha', headerBg: 'from-teal-500 to-teal-700' },
   'offline-registrations': { title: 'Offline Registrations', titleSo: 'Offline Reg', headerBg: 'from-orange-500 to-orange-700' },
   'auto-topup': { title: 'Auto Top-Up', titleSo: 'Auto Top-Up', headerBg: 'from-lime-500 to-lime-700' },
@@ -171,6 +174,7 @@ const SimpleAdminDetail = () => {
       );
     }
     switch (type) {
+      case 'shop': return <ShopAdmin />;
       // Custom views (lazy-loaded)
       case 'daily-orders': return isPartner ? <IftinDailyOrders isSo={isSo} /> : <DailyOrdersCustomView isSo={isSo} />;
       case 'customers': return <CustomersCustomView isSo={isSo} />;
