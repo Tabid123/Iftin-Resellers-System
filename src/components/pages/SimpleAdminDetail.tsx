@@ -66,7 +66,6 @@ const IftinPayments = lazy(() => import('@/components/admin/IftinPayments'));
 const IftinOfflineCustomers = lazy(() => import('@/components/admin/IftinOfflineCustomers'));
 const IftinDailyOrders = lazy(() => import('@/components/admin/IftinDailyOrders'));
 const BankTransactions = lazy(() => import('@/components/admin/BankTransactions').then(m => ({ default: m.BankTransactions })));
-const SomlinkIntegrationSettings = lazy(() => import('@/components/admin/SomlinkIntegrationSettings'));
 
 interface DetailConfig {
   title: string;
@@ -92,7 +91,6 @@ const DETAIL_CONFIGS: Record<string, DetailConfig> = {
   featured: { title: 'Featured', titleSo: 'Featured', headerBg: 'from-amber-500 to-amber-700' },
   banners: { title: 'Banners', titleSo: 'Banners', headerBg: 'from-rose-500 to-rose-700' },
   'payment-settings': { title: 'Payment Providers', titleSo: 'Payment Settings', headerBg: 'from-violet-500 to-violet-700' },
-  integrations: { title: 'Integration Settings', titleSo: 'API Integrations', headerBg: 'from-blue-600 to-cyan-700' },
   'system-codes': { title: 'System Codes', titleSo: 'USSD Codes', headerBg: 'from-indigo-600 to-indigo-800' },
   'sim-pins': { title: 'SIM PINs', titleSo: 'SIM PINs', headerBg: 'from-indigo-500 to-blue-700' },
   'discovery-pricing': { title: 'Discovery Pricing', titleSo: 'Qiimaha Baarista', headerBg: 'from-fuchsia-600 to-purple-800' },
@@ -189,7 +187,6 @@ const SimpleAdminDetail = () => {
       case 'featured': return <FeaturedCustomView isSo={isSo} />;
       case 'banners': return <BannersCustomView isSo={isSo} />;
       case 'payment-settings': return <PaymentSettingsCustomView isSo={isSo} />;
-      case 'integrations': return <SomlinkIntegrationSettings />;
       case 'system-codes': return <SystemCodesCustomView isSo={isSo} />;
       case 'sim-pins': return <SimPinsView isSo={isSo} />;
       case 'discovery-pricing': return <DiscoveryPricing />;
