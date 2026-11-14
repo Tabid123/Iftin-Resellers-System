@@ -1,47 +1,43 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  normalizeSomlinkWalletIdentifier,
-  somlinkLogin,
-  somlinkSendData,
-} from '../supabase/functions/_shared/somlink';
+import { somlinkLogin, somlinkSendData } from '../supabase/functions/_shared/somlink';
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
+afterEach(() => { vi.unstubAllGlobals(); });
 
-describe('Somlink wallet account IDs', () => {
-  it('preserves provider-issued text IDs without stripping or changing case', () => {
-    expect(normalizeSomlinkWalletIdentifier('FAANOOLEAPI')).toBe('FAANOOLEAPI');
-    expect(normalizeSomlinkWalletIdentifier('Faanoole_API-1')).toBe('Faanoole_API-1');
-  });
-
-  it('preserves legacy numeric wallet behavior', () => {
-    expect(normalizeSomlinkWalletIdentifier('252642403245')).toBe('252642403245');
-    expect(normalizeSomlinkWalletIdentifier('+252642403245')).toBe('252642403245');
-  });
-
-  it('sends provider-issued text wallet IDs to Somlink instead of an empty number', async () => {
-    const requests: Array<{ url: string; body: Record<string, unknown> }> = [];
+describe('Somlink numeric wallet phone authentication', () => {
+  it('sends the wallet phone for login and delivery exactly as the provider API expects', async () => {
+    const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
     vi.stubGlobal('fetch', vi.fn(async (url: string, options: RequestInit) => {
-      requests.push({ url: String(url), body: JSON.parse(String(options.body)) });
-      if (String(url).includes('/auth/')) {
-        return new Response(JSON.stringify({ token: 'synthetic-access-token' }), { status: 200 });
-      }
-      return new Response(JSON.stringify({ code: 200, message: 'DATA_PAID_SUCCESSFULLY' }), { status: 200 });
+      calls.push({ url: String(url), body: JSON.parse(String(options.body)) });
+      return new Response(JSON.stringify(String(url).includes('/auth/')
+        ? { token: 'synthetic-access-token' }
+        : { code: 200, message: 'DATA_PAID_SUCCESSFULLY' }), { status: 200 });
     }));
 
-    const login = await somlinkLogin('FAANOOLEAPI', 'synthetic-password');
+    const login = await somlinkLogin('642403245', 'synthetic-password');
     await somlinkSendData({
       token: login.token,
-      walletPhone: 'FAANOOLEAPI',
+      walletPhone: '642403245',
       receiverPhone: '640000000',
       amount: 0.5,
       bundleId: 20060,
     });
 
-    expect(requests).toHaveLength(2);
-    expect(requests[0].body.phone).toBe('FAANOOLEAPI');
-    expect(requests[1].body.wallet_phone).toBe('FAANOOLEAPI');
-    expect(requests[1].body.data_phone).toBe('252640000000');
+    expect(calls).toHaveLength(2);
+    expect(calls[0].body).toEqual({ phone: '642403245', password: 'synthetic-password' });
+    expect(calls[1].body.wallet_phone).toBe('642403245');
+    expect(calls[1].body.data_phone).toBe('252640000000');
+  });
+
+  it('rejects non-numeric wallet IDs before any paid delivery request', async () => {
+    const fakeFetch = vi.fn();
+    vi.stubGlobal('fetch', fakeFetch);
+    await expect(somlinkSendData({
+      token: 'synthetic-token',
+      walletPhone: 'FAANOOLEAPI',
+      receiverPhone: '640000000',
+      amount: 0.5,
+      bundleId: 20060,
+    })).rejects.toThrow('Invalid Somlink wallet phone');
+    expect(fakeFetch).not.toHaveBeenCalled();
   });
 });
