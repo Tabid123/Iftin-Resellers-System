@@ -19,7 +19,7 @@ import {
   XCircle, ListOrdered, History, Send, Megaphone, CreditCard,
   BarChart3, AlertTriangle, Wallet, Package, Briefcase, Grid3x3,
   Star, Layers, Zap, ImageIcon, WifiOff, ShieldCheck, FileText,
-  Receipt, Moon, Sun, Globe, Banknote, Search, PlugZap,
+  Receipt, Moon, Sun, Globe, Banknote, Search,
 } from 'lucide-react';
 import najaxLogo from '@/assets/najax-logo.jpeg';
 import { useTenant } from '@/contexts/TenantContext';
@@ -100,7 +100,6 @@ const menuGroups: MenuItem[] = [
     label: 'Settings', labelSo: 'Settings', icon: Settings,
     children: [
       { label: 'Payment Settings', labelSo: 'Payment', icon: CreditCard, path: '/dashboard/payment-settings' },
-      { label: 'Integration Settings', labelSo: 'API Integrations', icon: PlugZap, path: '/dashboard/integrations' },
       { label: 'Payment Numbers', labelSo: 'Lambarada Lacagta', icon: CreditCard, path: '/dashboard/iftin-payment-numbers' },
       { label: 'Wallet', labelSo: "Wallet & Faa'iido", icon: CreditCard, path: '/dashboard/iftin-wallet' },
       { label: 'Payments Log', labelSo: 'Lacagaha SMS-ka', icon: CreditCard, path: '/dashboard/iftin-payments' },
