@@ -23,7 +23,7 @@ describe('platform eCommerce feature controls', () => {
   it('keeps commercial tenant billing separate from eCommerce entitlements', () => {
     const page = read('src/components/pages/platform/FeaturesPage.tsx')
     expect(page).not.toContain(".from('tenants').update(")
-    expect(read('supabase/migrations/20261114200000_ecommerce_feature_plan.sql'))
+    expect(read('supabase/migrations/20261114171023_ecommerce_feature_plan.sql'))
       .toContain('add column if not exists plan_id uuid')
   })
 })
