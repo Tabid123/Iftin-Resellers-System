@@ -1,4 +1,3 @@
-import ShopFeatureControl from '@/components/shop/ShopFeatureControl';
 import { useEffect, useRef, useState } from 'react'
 import { useParams, Link, useNavigate } from "@/lib/router-compat"
 import { platformSupabase as supabase } from '@/integrations/supabase/client'
@@ -885,7 +884,13 @@ export default function ResellerDetailPage() {
         </CardContent>
       </Card>
 
-      {tenant && <ShopFeatureControl key={tenant.id} tenantId={tenant.id} />}
+      {tenant && <Card>
+        <CardHeader><CardTitle>eCommerce — Dukaanka</CardTitle></CardHeader>
+        <CardContent>
+          <p className="mb-3 text-sm text-muted-foreground">Features-ka tenant-kan waxaa laga furaa ama laga xiraa Super Admin → Features.</p>
+          <Button asChild variant="outline"><Link to={'/admin/features?tenant=' + tenant.id}>Maamul eCommerce</Link></Button>
+        </CardContent>
+      </Card>}
 
       {tenant && <WaafiPayIntegrationSettings tenantId={tenant.id} client={supabase} />}
 
