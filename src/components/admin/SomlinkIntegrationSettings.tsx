@@ -5,8 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { supabase, invokeEdgeFunction } from '@/integrations/supabase/client';
-import { useTenant } from '@/contexts/TenantContext';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
 interface SomlinkStatus {
@@ -29,9 +28,7 @@ const EMPTY_STATUS: SomlinkStatus = {
   has_password: false,
 };
 
-export default function SomlinkIntegrationSettings({ tenantId: explicitTenantId, client }: { tenantId?: string; client?: typeof supabase } = {}) {
-  const { tenant } = useTenant();
-  const tenantId = explicitTenantId ?? tenant?.id ?? null;
+export default function SomlinkIntegrationSettings({ tenantId, client }: { tenantId: string; client: typeof supabase }) {
   const [status, setStatus] = useState<SomlinkStatus>(EMPTY_STATUS);
   const [runtimeReady, setRuntimeReady] = useState(false);
   const [walletPhone, setWalletPhone] = useState('');
@@ -53,9 +50,7 @@ export default function SomlinkIntegrationSettings({ tenantId: explicitTenantId,
   const callIntegration = useCallback(async (payload: Record<string, unknown>) => {
     if (!tenantId) throw new Error('Tenant lama helin');
     const body = { tenant_id: tenantId, ...payload };
-    const { data, error } = client
-      ? await client.functions.invoke('somlink-integration', { body })
-      : await invokeEdgeFunction<any>('somlink-integration', body);
+    const { data, error } = await client.functions.invoke('somlink-integration', { body });
     if (error || data?.error) {
       throw new Error(data?.error || error?.message || 'Somlink integration error');
     }
@@ -203,7 +198,7 @@ export default function SomlinkIntegrationSettings({ tenantId: explicitTenantId,
           <div className="flex items-start justify-between gap-3">
             <div>
               <CardTitle className="flex items-center gap-2"><PlugZap className="h-5 w-5" /> Somlink API</CardTitle>
-              <CardDescription className="mt-1">{client ? 'Super Admin-ka ayaa tenant-kan Somlink API u xira.' : 'Tenant kasta wuxuu leeyahay wallet credentials u gaar ah.'}</CardDescription>
+              <CardDescription className="mt-1">{'Somlink API waxaa tenant-kan u xira Super Admin-ka oo keliya.'}</CardDescription>
             </div>
             <div className={`rounded-full px-3 py-1 text-xs font-semibold ${connected ? 'bg-green-100 text-green-700' : failed ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
               {connected ? 'Connected' : failed ? 'Failed' : 'Untested'}
