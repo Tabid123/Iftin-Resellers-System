@@ -34,6 +34,15 @@ interface MenuItem {
 }
 
 const menuGroups: MenuItem[] = [
+  {
+    label: 'eCommerce', labelSo: 'eCommerce', icon: ShoppingCart,
+    children: [
+      { label: 'Categories', labelSo: 'Categories', icon: Grid3x3, path: '/dashboard/ecommerce-categories' },
+      { label: 'Packages / Products', labelSo: 'Packages / Alaabta', icon: Package, path: '/dashboard/ecommerce-packages' },
+      { label: 'Stock', labelSo: 'Stock', icon: Layers, path: '/dashboard/ecommerce-stock' },
+      { label: 'Orders', labelSo: 'Dalabyada', icon: ListOrdered, path: '/dashboard/ecommerce-orders' },
+    ],
+  },
   { label: 'Dashboard', labelSo: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
   
   {

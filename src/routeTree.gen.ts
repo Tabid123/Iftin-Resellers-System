@@ -19,6 +19,7 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as ProvidersRouteImport } from './routes/providers'
+import { Route as ShopRouteImport } from './routes/shop'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminAppsRouteImport } from './routes/admin.apps'
 import { Route as AdminPlansRouteImport } from './routes/admin.plans'
@@ -99,6 +100,11 @@ const ProfileRoute = ProfileRouteImport.update({
 const ProvidersRoute = ProvidersRouteImport.update({
   id: '/providers',
   path: '/providers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShopRoute = ShopRouteImport.update({
+  id: '/shop',
+  path: '/shop',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -269,6 +275,7 @@ export interface FileRoutesByFullPath {
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/profile': typeof ProfileRoute
   '/providers': typeof ProvidersRoute
+  '/shop': typeof ShopRoute
   '/admin/apps': typeof AdminAppsRoute
   '/admin/plans': typeof AdminPlansRoute
   '/categories/$provider': typeof CategoriesProviderRoute
@@ -311,6 +318,7 @@ export interface FileRoutesByTo {
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/profile': typeof ProfileRoute
   '/providers': typeof ProvidersRoute
+  '/shop': typeof ShopRoute
   '/admin/apps': typeof AdminAppsRoute
   '/admin/plans': typeof AdminPlansRoute
   '/categories/$provider': typeof CategoriesProviderRoute
@@ -355,6 +363,7 @@ export interface FileRoutesById {
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/profile': typeof ProfileRoute
   '/providers': typeof ProvidersRoute
+  '/shop': typeof ShopRoute
   '/admin/apps': typeof AdminAppsRoute
   '/admin/plans': typeof AdminPlansRoute
   '/categories/$provider': typeof CategoriesProviderRoute
@@ -400,6 +409,7 @@ export interface FileRouteTypes {
     | '/privacy-policy'
     | '/profile'
     | '/providers'
+    | '/shop'
     | '/admin/apps'
     | '/admin/plans'
     | '/categories/$provider'
@@ -442,6 +452,7 @@ export interface FileRouteTypes {
     | '/privacy-policy'
     | '/profile'
     | '/providers'
+    | '/shop'
     | '/admin/apps'
     | '/admin/plans'
     | '/categories/$provider'
@@ -485,6 +496,7 @@ export interface FileRouteTypes {
     | '/privacy-policy'
     | '/profile'
     | '/providers'
+    | '/shop'
     | '/admin/apps'
     | '/admin/plans'
     | '/categories/$provider'
@@ -529,6 +541,7 @@ export interface RootRouteChildren {
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
   ProfileRoute: typeof ProfileRoute
   ProvidersRoute: typeof ProvidersRoute
+  ShopRoute: typeof ShopRoute
   CategoriesProviderRoute: typeof CategoriesProviderRoute
   DashboardTypeRoute: typeof DashboardTypeRoute
   DashboardLoginRoute: typeof DashboardLoginRoute
@@ -626,6 +639,13 @@ declare module '@tanstack/react-router' {
       path: '/providers'
       fullPath: '/providers'
       preLoaderRoute: typeof ProvidersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/shop': {
+      id: '/shop'
+      path: '/shop'
+      fullPath: '/shop'
+      preLoaderRoute: typeof ShopRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -879,6 +899,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyPolicyRoute: PrivacyPolicyRoute,
   ProfileRoute: ProfileRoute,
   ProvidersRoute: ProvidersRoute,
+  ShopRoute: ShopRoute,
   CategoriesProviderRoute: CategoriesProviderRoute,
   DashboardTypeRoute: DashboardTypeRoute,
   DashboardLoginRoute: DashboardLoginRoute,
