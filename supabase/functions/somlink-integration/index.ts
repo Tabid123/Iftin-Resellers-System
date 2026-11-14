@@ -14,9 +14,45 @@ function json(body: unknown, status = 200) {
   });
 }
 
+/**
+ * The login API may return a useful reason inside its JSON error. We map only
+ * known categories; never echo the raw upstream response (it may contain a
+ * credential, account number, or token).
+ */
+function safeLoginReason(response: unknown) {
+  if (!response || typeof response !== 'object' || Array.isArray(response)) return '';
+  const body = response as Record<string, unknown>;
+  const parts = [body.message, body.error, body.error_message, body.detail, body.msg, body.reason]
+    .filter((value): value is string => typeof value === 'string');
+  const reason = parts.join(' ').toLowerCase();
+
+  if (/password|credential|authentication|unauthori[sz]ed/.test(reason)
+      && /wrong|invalid|incorrect|failed|mismatch|reject|unauthori[sz]ed/.test(reason)) {
+    return 'Somlink wuxuu diiday username/password-ka (hubi password-ka rasmiga ah).';
+  }
+  if (/phone|msisdn|mobile|number/.test(reason)
+      && /invalid|required|missing|format|number|must be/.test(reason)) {
+    return 'Somlink login wuxuu rabaa phone number ama format kale; xaqiiji in API ID-ga qoraalka ah login-kan lagu isticmaalo.';
+  }
+  if (/account|wallet|user/.test(reason) && /not found|not exist|unknown|inactive|disabled|blocked/.test(reason)) {
+    return 'Somlink account-ka lama helin ama wali looma oggolaan API login.';
+  }
+  if (/token/.test(reason) && /missing|invalid|not found|absent/.test(reason)) {
+    return 'Somlink login ma soo celin token sax ah.';
+  }
+  return '';
+}
+
 function safeError(error: unknown) {
   if (error instanceof SomlinkApiError) {
-    return `${error.message}${error.status ? ` (${error.status})` : ''}`.slice(0, 500);
+    const base = `${error.message}${error.status ? ` (${error.status})` : ''}`;
+    const hint = error.stage === 'login'
+      ? safeLoginReason(error.response)
+        || (error.status === 400
+          ? 'Somlink ayaa diiday login-ka; hubi password-ka kaydsan iyo in API username-ka loo oggol yahay endpoint-kan.'
+          : '')
+      : '';
+    return `${base}${hint ? ` — ${hint}` : ''}`.slice(0, 500);
   }
   return (error instanceof Error ? error.message : 'Unknown error').slice(0, 500);
 }
