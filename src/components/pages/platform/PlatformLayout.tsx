@@ -3,7 +3,7 @@ import { platformSupabase as supabase, supabase as tenantSupabase } from '@/inte
 import { NavLink, Outlet, useNavigate } from "@/lib/router-compat"
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
-import { Loader2, LogOut, Users, Package, BarChart3, Smartphone, Menu, PanelLeftClose, Moon, Sun } from 'lucide-react'
+import { Loader2, LogOut, Users, Package, BarChart3, Smartphone, Menu, PanelLeftClose, Moon, Sun, SlidersHorizontal } from 'lucide-react'
 import PlatformAuth from './PlatformAuth'
 import iftinLogo from '@/assets/iftin-resellers-icon.jpg'
 
@@ -76,6 +76,7 @@ export default function PlatformLayout() {
     { to: '/admin', label: 'Overview', icon: BarChart3, end: true },
     { to: '/admin/resellers', label: 'Resellers', icon: Users },
     { to: '/admin/plans', label: 'Plans', icon: Package },
+    { to: '/admin/features', label: 'Features', icon: SlidersHorizontal },
     { to: '/admin/apps', label: 'Apps', icon: Smartphone },
   ]
 
