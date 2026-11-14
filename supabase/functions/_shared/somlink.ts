@@ -109,7 +109,7 @@ export async function somlinkSendData(input: {
   bundleId: number;
 }) {
   // Prevent an invalid wallet name from reaching the paid delivery endpoint.
-  if (!/^\\+?[0-9]{7,15}$/.test(String(input.walletPhone || '').trim())) {
+  if (!/^\+?[0-9]{7,15}$/.test(String(input.walletPhone || '').trim())) {
     throw new SomlinkApiError('send', 'Invalid Somlink wallet phone', null, null);
   }
   try {
