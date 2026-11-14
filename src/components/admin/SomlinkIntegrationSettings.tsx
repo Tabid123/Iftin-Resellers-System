@@ -125,14 +125,19 @@ export default function SomlinkIntegrationSettings({ tenantId: explicitTenantId,
     try {
       // Save any edited wallet/password first. Credential changes automatically
       // disable the integration until this test succeeds.
+      const previouslyActive = status.is_active && status.connection_status === 'connected';
       await saveCredentials(false, true);
-      const data = await callIntegration({ action: 'test', activate: false });
+      // Existing active integrations stay active after a successful retest.
+      // A new/unconfigured tenant requires an explicit Enable action.
+      const data = await callIntegration({ action: 'test', activate: previouslyActive });
       if (!data?.success) throw new Error(data?.error || 'Somlink connection failed');
       applyStatus(data?.integration);
       setRuntimeReady(data?.runtime_ready === true);
       toast({
         title: 'Connected ✓',
-        description: data?.runtime_ready === true
+        description: data?.integration?.is_active === true
+          ? 'Somlink login waa PASS. Tenant-kan wali waa Active.'
+          : data?.runtime_ready === true
           ? 'Somlink login waa PASS. Riix Enable Somlink delivery si tenant-kan loogu shido.'
           : 'Somlink login waa PASS. Delivery runtime-ka server-ka weli lama enable-gareyn, sidaas darteed xirmooyinka waa qarsoon yihiin.',
       });
