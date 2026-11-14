@@ -43,7 +43,7 @@ begin
     'has_password', r.password_secret_id is not null
   );
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.somlink_admin_credentials(p_tenant_id uuid)
@@ -63,7 +63,7 @@ AS $function$
   from private.tenant_somlink_integrations s
   join vault.decrypted_secrets d on d.id = s.password_secret_id
   where s.tenant_id = p_tenant_id;
-$function$
+$function$;
 
 
 create or replace function public.somlink_admin_save_with_login(
