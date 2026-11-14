@@ -116,12 +116,14 @@ serve(async (req) => {
 
     if (action === 'save') {
       const walletPhone = String(body?.wallet_phone || '').trim();
+      const loginPhone = typeof body?.login_phone === 'string' ? body.login_phone.trim() : '';
       const password = typeof body?.password === 'string' && body.password.length > 0 ? body.password : null;
       const wantsActive = body?.is_active === true;
       const isRuntimeReady = await runtimeReady(admin);
-      const { data, error } = await admin.rpc('somlink_admin_save', {
+      const { data, error } = await admin.rpc('somlink_admin_save_with_login', {
         p_tenant_id: tenantId,
         p_wallet_phone: walletPhone,
+        p_login_phone: loginPhone,
         p_password: password,
         p_is_active: wantsActive && isRuntimeReady,
       });
@@ -139,7 +141,9 @@ serve(async (req) => {
       }
 
       try {
-        await somlinkLogin(credentials.wallet_phone, credentials.password);
+        // The provider login contract uses "phone"; it may not accept the
+        // alphanumeric wallet identifier used separately for data delivery.
+        await somlinkLogin(credentials.login_phone || credentials.wallet_phone, credentials.password);
       } catch (error) {
         const message = safeError(error);
         await admin.rpc('somlink_admin_set_connection', {
