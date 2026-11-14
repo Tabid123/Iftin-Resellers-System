@@ -39,6 +39,7 @@ const pages = {
   ResellerNewPage: React.lazy(() => import('@/components/pages/platform/ResellerNewPage')),
   ResellerDetailPage: React.lazy(() => import('@/components/pages/platform/ResellerDetailPage')),
   AppsPage: React.lazy(() => import('@/components/pages/platform/AppsPage')),
+  FeaturesPage: React.lazy(() => import('@/components/pages/platform/FeaturesPage')),
 } satisfies Record<string, React.ComponentType<any>>;
 
 export type PageKey = keyof typeof pages;
