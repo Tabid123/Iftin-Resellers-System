@@ -85,54 +85,85 @@ const VIEW_PERMISSION: Record<string, string> = {
   'fraud-alerts': 'view_audit_log',
 };
 
-const CACHE_KEY = 'najax.tenant_delivery_mode';
-const cache = new Map<string, DeliveryMode>();
-
+// TenantContext already carries the delivery mode for the current workspace.
+// Do not assume Android mode before the API-partner flag has finished resolving.
 export function useTenantCapabilities() {
   const { tenant } = useTenant();
   const shop = useShop();
-  const { can, loadingPermissions } = useAdminPermissions();
+  const { can, loadingPermissions, permissionsError, retryPermissions } = useAdminPermissions();
   const tenantId = tenant?.id ?? null;
-  const [mode, setMode] = useState<DeliveryMode>(() => {
-    if (tenantId && cache.has(tenantId)) return cache.get(tenantId)!;
-    try {
-      const raw = localStorage.getItem(CACHE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as { id: string; mode: DeliveryMode };
-        if (parsed.id === tenantId) return parsed.mode;
-      }
-    } catch { /* ignore */ }
-    return 'android_device';
-  });
+  const contextMode: DeliveryMode | null =
+    tenant?.delivery_mode === 'api_partner' || tenant?.delivery_mode === 'android_device'
+      ? tenant.delivery_mode : null;
+
+  const [lookup, setLookup] = useState<{
+    tenantId: string | null;
+    mode: DeliveryMode | null;
+    error: string | null;
+  }>({ tenantId: null, mode: null, error: null });
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
-    if (!tenantId) return;
+    if (!tenantId || contextMode) return;
     let active = true;
     (async () => {
-      const { data } = await supabase
-        .from('tenants').select('delivery_mode').eq('id', tenantId).maybeSingle();
-      const next = (data?.delivery_mode === 'api_partner' ? 'api_partner' : 'android_device') as DeliveryMode;
-      cache.set(tenantId, next);
-      try { localStorage.setItem(CACHE_KEY, JSON.stringify({ id: tenantId, mode: next })); } catch { /* ignore */ }
-      if (active) setMode(next);
+      const { data, error } = await supabase.from('tenants')
+        .select('delivery_mode').eq('id', tenantId).maybeSingle();
+      if (!active) return;
+      if (error || !data) {
+        setLookup({
+          tenantId,
+          mode: null,
+          error: error?.message || 'Unable to resolve tenant delivery mode',
+        });
+      } else {
+        setLookup({
+          tenantId,
+          mode: data.delivery_mode === 'api_partner' ? 'api_partner' : 'android_device',
+          error: null,
+        });
+      }
     })();
     return () => { active = false; };
-  }, [tenantId]);
+  }, [tenantId, contextMode, retryKey]);
 
+  const matchingLookup = lookup.tenantId === tenantId ? lookup : null;
+  const mode = contextMode ?? matchingLookup?.mode ?? null;
+  const modeError = !contextMode ? matchingLookup?.error ?? null : null;
+  const loadingMode = !!tenantId && mode === null && !modeError;
   const isPartner = mode === 'api_partner';
+
   const canSee = (view?: string) => {
     if (!view) return true;
     const key = view.replace(/^\/dashboard\/?/, '').split('?')[0];
     if (!key) return true;
-    // Credentials, status and activation of Somlink are platform-only.
-    // Hiding the menu isn't enough: also block direct /dashboard/integrations URLs.
     if (key === 'integrations') return false;
-    if (['shop', 'ecommerce-categories', 'ecommerce-packages', 'ecommerce-stock', 'ecommerce-orders', 'ecommerce-settings'].includes(key)) return shop.enabled && can('manage_settings');
+    if (['shop', 'ecommerce-categories', 'ecommerce-packages', 'ecommerce-stock', 'ecommerce-orders', 'ecommerce-settings'].includes(key)) {
+      return !loadingPermissions && !loadingMode && shop.enabled && can('manage_settings');
+    }
+    // While the mode or permissions are pending, no access decision is final.
+    if (loadingPermissions || loadingMode || permissionsError || modeError) return false;
     if (isPartner && PARTNER_HIDDEN.has(key)) return false;
     if (!isPartner && PARTNER_ONLY.has(key)) return false;
     const permission = VIEW_PERMISSION[key];
     return permission ? can(permission) : false;
   };
 
-  return { mode, isPartner, canSee, can, loadingPermissions };
+  return {
+    mode,
+    isPartner,
+    canSee,
+    can,
+    loadingPermissions,
+    permissionsError,
+    retryPermissions,
+    loadingMode,
+    modeError,
+    retryMode: () => {
+      setLookup({ tenantId: null, mode: null, error: null });
+      setRetryKey(value => value + 1);
+    },
+    shopLoading: shop.loading,
+    shopError: shop.error,
+  };
 }

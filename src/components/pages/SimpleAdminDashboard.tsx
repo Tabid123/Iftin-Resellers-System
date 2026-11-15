@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 
 import { useNavigate } from "@/lib/router-compat";
-import { supabase, getTenantId, setTenantHeader } from '@/integrations/supabase/client';
+import { supabase, setTenantHeader } from '@/integrations/supabase/client';
 import { decideWorkspace, fetchMemberships, rememberedWorkspace } from '@/lib/workspaceMembership';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { SimpleAdminSidebar } from '@/components/admin/SimpleAdminSidebar';
+import { AdminDashboardSkeleton } from '@/components/admin/AdminLoadingSkeleton';
 import { Menu, RefreshCw, Globe, Moon, Sun, Plus, Pencil, Volume2, VolumeX, CalendarIcon, Wallet } from 'lucide-react';
 import { format } from 'date-fns';
 import { Calendar } from '@/components/ui/calendar';
@@ -100,7 +101,11 @@ const SimpleAdminDashboard = () => {
   const tenantState = useTenant();
   const tenant = tenantState.tenant;
   const tenantReady = tenantState.status === 'ready' || tenantState.status === 'platform';
-  const { isPartner, can } = useTenantCapabilities();
+  const {
+    isPartner, can, loadingPermissions, loadingMode, permissionsError, modeError,
+    retryPermissions, retryMode,
+  } = useTenantCapabilities();
+  const readyForStats = tenantReady && !loadingPermissions && !loadingMode && !permissionsError && !modeError;
   const [clock, setClock] = useState(new Date());
   const [selectedPeriod, setSelectedPeriod] = useState<'today' | 'week' | 'month' | 'year'>('today');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -111,6 +116,8 @@ const SimpleAdminDashboard = () => {
   const [wallet, setWallet] = useState<IftinWalletData['wallet']>({ pending: 0, available: 0, paid_out: 0 });
   const [unmatchedCount, setUnmatchedCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadedTenantId, setLoadedTenantId] = useState<string | null>(null);
+  const [dataError, setDataError] = useState('');
   const [manualDeliveryOpen, setManualDeliveryOpen] = useState(false);
   const [selectedSimForDelivery, setSelectedSimForDelivery] = useState<{ device_id: string; device_name: string; sim_slot: 1 | 2; provider_name: string } | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
@@ -166,7 +173,9 @@ const SimpleAdminDashboard = () => {
   }, []);
 
   const fetchData = useCallback(async () => {
+    if (!readyForStats || !tenant?.id) return;
     setLoading(true);
+    setDataError('');
     try {
       const mogDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Mogadishu' }));
       mogDate.setHours(0, 0, 0, 0);
@@ -199,20 +208,21 @@ const SimpleAdminDashboard = () => {
       })();
       const periodEndISO = useCustomDate ? customEndISO : null;
 
-      const tid = getTenantId();
-      const scoped = (q: any) => (tid ? q.eq('tenant_id', tid) : q);
+      const tid = tenant.id;
+      const scoped = (q: any) => q.eq('tenant_id', tid);
 
       // Only compact aggregate RPCs + small device/config tables are loaded.
+      const emptyDeviceData = Promise.resolve({ data: [] as any[], error: null });
       const [summaryRes, deviceStatsRes, devicesRes, balancesRes, providersRes] = await Promise.all([
         (supabase as any).rpc('get_admin_dashboard_summary', {
           p_start: periodStartISO,
           p_end: periodEndISO,
         }),
-        (supabase as any).rpc('get_admin_device_period_stats', {
+        isPartner ? emptyDeviceData : (supabase as any).rpc('get_admin_device_period_stats', {
           p_start: todayISO,
           p_end: null,
         }),
-        scoped(
+        isPartner ? emptyDeviceData : scoped(
           supabase
             .from('android_devices')
             .select('id,device_id,device_name,provider_name,sim1_provider,sim2_provider,sim_number,sim2_number,last_ping_at,is_active,battery_level,is_charging')
@@ -220,13 +230,13 @@ const SimpleAdminDashboard = () => {
             .is('archived_at', null)
             .limit(50),
         ),
-        scoped(
+        isPartner ? emptyDeviceData : scoped(
           supabase
             .from('sim_balances')
             .select('device_id,sim_slot,balance,balance_type,last_updated')
             .limit(100),
         ),
-        scoped(
+        isPartner ? emptyDeviceData : scoped(
           supabase
             .from('providers_config')
             .select('id,evoucher_rate,provider_name,provider_logo')
@@ -341,14 +351,16 @@ const SimpleAdminDashboard = () => {
           console.error('Wallet fetch error:', walletErr);
         }
       }
+      setLoadedTenantId(tid);
     } catch (err) {
       console.error('SimpleAdmin fetch error:', err);
+      setDataError(err instanceof Error ? err.message : 'Xogta lama soo akhrin karo');
     } finally {
       setLoading(false);
     }
-  }, [selectedDate, selectedPeriod, isPartner]);
+  }, [selectedDate, selectedPeriod, isPartner, tenant?.id, readyForStats]);
 
-  useEffect(() => { void fetchData(); }, [fetchData]);
+  useEffect(() => { if (readyForStats) void fetchData(); }, [readyForStats, fetchData]);
 
   useRealtimeRefresh(
     ['orders', 'android_devices', 'sim_balances', 'delivery_queue', 'payment_receipts', 'device_alerts'],
@@ -376,6 +388,9 @@ const SimpleAdminDashboard = () => {
   });
 
   const clockStr = clock.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+  const accessError = permissionsError || modeError;
+  const firstLoad = loadedTenantId !== tenant?.id;
+  const showInitialSkeleton = !readyForStats || (loading && firstLoad);
 
   if (!tenantReady) {
     return (
@@ -438,6 +453,29 @@ const SimpleAdminDashboard = () => {
               </Popover>
             </div>
 
+            {accessError ? (
+              <div role="alert" className="space-y-3 rounded-xl border border-destructive/30 bg-card p-5 text-sm">
+                <p>{isSo ? 'Xogta ama oggolaanshaha admin-ka lama hubin karo. Hubi internet-ka.' : 'Unable to check tenant data or permissions. Check your connection.'}</p>
+                <button type="button" onClick={() => { retryPermissions(); retryMode(); }}
+                  className="rounded-lg bg-primary px-4 py-2 text-primary-foreground">
+                  {isSo ? 'Mar kale isku day' : 'Retry'}
+                </button>
+              </div>
+            ) : showInitialSkeleton ? (
+              <AdminDashboardSkeleton />
+            ) : dataError && firstLoad ? (
+              <div role="alert" className="space-y-3 rounded-xl border border-destructive/30 bg-card p-5 text-sm">
+                <p>{isSo ? 'Dashboard-ka xogtiisa lama soo dejin karo.' : 'Unable to load dashboard data.'}</p>
+                <button type="button" onClick={() => void fetchData()}
+                  className="rounded-lg bg-primary px-4 py-2 text-primary-foreground">{isSo ? 'Mar kale isku day' : 'Retry'}</button>
+              </div>
+            ) : (
+              <>
+                {dataError && (
+                  <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+                    {isSo ? 'Xogtii hore ayaa muuqata; cusboonaysiinta xogta ayaa fashilantay.' : 'Showing previous data; refresh failed.'}
+                  </div>
+                )}
             {statCards[0]?.isWallet && (
               <div onClick={() => navigate(statCards[0].link)} className="relative col-span-2 rounded-2xl overflow-hidden shadow-lg cursor-pointer active:scale-[0.98] transition-transform">
                 <div className="bg-gradient-to-br from-emerald-500 via-teal-600 to-teal-800 text-white p-5">
@@ -515,6 +553,9 @@ const SimpleAdminDashboard = () => {
                 );
               })()}
             </div>
+            )}
+
+              </>
             )}
 
             <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg p-3 mt-2">

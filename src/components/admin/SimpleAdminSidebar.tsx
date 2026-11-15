@@ -24,6 +24,7 @@ import {
 import najaxLogo from '@/assets/najax-logo.jpeg';
 import { useTenant } from '@/contexts/TenantContext';
 import { useTenantCapabilities } from '@/hooks/useTenantCapabilities';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface MenuItem {
   label: string;
@@ -154,7 +155,9 @@ export function SimpleAdminSidebar() {
 
   const isSo = language === 'so';
   const { tenant } = useTenant();
-  const { canSee } = useTenantCapabilities();
+  const { canSee, loadingPermissions, loadingMode, permissionsError, modeError } = useTenantCapabilities();
+  const accessPending = loadingPermissions || loadingMode;
+  const accessError = permissionsError || modeError;
 
   // Reseller-ka API partner ah wuxuu arkaa oo kaliya modules-ka u shaqeeya.
   const visibleGroups = menuGroups
@@ -182,7 +185,13 @@ export function SimpleAdminSidebar() {
 
       <SidebarContent className="bg-gray-900 dark:bg-gray-950 text-gray-300">
         <SidebarMenu className="p-2 space-y-0.5">
-          {visibleGroups.map((group) => (
+          {accessPending ? (
+            <div role="status" aria-label="Menu-ga waa la soo akhrinayaa" className="space-y-3 px-3 py-2">
+              {[0, 1, 2, 3, 4, 5].map(n => <Skeleton key={n} className="h-10 w-full bg-white/10" />)}
+            </div>
+          ) : accessError ? (
+            <p role="alert" className="px-3 py-4 text-xs text-amber-200">Menu-ga lama soo akhrin karo. Hubi internet-ka.</p>
+          ) : visibleGroups.map((group) => (
             <div key={group.label}>
               <SidebarMenuItem>
                 <SidebarMenuButton

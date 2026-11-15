@@ -37,6 +37,9 @@ jobs:
 
       - name: Test Somlink wallet identifiers
         run: bun run test -- tests/somlinkWallet.test.ts tests/phonePrefixes.test.ts
+      - name: Test tenant admin skeleton and access gating
+        run: bun run test -- tests/adminLoadingStates.test.ts
+
       - name: Verify compatibility of OTA with existing Android tenant APKs
         run: node --test tests/nativeOta.test.mjs
 

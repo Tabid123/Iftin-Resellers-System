@@ -31,19 +31,24 @@ export function serializeAdminPermissions(selected: string[]): string[] {
 }
 
 type AccessState = {
+  tenantId: string | null;
   loading: boolean;
   fullAccess: boolean;
   keys: string[];
+  error: string | null;
 };
 
 export function useAdminPermissions() {
   const { tenant } = useTenant();
   const tenantId = tenant?.id ?? null;
-  const [state, setState] = useState<AccessState>({ loading: true, fullAccess: false, keys: [] });
+  const [retryKey, setRetryKey] = useState(0);
+  const [state, setState] = useState<AccessState>({
+    tenantId: null, loading: true, fullAccess: false, keys: [], error: null,
+  });
 
   useEffect(() => {
     let active = true;
-    setState({ loading: true, fullAccess: false, keys: [] });
+    setState({ tenantId, loading: true, fullAccess: false, keys: [], error: null });
     if (!tenantId) return () => { active = false; };
 
     (async () => {
@@ -59,7 +64,7 @@ export function useAdminPermissions() {
         if (membershipResult.error) throw membershipResult.error;
         if (platformRoleResult.error) throw platformRoleResult.error;
         if (platformRoleResult.data?.role === 'super_admin' || membershipResult.data?.role === 'owner') {
-          if (active) setState({ loading: false, fullAccess: true, keys: [] });
+          if (active) setState({ tenantId, loading: false, fullAccess: true, keys: [], error: null });
           return;
         }
         if (membershipResult.data?.role !== 'admin') throw new Error('No tenant staff membership');
@@ -68,21 +73,31 @@ export function useAdminPermissions() {
           .select('permission_key').eq('tenant_id', tenantId).eq('user_id', user.id);
         if (error) throw error;
         const keys = (data || []).map((row) => row.permission_key);
-        // Backward compatibility: older admin accounts were created with no rows
-        // and the management screen explicitly described them as Full Access.
-        if (active) setState({ loading: false, fullAccess: keys.length === 0, keys });
+        // Legacy admin accounts with no rows are Full Access.
+        if (active) setState({ tenantId, loading: false, fullAccess: keys.length === 0, keys, error: null });
       } catch (error) {
         console.error('Unable to load tenant staff permissions:', error);
-        if (active) setState({ loading: false, fullAccess: false, keys: [] });
+        if (active) setState({
+          tenantId, loading: false, fullAccess: false, keys: [],
+          error: error instanceof Error ? error.message : 'Unable to check permissions',
+        });
       }
     })();
     return () => { active = false; };
-  }, [tenantId]);
+  }, [tenantId, retryKey]);
 
+  // A previous tenant's permissions must never briefly authorize another tenant.
+  const loadingPermissions = state.loading || state.tenantId !== tenantId;
+  const permissionsError = !loadingPermissions ? state.error : null;
   const can = (key: string): boolean => {
-    if (state.loading) return false;
+    if (loadingPermissions || permissionsError) return false;
     return state.fullAccess || state.keys.includes(key);
   };
-
-  return { can, fullAccess: state.fullAccess, loadingPermissions: state.loading };
+  return {
+    can,
+    fullAccess: !loadingPermissions && !permissionsError && state.fullAccess,
+    loadingPermissions,
+    permissionsError,
+    retryPermissions: () => setRetryKey(key => key + 1),
+  };
 }

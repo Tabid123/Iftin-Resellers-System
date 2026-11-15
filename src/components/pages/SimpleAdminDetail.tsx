@@ -6,6 +6,7 @@ import { fetchMemberships } from '@/lib/workspaceMembership';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { SimpleAdminSidebar } from '@/components/admin/SimpleAdminSidebar';
 import { AdminViewErrorBoundary } from '@/components/admin/AdminViewErrorBoundary';
+import { AdminDetailSkeleton } from '@/components/admin/AdminLoadingSkeleton';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTenant } from '@/contexts/TenantContext';
@@ -142,8 +143,15 @@ const SimpleAdminDetail = () => {
   const tenant = tenantState.status === 'ready' ? tenantState.tenant : null;
   const config = DETAIL_CONFIGS[type || ''] || DETAIL_CONFIGS.customers;
   const isSo = language === 'so';
-  const { canSee, isPartner } = useTenantCapabilities();
+  const {
+    canSee, isPartner, loadingPermissions, loadingMode,
+    permissionsError, modeError, retryPermissions, retryMode,
+    shopLoading, shopError,
+  } = useTenantCapabilities();
   const allowed = canSee(type);
+  const shopPage = type === 'shop' || type?.startsWith('ecommerce-');
+  const checkingAccess = loadingPermissions || loadingMode || (shopPage && shopLoading);
+  const accessError = permissionsError || modeError || (shopPage && shopError ? String(shopError) : null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -164,6 +172,28 @@ const SimpleAdminDetail = () => {
   }, []);
 
   const renderView = () => {
+    if (tenantState.status === 'offline') {
+      return (
+        <div role="alert" className="space-y-3 rounded-xl border bg-card p-5 text-sm">
+          <p>{isSo ? 'Internet-ka lama heli karo. Isku day mar kale.' : 'The connection is unavailable. Try again.'}</p>
+          <button type="button" className="rounded-lg bg-primary px-4 py-2 text-primary-foreground" onClick={() => window.location.reload()}>
+            {isSo ? 'Isku day mar kale' : 'Retry'}
+          </button>
+        </div>
+      );
+    }
+    if (accessError) {
+      return (
+        <div role="alert" className="space-y-3 rounded-xl border border-destructive/30 bg-card p-5 text-sm">
+          <p>{isSo ? 'Oggolaanshaha ama xogta tenant-ka lama hubin karin. Hubi internet-ka.' : 'Unable to check permissions or tenant data. Check your connection.'}</p>
+          <button type="button" className="rounded-lg bg-primary px-4 py-2 text-primary-foreground"
+            onClick={() => { retryPermissions(); retryMode(); }}>
+            {isSo ? 'Mar kale isku day' : 'Retry'}
+          </button>
+        </div>
+      );
+    }
+    if (tenantState.status === 'loading' || checkingAccess) return <AdminDetailSkeleton />;
     if (!allowed) {
       return (
         <div className="text-center py-16 px-4">
@@ -172,8 +202,8 @@ const SimpleAdminDetail = () => {
           </p>
           <p className="text-xs text-gray-400 mt-2">
             {isSo
-              ? 'Dalabyada waxaa lagu gaarsiiyaa API — devices, SIM iyo USSD lama maamulo halkan.'
-              : 'Orders are delivered via API — devices, SIMs and USSD are not managed here.'}
+              ? 'Qaybtan waxaa xaddiday delivery mode-ka ama oggolaanshaha admin-ka.'
+              : 'This section is restricted by the delivery mode or admin permissions.'}
           </p>
         </div>
       );
@@ -259,7 +289,7 @@ const SimpleAdminDetail = () => {
 
           <main className="flex-1 px-3 py-4 space-y-2">
             <AdminViewErrorBoundary key={type} isSo={isSo}>
-              <Suspense fallback={<LazyFallback />}>
+              <Suspense fallback={<AdminDetailSkeleton />}>
                 {renderView()}
               </Suspense>
             </AdminViewErrorBoundary>
