@@ -22,7 +22,8 @@ export const Route = createFileRoute('/api/public/manifest')({
         let shortName = 'Iftin';
         let themeColor = DEFAULT_THEME;
         let icons: Array<{ src: string; sizes: string; type: string; purpose: string }> = [
-          { src: '/iftin-resellers-favicon.png?v=20261115-2', sizes: 'any', type: 'image/png', purpose: 'any' },
+          { src: '/iftin-resellers-favicon.png?v=20261115-2', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/iftin-resellers-brand.png?v=20261115-2', sizes: '1024x1024', type: 'image/png', purpose: 'any' },
         ];
         let scope = '/';
 
