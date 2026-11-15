@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useTenant } from "@/contexts/TenantContext";
-import iftinPlatformIcon from "@/assets/iftin-resellers-icon.jpg";
+import { PLATFORM_ICON_URL } from "@/lib/platformBrand";
 import { useLocation } from "@/lib/router-compat";
 import { isTenantAdminPath, tenantAdminManifestHref, tenantCustomerManifestHref } from "@/lib/tenantPwaManifest";
 import { initializeOneSignal, syncOneSignalTenant } from "@/services/onesignal";
@@ -54,7 +54,7 @@ export function TenantPwaMeta() {
       ? packagedOrigin
         ? tenant.logo_url
         : `/api/public/tenant-icon?tenant=${encodeURIComponent(slug)}&v=${logoVersion}`
-      : iftinPlatformIcon;
+      : PLATFORM_ICON_URL;
 
     // Preserve the separate customer/admin PWA installations introduced in #92.
     upsertLink("manifest", isPlatform ? "/manifest.json" : isAdmin ? tenantAdminManifestHref(slug) : tenantCustomerManifestHref(slug));
@@ -62,8 +62,8 @@ export function TenantPwaMeta() {
     upsertMeta("apple-mobile-web-app-capable", "yes");
     upsertMeta("apple-mobile-web-app-status-bar-style", "black-translucent");
     upsertMeta("apple-mobile-web-app-title", slug ? `${tenant?.name || "App"}${isAdmin ? " Admin" : ""}` : "Iftin Resellers");
-    upsertLink("apple-touch-icon", logo, slug ? {} : { type: "image/jpeg" });
-    upsertLink("icon", logo, slug ? {} : { type: "image/jpeg" });
+    upsertLink("apple-touch-icon", logo, slug ? {} : { type: "image/png" });
+    upsertLink("icon", logo, slug ? {} : { type: "image/png" });
 
     document.title = slug ? `${tenant?.name || "App"}${isAdmin ? " Admin" : ""}` : isPlatform ? "Iftin Resellers — Super Admin" : "Iftin Resellers";
   }, [tenant?.slug, tenant?.name, tenant?.logo_url, tenant?.primary_color, isAdmin, pathname]);
