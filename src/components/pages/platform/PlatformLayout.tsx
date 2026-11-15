@@ -8,6 +8,95 @@ import PlatformAuth from './PlatformAuth'
 import { warmPlatformPages } from '@/lib/lazyPages'
 import { PLATFORM_ICON_URL } from '@/lib/platformBrand'
 
+function PlatformSidebar({
+  onNavigate,
+  email,
+  platformDark,
+  togglePlatformTheme,
+  signOut,
+}: {
+  onNavigate?: () => void
+  email: string
+  platformDark: boolean
+  togglePlatformTheme: () => void
+  signOut: () => void
+}) {
+  const navItems = [
+      { to: '/admin', label: 'Overview', icon: BarChart3, end: true },
+      { to: '/admin/resellers', label: 'Resellers', icon: Users },
+      { to: '/admin/plans', label: 'Plans', icon: Package },
+      { to: '/admin/features', label: 'Features', icon: SlidersHorizontal },
+      { to: '/admin/apps', label: 'Apps', icon: Smartphone },
+    ]
+  
+  return (
+    <div className="flex h-full flex-col bg-[#0c1220] text-slate-200">
+      <div className="flex h-[62px] items-center justify-between border-b border-white/5 px-4">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
+            <img src={PLATFORM_ICON_URL} alt="Iftin Resellers" className="h-7 w-7 object-contain scale-[1.15]" />
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-[13px] font-semibold tracking-tight text-white">Iftin Resellers</div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Super Admin</div>
+          </div>
+        </div>
+        <PanelLeftClose className="hidden h-4 w-4 text-slate-500 lg:block" />
+      </div>
+
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+        {navItems.map(item => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.end}
+            onClick={onNavigate}
+            className={({ isActive }) =>
+              'group relative flex h-9 items-center gap-3 rounded-md px-3 text-[13px] font-medium transition-colors ' +
+              (isActive
+                ? 'bg-[#1a2230] text-white'
+                : 'text-slate-400 hover:bg-white/5 hover:text-white')
+            }
+          >
+            {({ isActive }: { isActive: boolean }) => (
+              <>
+                {isActive ? <span className="absolute -left-3 h-6 w-[3px] rounded-r-full bg-[#ff7a00]" /> : null}
+                <item.icon className="h-4 w-4 shrink-0" />
+                <span>{item.label}</span>
+              </>
+            )}
+          </NavLink>
+        ))}
+      </nav>
+
+      <div className="border-t border-white/5 p-3">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="mb-2 w-full justify-start text-slate-400 hover:bg-white/5 hover:text-white"
+          onClick={togglePlatformTheme}
+        >
+          {platformDark ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
+          {platformDark ? 'Light mode' : 'Dark mode'}
+        </Button>
+        <div className="mb-3 min-w-0 px-2">
+          <div className="truncate text-xs font-medium text-slate-300">{email || 'Super Admin'}</div>
+          <div className="mt-0.5 text-[10px] text-slate-600">Platform administrator</div>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start text-slate-400 hover:bg-white/5 hover:text-white"
+          onClick={signOut}
+        >
+          <LogOut className="mr-2 h-4 w-4" /> Logout
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export default function PlatformLayout() {
   const refreshAuthRef = useRef<() => void>(() => {})
   const [loading, setLoading] = useState(true)
@@ -98,14 +187,6 @@ export default function PlatformLayout() {
     return <PlatformAuth onSuccess={() => refreshAuthRef.current()} authed={authed} />
   }
 
-  const navItems = [
-    { to: '/admin', label: 'Overview', icon: BarChart3, end: true },
-    { to: '/admin/resellers', label: 'Resellers', icon: Users },
-    { to: '/admin/plans', label: 'Plans', icon: Package },
-    { to: '/admin/features', label: 'Features', icon: SlidersHorizontal },
-    { to: '/admin/apps', label: 'Apps', icon: Smartphone },
-  ]
-
   const signOut = async () => {
     const { error } = await supabase.auth.signOut()
     if (!error) {
@@ -123,77 +204,10 @@ export default function PlatformLayout() {
     })
   }
 
-  const SidebarBody = ({ onNavigate }: { onNavigate?: () => void }) => (
-    <div className="flex h-full flex-col bg-[#0c1220] text-slate-200">
-      <div className="flex h-[62px] items-center justify-between border-b border-white/5 px-4">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
-            <img src={PLATFORM_ICON_URL} alt="Iftin Resellers" className="h-7 w-7 object-contain scale-[1.15]" />
-          </div>
-          <div className="min-w-0">
-            <div className="truncate text-[13px] font-semibold tracking-tight text-white">Iftin Resellers</div>
-            <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Super Admin</div>
-          </div>
-        </div>
-        <PanelLeftClose className="hidden h-4 w-4 text-slate-500 lg:block" />
-      </div>
-
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        {navItems.map(item => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            onClick={onNavigate}
-            className={({ isActive }) =>
-              'group relative flex h-9 items-center gap-3 rounded-md px-3 text-[13px] font-medium transition-colors ' +
-              (isActive
-                ? 'bg-[#1a2230] text-white'
-                : 'text-slate-400 hover:bg-white/5 hover:text-white')
-            }
-          >
-            {({ isActive }: { isActive: boolean }) => (
-              <>
-                {isActive ? <span className="absolute -left-3 h-6 w-[3px] rounded-r-full bg-[#ff7a00]" /> : null}
-                <item.icon className="h-4 w-4 shrink-0" />
-                <span>{item.label}</span>
-              </>
-            )}
-          </NavLink>
-        ))}
-      </nav>
-
-      <div className="border-t border-white/5 p-3">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="mb-2 w-full justify-start text-slate-400 hover:bg-white/5 hover:text-white"
-          onClick={togglePlatformTheme}
-        >
-          {platformDark ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
-          {platformDark ? 'Light mode' : 'Dark mode'}
-        </Button>
-        <div className="mb-3 min-w-0 px-2">
-          <div className="truncate text-xs font-medium text-slate-300">{email || 'Super Admin'}</div>
-          <div className="mt-0.5 text-[10px] text-slate-600">Platform administrator</div>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start text-slate-400 hover:bg-white/5 hover:text-white"
-          onClick={signOut}
-        >
-          <LogOut className="mr-2 h-4 w-4" /> Logout
-        </Button>
-      </div>
-    </div>
-  )
-
   return (
     <div className={`platform-shell flex min-h-screen w-full overflow-x-hidden bg-[#f7f6f3] text-slate-950 ${platformDark ? 'platform-dark' : ''}`}>
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[216px] shrink-0 border-r border-black/10 bg-[#0c1220] lg:flex lg:flex-col">
-        <SidebarBody />
+        <PlatformSidebar email={email} platformDark={platformDark} togglePlatformTheme={togglePlatformTheme} signOut={signOut} />
       </aside>
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:pl-[216px]">
@@ -206,7 +220,7 @@ export default function PlatformLayout() {
             </SheetTrigger>
             <SheetContent side="left" className="w-[216px] border-0 p-0">
               <SheetTitle className="sr-only">Menu</SheetTitle>
-              <SidebarBody onNavigate={() => setMenuOpen(false)} />
+              <PlatformSidebar email={email} platformDark={platformDark} togglePlatformTheme={togglePlatformTheme} signOut={signOut} onNavigate={() => setMenuOpen(false)} />
             </SheetContent>
           </Sheet>
           <img src={PLATFORM_ICON_URL} alt="Iftin Resellers" className="h-7 w-7 shrink-0 object-contain" />
