@@ -565,8 +565,7 @@ object Ussd870Flow {
         val hasSend = lower.contains("send") || lower.contains("dir") || lower.contains("ok")
         val hasCancel = lower.contains("cancel") || lower.contains("jooji")
         val flattenedSomtelGiftMenu = lower.contains("ugu shub qof kale") &&
-            lower.contains("ku shubo") &&
-            Regex("""(?<!\S)\d{1,2}[.)\-:]\s+""").findAll(dialogText).count() >= 2
+            lower.contains("ku shubo") && somtelNumberedOptions(dialogText).size >= 2
         val hasMenuRow = countNumberedRows(dialogText) >= 1 ||
             Regex("""(?:^|\n)\s*\d+\s*[\.)\-:]\s*\S""").containsMatchIn(dialogText) ||
             flattenedSomtelGiftMenu
