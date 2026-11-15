@@ -1919,9 +1919,19 @@ class UssdDialerService : Service() {
                         android.util.Log.w("UssdDialer", "⚠️ System noise captured - not a carrier response")
                     }
                     else -> {
-                        detectedStatus = "completed"
-                        detectedError = null
-                        android.util.Log.d("UssdDialer", "✅ Unknown response text - assuming success")
+                        if (isFlow870 && Ussd870Flow.dialPrefix(order.ussdCode) == "*101*") {
+                            // A system clock/notification or an unknown intermediate menu
+                            // is NOT proof that Somtel charged/delivered the bundle.
+                            // The server's one-send protection will hold ambiguous
+                            // dispatched deliveries for manual verification, not retry.
+                            detectedStatus = "timeout"
+                            detectedError = "Unverified Somtel *101# response; manual verification required"
+                            android.util.Log.w("UssdDialer", "⚠️ Somtel *101# unknown response: leaving for verification")
+                        } else {
+                            detectedStatus = "completed"
+                            detectedError = null
+                            android.util.Log.d("UssdDialer", "✅ Unknown response text - assuming success")
+                        }
                     }
                 }
                 
