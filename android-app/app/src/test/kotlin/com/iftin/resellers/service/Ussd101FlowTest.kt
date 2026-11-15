@@ -85,6 +85,7 @@ class Ussd101FlowTest {
         val configured = listOf("Xulmo-Social Bundle", "Daily", "Ugu Shub Qof Kale")
         val flattened = "[-Xulmo-Social Bundle-] Dooro: 1. Ku Shubo 2. Ugu Shub Qof Kale 0. Back Cancel Send"
         val separated = "[-Xulmo-Social Bundle-] | Dooro: | 1 | Ku Shubo | 2 | Ugu Shub Qof Kale | 0 | Back | Cancel | Send"
+        assertTrue(Ussd870Flow.isUssdDialogText(flattened))
         assertEquals("2", Ussd870Flow.somtelMenu3Choice(configured, flattened))
         assertEquals("2", Ussd870Flow.somtelMenu3Choice(configured, separated))
         assertFalse(Ussd870Flow.somtelMenu3Choice(configured, flattened) == "1")
