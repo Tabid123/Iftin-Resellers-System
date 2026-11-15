@@ -227,11 +227,14 @@ function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: s
     >
       <style>{`
         .shop-detail > header { padding: 10px 12px !important; }
-        .shop-detail > main { padding: 14px 8px 100px; }
-        .shop-detail .detail-gallery { margin-bottom: 18px; }
+        .shop-detail > main { max-width: 480px; padding: 14px 20px 104px; }
+        .shop-detail > main > .detail-gallery { margin-top: 0; }
+        .shop-detail .detail-gallery img { max-height: 260px; }
+        .shop-detail .detail-footer > div { max-width: 440px; gap: 14px; }
+        .shop-detail .detail-gallery { margin-bottom: 10px; }
         .shop-detail .detail-name { font-size: 23px; line-height: 28px; font-weight: 800; letter-spacing: -.5px; }
         .shop-detail .detail-price { font-size: 24px; line-height: 30px; font-weight: 800; }
-        .shop-detail .detail-footer { padding: 12px 8px calc(12px + env(safe-area-inset-bottom)); }
+        .shop-detail .detail-footer { padding: 12px 20px calc(12px + env(safe-area-inset-bottom)); }
         .shop-screen { font-family: Arial, Helvetica, sans-serif; -webkit-text-size-adjust: 100%; }
         .shop-screen > header { padding: 10px 13px 14px; }
         .shop-screen > header > div > a { font-size: 13px; line-height: 18px; margin-bottom: 10px; gap: 8px; }
@@ -453,7 +456,7 @@ function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: s
               )}
               <div className="!mt-4 space-y-2">
                 <h2 className="detail-name">{selected.name}</h2>
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <p className="detail-price text-primary">{money(selected.price)}</p>
                   <span
                     className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium ${selected.stock ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
@@ -466,7 +469,7 @@ function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: s
                   {selected.description}
                 </p>
               </div>
-              <div className="!mt-4 flex items-center justify-between border-t pt-4">
+              <div className="!mt-4 flex items-center gap-5 border-t pt-4">
                 <span className="text-sm font-bold">Tirada</span>
                 <div className="flex items-center rounded-lg border bg-card p-1">
                   <button
