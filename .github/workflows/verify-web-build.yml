@@ -52,5 +52,8 @@ jobs:
       - name: Verify Iftin platform branding and tenant logo isolation
         run: node --test tests/brandingIsolation.test.mjs
 
+      - name: Check Iftin logo and favicon assets
+        run: node --test tests/platformLogoStatic.test.mjs
+
       - name: Build
         run: bun run build
