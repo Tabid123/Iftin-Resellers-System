@@ -10,9 +10,9 @@
   "scope": "/",
   "icons": [
     {
-      "src": "/api/public/platform-icon",
+      "src": "/iftin-resellers-favicon.png?v=20261115-2",
       "sizes": "any",
-      "type": "image/jpeg",
+      "type": "image/png",
       "purpose": "any"
     }
   ],
