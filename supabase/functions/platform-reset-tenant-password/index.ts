@@ -52,6 +52,7 @@ Deno.serve(async (req) => {
     const { tenant_id, password: providedPassword } = body as {
       tenant_id?: string
       password?: string
+      expected_owner_email?: string
     }
     if (!tenant_id) return json({ error: 'tenant_id required' }, 400)
 
@@ -60,19 +61,34 @@ Deno.serve(async (req) => {
         ? providedPassword
         : generatePassword(12)
 
-    // Find tenant owner (or first member)
-    const { data: member, error: mErr } = await admin
+    // CRITICAL: the owner is not the alphabetically first member!
+    // Selecting the first member used to reset the "admin" account instead.
+    // Never fall back to another role for a password-reset operation.
+    const { data: owners, error: mErr } = await admin
       .from('tenant_members')
       .select('user_id, role')
       .eq('tenant_id', tenant_id)
-      .order('role', { ascending: true })
-      .limit(1)
-      .maybeSingle()
+      .eq('role', 'owner')
+      .limit(2)
     if (mErr) return json({ error: mErr.message }, 500)
-    if (!member?.user_id) return json({ error: 'Reseller wax owner ah ma laha' }, 404)
+    if (!owners?.length) return json({ error: 'Owner account lama helin; password lama beddelin' }, 404)
+    if (owners.length > 1) {
+      return json({ error: 'Tenant-kan wuxuu leeyahay owners badan; cidda reset-ka loo sameynayo waa in la kala caddeeyo' }, 409)
+    }
+    const ownerId = owners[0].user_id
+    const { data: ownerRecord, error: ownerErr } = await admin.auth.admin.getUserById(ownerId)
+    const ownerEmail = ownerRecord?.user?.email?.trim().toLowerCase()
+    if (ownerErr || !ownerEmail) return json({ error: 'Owner email lama helin; password lama beddelin' }, 404)
+    // Optional verification from an up-to-date Super Admin screen. Old clients
+    // remain compatible but no request may ever fall back to an admin account.
+    const expectedEmail = typeof body.expected_owner_email === 'string'
+      ? body.expected_owner_email.trim().toLowerCase() : ''
+    if (expectedEmail && expectedEmail !== ownerEmail) {
+      return json({ error: 'Owner email-ka waa is beddelay. Bogga dib u cusboonaysii ka hor reset.' }, 409)
+    }
 
     const { data: updated, error: uErr } = await admin.auth.admin.updateUserById(
-      member.user_id,
+      ownerId,
       { password },
     )
     if (uErr) return json({ error: uErr.message }, 500)
