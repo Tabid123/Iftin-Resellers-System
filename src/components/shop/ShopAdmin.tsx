@@ -25,12 +25,14 @@ function Thumb({ url, name }: { url: string; name: string }) {
     </span>
   );
 }
+import ShopImages, { productImages } from "./ShopImages";
 const blank = {
   id: "",
   category_id: "",
   name: "",
   description: "",
   image_url: "",
+  image_urls: [] as string[],
   price: "0",
   stock: "0",
   originalStock: 0,
@@ -67,6 +69,7 @@ export default function ShopAdmin({
   const [category, setCategory] = useState("");
   const [categoryImage, setCategoryImage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const query = useQuery({
     queryKey: ["shop-admin", tenant?.id],
@@ -178,6 +181,7 @@ export default function ShopAdmin({
         <>
           <Button
             className="w-full gap-2"
+            disabled={busy || uploading}
             onClick={() => {
               if (tab === "categories") {
                 setCategoryId("");
@@ -218,6 +222,7 @@ export default function ShopAdmin({
               className="admin-card space-y-3"
               onSubmit={(e) => {
                 e.preventDefault();
+                if (uploading || busy) return;
                 void mutate(
                   () =>
                     categoryId
@@ -254,22 +259,21 @@ export default function ShopAdmin({
                   onChange={(e) => setCategory(e.target.value)}
                 />
               </label>
-              <label className="block">
-                Sawirka (HTTPS URL)
-                <Input
-                  type="url"
-                  pattern="https://.*"
-                  value={categoryImage}
-                  onChange={(e) => setCategoryImage(e.target.value)}
-                />
-              </label>
-              <Button disabled={busy}>
+              <ShopImages
+                tenantId={tenant!.id}
+                value={categoryImage ? [categoryImage] : []}
+                onChange={(urls) => setCategoryImage(urls[0] || "")}
+                onBusyChange={setUploading}
+                disabled={busy || uploading}
+              />
+              <Button disabled={busy || uploading}>
                 {categoryId ? "Kaydi category-ga" : "Ku dar category"}
               </Button>
               {categoryId && (
                 <Button
                   type="button"
                   variant="outline"
+                  disabled={busy || uploading}
                   onClick={() => {
                     setCategoryId("");
                     setCategory("");
@@ -298,7 +302,7 @@ export default function ShopAdmin({
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
-                    disabled={busy}
+                    disabled={busy || uploading}
                     onClick={() => {
                       openEditor(categoryForm);
                       setCategoryId(c.id);
@@ -310,7 +314,7 @@ export default function ShopAdmin({
                     <span className="sr-only">Wax ka beddel</span>
                   </Button>
                   <Button
-                    disabled={busy}
+                    disabled={busy || uploading}
                     variant="outline"
                     onClick={() =>
                       mutate(() =>
@@ -352,9 +356,11 @@ export default function ShopAdmin({
               className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2"
               onSubmit={(e) => {
                 e.preventDefault();
+                if (uploading || busy) return;
                 const payload = {
                   ...form,
                   tenant_id: tenant!.id,
+                  image_urls: productImages(form),
                   price: Number(form.price),
                   stock: Number(form.stock),
                 };
@@ -426,15 +432,16 @@ export default function ShopAdmin({
                   onChange={(e) => setForm({ ...form, stock: e.target.value })}
                 />
               </label>
-              <label className="sm:col-span-2">
-                Sawirka (HTTPS URL)
-                <Input
-                  type="url"
-                  pattern="https://.*"
-                  value={form.image_url}
-                  onChange={(e) => setForm({ ...form, image_url: e.target.value })}
-                />
-              </label>
+              <ShopImages
+                tenantId={tenant!.id}
+                multiple
+                value={productImages(form)}
+                onChange={(urls) =>
+                  setForm((old) => ({ ...old, image_url: urls[0] || "", image_urls: urls }))
+                }
+                onBusyChange={setUploading}
+                disabled={busy || uploading}
+              />
               <label className="sm:col-span-2">
                 Faahfaahinta
                 <textarea
@@ -444,9 +451,16 @@ export default function ShopAdmin({
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                 />
               </label>
-              <Button disabled={busy}>{form.id ? "Kaydi isbeddelka" : "Ku dar alaab"}</Button>
+              <Button disabled={busy || uploading}>
+                {form.id ? "Kaydi isbeddelka" : "Ku dar alaab"}
+              </Button>
               {form.id && (
-                <Button type="button" variant="outline" onClick={() => setForm(blank)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy || uploading}
+                  onClick={() => setForm(blank)}
+                >
                   Ka noqo
                 </Button>
               )}
@@ -478,6 +492,7 @@ export default function ShopAdmin({
                   </div>
                   <Button
                     variant="outline"
+                    disabled={busy || uploading}
                     onClick={() => (
                       openEditor(productForm),
                       setForm({
@@ -486,6 +501,7 @@ export default function ShopAdmin({
                         name: p.name,
                         description: p.description,
                         image_url: p.image_url,
+                        image_urls: productImages(p),
                         price: String(p.price),
                         stock: String(p.stock),
                         originalStock: p.stock,
@@ -498,7 +514,7 @@ export default function ShopAdmin({
                   </Button>{" "}
                   <Button
                     variant="outline"
-                    disabled={busy}
+                    disabled={busy || uploading}
                     onClick={() =>
                       mutate(() =>
                         shopDb
@@ -575,6 +591,7 @@ export default function ShopAdmin({
                 className="admin-card flex flex-wrap items-end gap-3"
                 onSubmit={(e) => {
                   e.preventDefault();
+                  if (uploading || busy) return;
                   const draft = stockEdits[p.id];
                   if (!draft) return;
                   const stock = Number(draft.value);
@@ -743,7 +760,7 @@ export default function ShopAdmin({
                 {!["delivered", "cancelled"].includes(o.status) && (
                   <div className="flex gap-2">
                     <Button
-                      disabled={busy}
+                      disabled={busy || uploading}
                       onClick={() => {
                         const next = {
                           received: "preparing",
@@ -772,7 +789,7 @@ export default function ShopAdmin({
                     </Button>
                     <Button
                       variant="destructive"
-                      disabled={busy}
+                      disabled={busy || uploading}
                       onClick={() => {
                         if (window.confirm("Ma joojinaysaa dalabkan? Stock-ga waa la celinayaa."))
                           void mutate(() =>
