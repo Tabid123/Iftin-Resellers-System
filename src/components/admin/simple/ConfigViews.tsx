@@ -18,6 +18,7 @@ import { calculateUsdProfit } from '@/lib/iftinProfit';
 import { activeWorkspaceId } from '@/lib/workspaceKeys';
 import { useTenant } from '@/contexts/TenantContext';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
+import { packagesForSystemCode } from '@/lib/packagesForSystemCode';
 
 // ========== PROVIDERS ==========
 export const ProvidersCustomView = ({ isSo }: { isSo: boolean }) => {
@@ -1199,11 +1200,15 @@ export const SystemCodesCustomView = ({ isSo }: { isSo: boolean }) => {
 
 
   const loadCodes = useCallback(async () => {
+    const tenantId = activeWorkspaceId();
     const [instRes, provRes, catRes, pkgRes] = await Promise.all([
       supabase.from('delivery_instructions').select('*').order('created_at', { ascending: false }),
       supabase.from('providers_config').select('id, provider_name, provider_logo').order('display_order'),
       supabase.from('package_categories').select('id, category_name, provider_id').order('display_order'),
-      supabase.from('data_packages_config').select('id, package_name, provider_id').order('display_order').limit(500),
+      supabase.from('data_packages_config')
+        .select('id, package_name, provider_id, category_id')
+        .eq('tenant_id', tenantId || '')
+        .order('display_order').limit(1000),
     ]);
     setInstructions(instRes.data || []);
     setProviders(provRes.data || []);
@@ -1219,11 +1224,15 @@ export const SystemCodesCustomView = ({ isSo }: { isSo: boolean }) => {
   const getCategoryName = (id: string) => categories.find(c => c.id === id)?.category_name || '—';
   const getPackageName = (id: string) => pkgs.find(p => p.id === id)?.package_name || '—';
   const filteredProvCategories = newCode.provider_id ? categories.filter(c => c.provider_id === newCode.provider_id) : categories;
-  const filteredProvPackages = newCode.provider_id ? pkgs.filter(p => p.provider_id === newCode.provider_id) : pkgs;
+  const filteredProvPackages = packagesForSystemCode(pkgs, newCode.provider_id, newCode.category_id);
   const filtered = providerFilter === 'all' ? instructions : instructions.filter(i => i.provider_id === providerFilter);
 
   const saveCode = async () => {
     if (!newCode.provider_id || !newCode.code_template) { toast.error('Fill provider and code template'); return; }
+    if (newCode.package_id && !filteredProvPackages.some(pkg => pkg.id === newCode.package_id)) {
+      toast.error(isSo ? 'Package-ka la doortay kuma jiro category-ga iyo provider-ka.' : 'The selected package does not belong to this category and provider.');
+      return;
+    }
     const baseTemplate = newCode.code_template.split('|')[0].trim();
     const ussdCheck = validateUssdTemplate(baseTemplate);
     if (!ussdCheck.valid) { toast.error(ussdCheck.error); return; }
@@ -1288,7 +1297,7 @@ export const SystemCodesCustomView = ({ isSo }: { isSo: boolean }) => {
             <option value="">Select Provider *</option>
             {providers.map(p => <option key={p.id} value={p.id}>{p.provider_name}</option>)}
           </select>
-          <select value={newCode.category_id} onChange={e => setNewCode(p => ({...p, category_id: e.target.value}))} className="w-full px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700 border text-sm outline-none">
+          <select value={newCode.category_id} onChange={e => setNewCode(p => ({...p, category_id: e.target.value, package_id: ''}))} className="w-full px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700 border text-sm outline-none">
             <option value="">Category (optional)</option>
             {filteredProvCategories.map(c => <option key={c.id} value={c.id}>{c.category_name}</option>)}
           </select>
