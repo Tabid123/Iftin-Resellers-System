@@ -177,19 +177,34 @@ export function ProductGallery({
 }: {
   product: { image_url?: string; image_urls?: string[]; name: string };
 }) {
+  const touchStart = useRef<number | null>(null);
   const urls = productImages(product);
   const [chosen, setChosen] = useState<string | null>(null);
   const selected = chosen && urls.includes(chosen) ? chosen : urls[0];
   if (!selected) return null;
   return (
-    <div className="space-y-3">
+    <div
+      className="detail-gallery space-y-2"
+      onTouchStart={(e) => {
+        touchStart.current = e.touches[0].clientX;
+      }}
+      onTouchEnd={(e) => {
+        if (touchStart.current === null) return;
+        const delta = e.changedTouches[0].clientX - touchStart.current;
+        touchStart.current = null;
+        if (Math.abs(delta) > 40) {
+          const index = urls.indexOf(selected);
+          setChosen(urls[(index + (delta < 0 ? 1 : -1) + urls.length) % urls.length]);
+        }
+      }}
+    >
       <img
         src={selected}
         alt={product.name}
-        className="aspect-square w-full rounded-2xl bg-white object-contain"
+        className="h-[min(66vw,320px)] w-full rounded-2xl bg-white object-contain p-3"
       />
       {urls.length > 1 && (
-        <div className="flex gap-2 overflow-x-auto p-1">
+        <div className="flex justify-center gap-1">
           {urls.map((src, i) => (
             <button
               key={src}
@@ -197,9 +212,11 @@ export function ProductGallery({
               aria-label={`Eeg sawirka ${i + 1}`}
               aria-pressed={selected === src}
               onClick={() => setChosen(src)}
-              className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 ${selected === src ? "border-primary" : "border-transparent"}`}
+              className="flex h-6 w-4 items-center justify-center"
             >
-              <img src={src} alt="" className="h-full w-full bg-white object-contain" />
+              <span
+                className={`h-2 w-2 rounded-full transition-colors ${selected === src ? "bg-primary" : "bg-slate-300"}`}
+              />
             </button>
           ))}
         </div>
