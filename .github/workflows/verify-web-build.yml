@@ -64,5 +64,8 @@ jobs:
       - name: Check Iftin logo and favicon assets
         run: node --test tests/platformLogoStatic.test.mjs
 
+      - name: Verify Super Admin tab navigation without document refresh
+        run: node --test tests/platformNoRefresh.test.mjs
+
       - name: Build
         run: bun run build
