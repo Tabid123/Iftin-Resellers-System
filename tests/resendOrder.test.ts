@@ -182,29 +182,36 @@ describe('unmatched payment USSD resolution', () => {
     });
   });
 
-  it('blocks same-number resend after a previously completed USSD receipt, even if order says verification_required', async () => {
+  it('allows an explicitly confirmed resend to the same number after a previous completed attempt', async () => {
     const db = mockDatabase({ previous: [
-      { order_id: 'old-order', status: 'completed', receiver_phone: '+252680000001', provider_name: 'Somnet' },
+      { order_id: 'old-order', status: 'completed', receiver_phone: '+252680000001', ussd_code: '*829*680000001*035*1234#', provider_name: 'Somnet' },
       { order_id: 'old-order', status: 'verification_required', receiver_phone: phone, provider_name: 'Somnet' },
     ] });
     const res = await resendOrder({
       ...order, id: 'old-order', receiver_phone: phone, delivery_status: 'verification_required',
     }, phone);
-    expect(res).toMatchObject({ ok: false, message: expect.stringContaining('hore') });
-    expect(db.writes).toEqual([]);
+    expect(res).toEqual({ ok: true, orderId: 'old-order' });
+    expect(db.queued()).toMatchObject({
+      order_id: 'old-order', receiver_phone: phone, ussd_code: '*829*680000001*035*1234#',
+    });
   });
 
-  it('refuses resend when completed-attempt lookup fails instead of risking a second charge', async () => {
+  it('allows an explicitly confirmed resend to the same number for a delivered order', async () => {
+    const db = mockDatabase({ previous: [{
+      order_id: 'old-order', receiver_phone: phone, status: 'completed', ussd_code: '*829*680000001*035*1234#',
+      provider_name: 'Somnet', android_device_id: 'device-a', sim_slot: 2,
+    }] });
+    const res = await resendOrder({
+      ...order, id: 'old-order', receiver_phone: phone, delivery_status: 'delivered',
+    }, phone);
+    expect(res).toEqual({ ok: true, orderId: 'old-order' });
+    expect(db.queued()).toMatchObject({ order_id: 'old-order', receiver_phone: phone });
+  });
+
+  it('still rejects unreadable old queue configuration rather than sending unverified USSD', async () => {
     const db = mockDatabase({ errorTable: 'delivery_queue' });
     const res = await resendOrder({ ...order, id: 'old-order', receiver_phone: phone }, phone);
-    expect(res).toMatchObject({ ok: false, message: expect.stringContaining('lama hubin') });
-    expect(db.writes).toEqual([]);
-  });
-
-  it('blocks repeat delivery of a final delivered order', async () => {
-    const db = mockDatabase();
-    const res = await resendOrder({ ...order, id: 'old-order', receiver_phone: phone, delivery_status: 'delivered' }, phone);
-    expect(res).toMatchObject({ ok: false, message: expect.stringContaining('Delivered') });
+    expect(res).toMatchObject({ ok: false, message: expect.stringContaining('lama soo akhrin') });
     expect(db.writes).toEqual([]);
   });
 
