@@ -36,16 +36,16 @@ export function TenantPwaMeta() {
   useEffect(() => {
     if (typeof document === "undefined") return;
 
-    const isPlatform = /^\\/admin(?:\\/|$)/.test(window.location.pathname);
+    const isPlatform = /^\/admin(?:\/|$)/.test(window.location.pathname);
     const slug = isPlatform ? null : tenant?.slug;
     // If an installed APK is booting from a cached tenant snapshot, keep the
     // pre-hydration tenant favicon until the authoritative tenant resolves.
     const unresolvedSlug = !isPlatform && !slug &&
-      window.location.pathname.match(/^\\/t\\/([a-z0-9-]+)(?:\\/|$)/i)?.[1];
+      window.location.pathname.match(/^\/t\/([a-z0-9-]+)(?:\/|$)/i)?.[1];
     if (unresolvedSlug) return;
 
     const theme = slug ? tenant?.primary_color?.trim() || "#1E3A8A" : "#1E3A8A";
-    const packagedOrigin = /^(localhost|127\\.0\\.0\\.1)$/.test(window.location.hostname);
+    const packagedOrigin = /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
     const logoVersion = tenant?.logo_url ? encodeURIComponent(tenant.logo_url.slice(-36)) : "";
     const logo = slug && tenant?.logo_url
       ? packagedOrigin
