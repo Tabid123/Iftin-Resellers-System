@@ -1293,7 +1293,7 @@ serve(async (req) => {
         'ugu shubtay', 'u shubtay', 'e-voucher', 'haraagaagu waa',
         'success', 'successful', 'complete', 'completed', 'approved',
         'confirm', 'confirmed', 'activated',
-        'ku guulaysatay', 'u wareejiso', 'u dirto', 'transcation id',
+        'ku guulaysatay', 'ku guuleysatay', 'u wareejiso', 'u dirto', 'transcation id',
         'transaction id', 'jeeb', 'dhammays', 'abaal'
       ];
       const failureKeywords = [
