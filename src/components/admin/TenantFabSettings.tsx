@@ -15,8 +15,8 @@ type FabContacts = {
 };
 
 const EMPTY: FabContacts = { support_whatsapp: '', support_call: '' };
-const normalizePhone = (value: string) => value.trim().replace(/[\\s()-]/g, '');
-const validPhone = (value: string) => !value || /^\\+?[0-9]{7,15}$/.test(value);
+const normalizePhone = (value: string) => value.trim().replace(/[\s()-]/g, '');
+const validPhone = (value: string) => !value || /^\+?[0-9]{7,15}$/.test(value);
 const fabDb = supabase as any;
 
 /** Settings for the two buttons of the tenant's existing floating help FAB. */
