@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/contexts/TenantContext";
-import { Download, Smartphone } from "lucide-react";
+import { Download, Smartphone, ShieldCheck } from "lucide-react";
 
 /**
  * Reseller dashboard card: link to the tenant's own Android app build.
@@ -48,7 +48,6 @@ export const DownloadAppCard: React.FC = () => {
   });
 
   const href = isAbsolute ? rawUrl : signedUrl;
-  if (!href) return null;
 
   const handleDownload = async (event: React.MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
@@ -72,8 +71,30 @@ export const DownloadAppCard: React.FC = () => {
     }
   };
 
+  const agentUrl = "https://bpkddmxpyeyxvjyebull.supabase.co/storage/v1/object/public/apks/agents/iftin-resellers-ussd-agent.apk";
+
   return (
-    <a
+    <div className="space-y-3">
+      <a
+        href={agentUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        download="iftin-resellers-ussd-agent.apk"
+        className="block rounded-lg overflow-hidden shadow-md active:scale-95 transition-transform border border-primary/20"
+      >
+        <div className="p-4 text-white flex items-center gap-3 bg-emerald-700">
+          <ShieldCheck className="h-8 w-8 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold">USSD Agent cusub soo dejiso</div>
+            <div className="text-xs opacity-90">Somtel *101# · Social Bundles · diris degdeg ah</div>
+          </div>
+          <Download className="h-5 w-5 shrink-0" />
+        </div>
+        <p className="px-4 py-2 text-xs text-muted-foreground">
+          App-ka dirista xirmooyinka. Haddii Android-ku diido update-ka sababo saxiix, ha tirtirin app-kii hore ilaa xogta iyo dejimaha la hubiyo.
+        </p>
+      </a>
+      {href && <a
       href={href}
       onClick={handleDownload}
       target="_blank"
@@ -97,6 +118,7 @@ export const DownloadAppCard: React.FC = () => {
         </div>
         <Download className="h-5 w-5 shrink-0" />
       </div>
-    </a>
+    </a>}
+    </div>
   );
 };
