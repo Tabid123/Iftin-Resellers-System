@@ -7,7 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { setUserPhone } from '@/services/onesignal';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { ShieldCheck, Phone, ArrowLeft } from 'lucide-react';
-import najaxLogo from '@/assets/najax-logo.jpeg';
+import TenantBrandMark from '@/components/TenantBrandMark';
 import { useTenant } from '@/contexts/TenantContext';
 import somaliaFlag from '@/assets/somalia-flag.png';
 import hormuudLogo from '@/assets/providers/hormuud-logo.jpeg';
@@ -167,7 +167,7 @@ const PhoneVerification = ({ isOpen, onClose, onSuccess, paymentProvider, packag
 
   const tenantState = useTenant();
   const brandTenant = tenantState.status === 'ready' || tenantState.status === 'suspended' ? tenantState.tenant : null;
-  const brandLogo = brandTenant?.logo_url || najaxLogo;
+  const brandLogo = brandTenant?.logo_url || (import.meta.env.VITE_TENANT_LOGO_URL as string | undefined) || null;
   const brandName = brandTenant?.name || (import.meta.env.VITE_TENANT_NAME as string) || '';
 
   return (
@@ -177,7 +177,7 @@ const PhoneVerification = ({ isOpen, onClose, onSuccess, paymentProvider, packag
           /* ───────── PHONE INPUT STEP ───────── */
           <div className="flex flex-col items-center px-5 py-5">
             <div className="w-16 h-16 rounded-xl overflow-hidden shadow-md mb-1.5 border border-primary/20">
-              <img src={brandLogo} alt={brandName} className="w-full h-full object-cover" />
+              <TenantBrandMark logoUrl={brandLogo} name={brandName} className="w-full h-full object-cover" />
             </div>
             <h1 className="text-base font-black text-foreground leading-tight">{brandName}</h1>
                         <div className="flex items-center gap-2 mb-3">
@@ -239,7 +239,7 @@ const PhoneVerification = ({ isOpen, onClose, onSuccess, paymentProvider, packag
           /* ───────── VERIFICATION STEP ───────── */
           <div className="flex flex-col items-center px-5 py-4">
             <div className="w-12 h-12 rounded-lg overflow-hidden shadow-md mb-1 border border-primary/20">
-              <img src={brandLogo} alt={brandName} className="w-full h-full object-cover" />
+              <TenantBrandMark logoUrl={brandLogo} name={brandName} className="w-full h-full object-cover" />
             </div>
             <h1 className="text-sm font-black text-foreground leading-tight">{brandName}</h1>
             
