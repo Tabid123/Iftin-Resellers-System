@@ -13,7 +13,7 @@ test('Najax imagery is absent from all default favicon/PWA surfaces', () => {
   const platformIcon = read('src/routes/api/public/platform-icon.ts');
   assert.match(root, /iftin-resellers-icon\.jpg/);
   assert.doesNotMatch(root, /href:\s*["']\/(?:favicon|icon-192|icon-512|apple-touch-icon)/);
-  assert.match(meta, /tenant\.logo_url/);
+  assert.match(meta, /tenant\?\.logo_url/);
   assert.match(meta, /\/api\/public\/tenant-icon/);
   assert.match(meta, /iftinPlatformIcon/);
   assert.ok(manifest.icons.every((i) => i.src === '/api/public/platform-icon'));
