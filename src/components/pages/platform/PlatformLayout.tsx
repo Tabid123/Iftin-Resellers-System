@@ -1,96 +1,35 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { platformSupabase as supabase, supabase as tenantSupabase } from '@/integrations/supabase/client'
-import { NavLink, Outlet, useNavigate } from "@/lib/router-compat"
+import { NavLink, Outlet } from "@/lib/router-compat"
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Loader2, LogOut, Users, Package, BarChart3, Smartphone, Menu, PanelLeftClose, Moon, Sun, SlidersHorizontal } from 'lucide-react'
 import PlatformAuth from './PlatformAuth'
+import { warmPlatformPages } from '@/lib/lazyPages'
 import { PLATFORM_ICON_URL } from '@/lib/platformBrand'
 
-export default function PlatformLayout() {
-  const navigate = useNavigate()
-  const [loading, setLoading] = useState(true)
-  const [authed, setAuthed] = useState(false)
-  const [isSuper, setIsSuper] = useState(false)
-  const [email, setEmail] = useState<string>('')
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [platformDark, setPlatformDark] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return localStorage.getItem('iftin:platform-theme') === 'dark'
-  })
-
-  useEffect(() => {
-    let mounted = true
-    const check = async () => {
-      let { data: { session } } = await supabase.auth.getSession()
-
-      // One-time migration from the old shared auth storage. After this,
-      // platform and tenant-admin sessions are completely independent.
-      if (!session) {
-        const { data: { session: legacySession } } = await tenantSupabase.auth.getSession()
-        if (legacySession?.access_token && legacySession?.refresh_token) {
-          const { data: legacyRoles } = await tenantSupabase
-            .from('user_roles').select('role').eq('user_id', legacySession.user.id)
-          const legacyIsSuper = (legacyRoles ?? []).some((r: any) => r.role === 'super_admin')
-          if (legacyIsSuper) {
-            const migrated = await supabase.auth.setSession({
-              access_token: legacySession.access_token,
-              refresh_token: legacySession.refresh_token,
-            })
-            session = migrated.data.session
-          }
-        }
-      }
-
-      if (!mounted) return
-      if (!session) {
-        setAuthed(false); setIsSuper(false); setEmail(''); setLoading(false); return
-      }
-
-      const { data: roles } = await supabase
-        .from('user_roles').select('role').eq('user_id', session.user.id)
-      const sa = (roles ?? []).some((r: any) => r.role === 'super_admin')
-      setAuthed(true)
-      setEmail(session.user.email ?? '')
-      setIsSuper(sa)
-      setLoading(false)
-    }
-    check()
-    const { data: sub } = supabase.auth.onAuthStateChange(() => check())
-    return () => { mounted = false; sub.subscription.unsubscribe() }
-  }, [])
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f7f6f3]">
-        <Loader2 className="h-8 w-8 animate-spin text-[#0b5ed7]" />
-      </div>
-    )
-  }
-
-  if (!authed || !isSuper) {
-    return <PlatformAuth onSuccess={() => window.location.reload()} authed={authed} />
-  }
-
+function PlatformSidebar({
+  onNavigate,
+  email,
+  platformDark,
+  togglePlatformTheme,
+  signOut,
+}: {
+  onNavigate?: () => void
+  email: string
+  platformDark: boolean
+  togglePlatformTheme: () => void
+  signOut: () => void
+}) {
   const navItems = [
-    { to: '/admin', label: 'Overview', icon: BarChart3, end: true },
-    { to: '/admin/resellers', label: 'Resellers', icon: Users },
-    { to: '/admin/plans', label: 'Plans', icon: Package },
-    { to: '/admin/features', label: 'Features', icon: SlidersHorizontal },
-    { to: '/admin/apps', label: 'Apps', icon: Smartphone },
-  ]
-
-  const signOut = async () => { await supabase.auth.signOut(); navigate(0) }
-
-  const togglePlatformTheme = () => {
-    setPlatformDark((current) => {
-      const next = !current
-      try { localStorage.setItem('iftin:platform-theme', next ? 'dark' : 'light') } catch {}
-      return next
-    })
-  }
-
-  const SidebarBody = ({ onNavigate }: { onNavigate?: () => void }) => (
+      { to: '/admin', label: 'Overview', icon: BarChart3, end: true },
+      { to: '/admin/resellers', label: 'Resellers', icon: Users },
+      { to: '/admin/plans', label: 'Plans', icon: Package },
+      { to: '/admin/features', label: 'Features', icon: SlidersHorizontal },
+      { to: '/admin/apps', label: 'Apps', icon: Smartphone },
+    ]
+  
+  return (
     <div className="flex h-full flex-col bg-[#0c1220] text-slate-200">
       <div className="flex h-[62px] items-center justify-between border-b border-white/5 px-4">
         <div className="flex min-w-0 items-center gap-2.5">
@@ -156,11 +95,119 @@ export default function PlatformLayout() {
       </div>
     </div>
   )
+}
+
+export default function PlatformLayout() {
+  const refreshAuthRef = useRef<() => void>(() => {})
+  const [loading, setLoading] = useState(true)
+  const [authed, setAuthed] = useState(false)
+  const [isSuper, setIsSuper] = useState(false)
+  const [email, setEmail] = useState<string>('')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [platformDark, setPlatformDark] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('iftin:platform-theme') === 'dark'
+  })
+
+  useEffect(() => {
+    let mounted = true
+    let checkNumber = 0
+    let migrationAttempted = false
+    const scheduled = new Set<ReturnType<typeof setTimeout>>()
+    const check = async () => {
+      const request = ++checkNumber
+      let { data: { session } } = await supabase.auth.getSession()
+
+      // One-time migration from the old shared auth storage. After this,
+      // platform and tenant-admin sessions are completely independent.
+      if (!session && !migrationAttempted) {
+        migrationAttempted = true
+        const { data: { session: legacySession } } = await tenantSupabase.auth.getSession()
+        if (legacySession?.access_token && legacySession?.refresh_token) {
+          const { data: legacyRoles } = await tenantSupabase
+            .from('user_roles').select('role').eq('user_id', legacySession.user.id)
+          const legacyIsSuper = (legacyRoles ?? []).some((r: any) => r.role === 'super_admin')
+          if (legacyIsSuper) {
+            const migrated = await supabase.auth.setSession({
+              access_token: legacySession.access_token,
+              refresh_token: legacySession.refresh_token,
+            })
+            session = migrated.data.session
+          }
+        }
+      }
+
+      if (!mounted || request !== checkNumber) return
+      if (!session) {
+        setAuthed(false); setIsSuper(false); setEmail(''); setLoading(false); return
+      }
+
+      const { data: roles } = await supabase
+        .from('user_roles').select('role').eq('user_id', session.user.id)
+      if (!mounted || request !== checkNumber) return
+      const sa = (roles ?? []).some((r: any) => r.role === 'super_admin')
+      setAuthed(true)
+      setEmail(session.user.email ?? '')
+      setIsSuper(sa)
+      setLoading(false)
+    }
+    refreshAuthRef.current = () => { void check() }
+    void check()
+    const { data: sub } = supabase.auth.onAuthStateChange(() => {
+      // Never call an awaited Supabase API from inside the auth-state callback.
+      // Schedule the role check after the auth lock has been released.
+      const timer = setTimeout(() => {
+        scheduled.delete(timer)
+        if (mounted) void check()
+      }, 0)
+      scheduled.add(timer)
+    })
+    return () => {
+      mounted = false
+      checkNumber++
+      refreshAuthRef.current = () => {}
+      scheduled.forEach(clearTimeout)
+      sub.subscription.unsubscribe()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (authed && isSuper) warmPlatformPages()
+  }, [authed, isSuper])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f7f6f3]">
+        <Loader2 className="h-8 w-8 animate-spin text-[#0b5ed7]" />
+      </div>
+    )
+  }
+
+  if (!authed || !isSuper) {
+    return <PlatformAuth onSuccess={() => refreshAuthRef.current()} authed={authed} />
+  }
+
+  const signOut = async () => {
+    const { error } = await supabase.auth.signOut()
+    if (!error) {
+      setAuthed(false)
+      setIsSuper(false)
+      setEmail('')
+    }
+  }
+
+  const togglePlatformTheme = () => {
+    setPlatformDark((current) => {
+      const next = !current
+      try { localStorage.setItem('iftin:platform-theme', next ? 'dark' : 'light') } catch {}
+      return next
+    })
+  }
 
   return (
     <div className={`platform-shell flex min-h-screen w-full overflow-x-hidden bg-[#f7f6f3] text-slate-950 ${platformDark ? 'platform-dark' : ''}`}>
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[216px] shrink-0 border-r border-black/10 bg-[#0c1220] lg:flex lg:flex-col">
-        <SidebarBody />
+        <PlatformSidebar email={email} platformDark={platformDark} togglePlatformTheme={togglePlatformTheme} signOut={signOut} />
       </aside>
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:pl-[216px]">
@@ -173,7 +220,7 @@ export default function PlatformLayout() {
             </SheetTrigger>
             <SheetContent side="left" className="w-[216px] border-0 p-0">
               <SheetTitle className="sr-only">Menu</SheetTitle>
-              <SidebarBody onNavigate={() => setMenuOpen(false)} />
+              <PlatformSidebar email={email} platformDark={platformDark} togglePlatformTheme={togglePlatformTheme} signOut={signOut} onNavigate={() => setMenuOpen(false)} />
             </SheetContent>
           </Sheet>
           <img src={PLATFORM_ICON_URL} alt="Iftin Resellers" className="h-7 w-7 shrink-0 object-contain" />
