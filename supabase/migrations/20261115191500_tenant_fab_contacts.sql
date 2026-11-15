@@ -4,9 +4,9 @@
 CREATE TABLE public.tenant_fab_contacts (
   tenant_id uuid PRIMARY KEY REFERENCES public.tenants(id) ON DELETE CASCADE,
   support_whatsapp text NOT NULL DEFAULT ''
-    CHECK (support_whatsapp = '' OR support_whatsapp ~ '^\\+?[0-9]{7,15}$'),
+    CHECK (support_whatsapp = '' OR support_whatsapp ~ '^\+?[0-9]{7,15}$'),
   support_call text NOT NULL DEFAULT ''
-    CHECK (support_call = '' OR support_call ~ '^\\+?[0-9]{7,15}$'),
+    CHECK (support_call = '' OR support_call ~ '^\+?[0-9]{7,15}$'),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
