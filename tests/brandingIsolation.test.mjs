@@ -40,11 +40,18 @@ test('tenant admin, login, and storefront use own logo with neutral fallback', (
     'src/components/admin/SimpleAdminSidebar.tsx',
     'src/components/pages/SimpleAdminDashboard.tsx',
     'src/components/pages/SimpleAdminDetail.tsx',
+    'src/components/PhoneVerification.tsx',
+    'src/components/pages/OfflineMode.tsx',
   ]) {
     const source = read(file);
     assert.match(source, /TenantBrandMark/, file);
     assert.doesNotMatch(source, /najaxLogo|najax-logo/, file);
   }
+});
+
+test('provider selection never loads a shared Najax logo', () => {
+  const provider = read('src/components/pages/ProviderSelection.tsx');
+  assert.doesNotMatch(provider, /najaxLogo|najax-logo/);
 });
 
 test('offline fallback no longer paints Najax logo', () => {
