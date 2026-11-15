@@ -21,7 +21,7 @@ import {
   Star, Layers, Zap, ImageIcon, WifiOff, ShieldCheck, FileText,
   Receipt, Moon, Sun, Globe, Banknote, Search,
 } from 'lucide-react';
-import najaxLogo from '@/assets/najax-logo.jpeg';
+import TenantBrandMark from '@/components/TenantBrandMark';
 import { useTenant } from '@/contexts/TenantContext';
 import { useTenantCapabilities } from '@/hooks/useTenantCapabilities';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -172,7 +172,7 @@ export function SimpleAdminSidebar() {
     <Sidebar collapsible="offcanvas" className="bg-gray-900 dark:bg-gray-950 border-none">
       <SidebarHeader className="bg-gray-900 dark:bg-gray-950 border-b border-gray-700 p-4">
         <div className="flex items-center gap-3">
-          <img src={tenant?.logo_url || najaxLogo} alt="Logo" className="w-12 h-12 rounded-full border-2 border-blue-400 object-contain bg-white" onError={(e) => { (e.currentTarget as HTMLImageElement).src = najaxLogo }} />
+          <TenantBrandMark logoUrl={tenant?.logo_url} name={tenant?.name} className="w-12 h-12 rounded-full border-2 border-blue-400 object-contain bg-white" />
           <div>
             <div className="text-white font-semibold text-base">{tenant?.name || (import.meta.env.VITE_TENANT_NAME as string) || 'App'}</div>
             <div className="flex items-center gap-1 text-xs text-blue-400">
