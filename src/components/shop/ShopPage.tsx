@@ -9,6 +9,7 @@ import {
   ShoppingBag,
   Plus,
   Minus,
+  CheckCircle2,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "@/lib/router-compat";
 import { Button } from "@/components/ui/button";
@@ -32,7 +33,8 @@ function ProductImage({ url, name }: { url: string; name: string }) {
     <img
       src={url}
       alt={name}
-      className="aspect-square w-full rounded-xl bg-primary/5 object-contain"
+      loading="lazy"
+      className="aspect-square w-full rounded-xl bg-white object-contain p-2"
     />
   ) : (
     <div className="flex aspect-square items-center justify-center rounded-xl bg-primary/5">
@@ -210,14 +212,14 @@ function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: s
   ];
   return (
     <div className="min-h-screen bg-background pb-28">
-      <header className="bg-primary px-4 py-4 text-primary-foreground">
+      <header className="bg-primary px-4 py-5 text-primary-foreground">
         <div className="mx-auto max-w-xl">
           <Link to="/providers" className="mb-2 flex items-center gap-2 text-sm">
             <ArrowLeft className="h-4 w-4" />
             {tenantName}
           </Link>
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">Dukaanka</h1>
+            <h1 className="text-[28px] font-extrabold tracking-tight">Dukaanka</h1>
             <button aria-label="Fur dambiisha" onClick={() => go("cart")} className="flex gap-1">
               <ShoppingCart />
               {count}
@@ -225,7 +227,7 @@ function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: s
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-xl space-y-5 p-4">
+      <main className="mx-auto max-w-xl space-y-7 p-4">
         {view !== "home" && (
           <button className="flex items-center gap-2 text-primary" onClick={() => go("home")}>
             <ArrowLeft className="h-4 w-4" />
@@ -246,87 +248,127 @@ function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: s
             </Button>
           </div>
         )}
-        {view === "home" && (
+        {(view === "home" || view === "search") && (
           <>
-            <h2 className="text-2xl font-bold">Maxaad raadineysaa?</h2>
-            <button
-              onClick={() => go("search")}
-              className="flex w-full items-center gap-3 rounded-xl border bg-card p-4 text-muted-foreground"
-            >
-              <Search />
-              Raadi alaab...
-            </button>
-            <div className="flex items-center gap-4 rounded-2xl bg-primary/10 p-5 text-primary">
-              <ShoppingBag className="h-12 w-12" />
-              <strong className="text-xl">Wax kasta oo aad u baahan tahay</strong>
-            </div>
-            <h2 className="text-lg font-bold">Qaybaha Alaabta</h2>
-            <div className="grid grid-cols-2 gap-3">
-              {categories.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => go("search", `&category=${c.id}`)}
-                  className="overflow-hidden rounded-2xl border bg-card text-left"
-                >
-                  <ProductImage url={c.image_url} name={c.name} />
-                  <span className="block p-3 font-semibold">{c.name} →</span>
-                </button>
-              ))}
-            </div>
-            {!catalog.isLoading && !categories.length && <p>Qaybaha alaabta weli lama gelin.</p>}
-            <Button className="w-full" variant="outline" onClick={() => go("search")}>
-              Eeg dhammaan alaabta →
-            </Button>
-          </>
-        )}
-        {view === "search" && (
-          <>
-            <h2 className="text-xl font-bold">
-              {categories.find((c) => c.id === category)?.name || "Dhammaan alaabta"}
-            </h2>
-            <Input
-              aria-label="Raadi alaab"
-              placeholder="Raadi alaab..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <div className="grid grid-cols-2 gap-3">
-              {products
-                .filter(
+            <section className="space-y-3">
+              <h2 className="text-[22px] font-extrabold tracking-tight">Maxaad raadineysaa?</h2>
+              <div className="relative">
+                <Search
+                  aria-hidden="true"
+                  className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground"
+                />
+                <Input
+                  aria-label="Raadi alaab"
+                  placeholder="Raadi alaab..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="h-14 rounded-2xl border bg-card pl-12 text-base shadow-sm"
+                />
+              </div>
+            </section>
+            <section aria-labelledby="shop-categories" className="space-y-4">
+              <h2 id="shop-categories" className="text-xl font-extrabold tracking-tight">
+                Qaybaha Alaabta
+              </h2>
+              <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {[{ id: "", name: "Dhammaan", image_url: "" }, ...categories].map((c) => {
+                  const active = (category || "") === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      aria-pressed={active}
+                      onClick={() => go(view, c.id ? `&category=${encodeURIComponent(c.id)}` : "")}
+                      className={`flex w-[76px] shrink-0 flex-col items-center gap-2 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${active ? "font-bold text-primary" : "text-foreground"}`}
+                    >
+                      <span
+                        className={`flex h-[76px] w-[76px] items-center justify-center overflow-hidden rounded-full border-2 bg-card p-1 ${active ? "border-primary ring-2 ring-primary ring-offset-2 ring-offset-background" : "border-border"}`}
+                      >
+                        {safeImage(c.image_url) ? (
+                          <img
+                            src={c.image_url}
+                            alt=""
+                            loading="lazy"
+                            className="h-full w-full rounded-full bg-white object-cover"
+                          />
+                        ) : (
+                          <span className="flex h-full w-full items-center justify-center rounded-full bg-gradient-to-b from-primary/5 to-primary/15">
+                            <ShoppingBag className="h-8 w-8 text-primary" aria-hidden="true" />
+                          </span>
+                        )}
+                      </span>
+                      <span className="line-clamp-2 min-h-9 w-full break-words text-center text-xs leading-4">
+                        {c.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+            <section aria-labelledby="shop-products" className="space-y-4">
+              <h2 id="shop-products" className="text-xl font-extrabold tracking-tight">
+                Alaabta Dukaanka
+              </h2>
+              <div className="grid grid-cols-2 gap-3">
+                {products
+                  .filter(
+                    (p) =>
+                      (!category || p.category_id === category) &&
+                      p.name.toLowerCase().includes(search.trim().toLowerCase()),
+                  )
+                  .map((p) => (
+                    <article
+                      key={p.id}
+                      className="min-w-0 overflow-hidden rounded-2xl border bg-card p-3 shadow-[0_2px_6px_rgba(20,30,60,0.09)]"
+                    >
+                      <button
+                        onClick={() => go("product", `&product=${p.id}`)}
+                        className="block w-full text-left"
+                      >
+                        <ProductImage url={p.image_url} name={p.name} />
+                        <h3 className="mt-2 line-clamp-2 break-words text-base font-bold leading-tight">
+                          {p.name}
+                        </h3>
+                      </button>
+                      <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                        {p.stock > 0 && (
+                          <CheckCircle2
+                            className="h-3.5 w-3.5 shrink-0 fill-green-600 text-white"
+                            aria-hidden="true"
+                          />
+                        )}
+                        {p.stock > 0 ? "Waa diyaar" : "Waa dhammaatay"}
+                      </p>
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-1">
+                        <span className="text-lg font-extrabold text-primary">
+                          {money(p.price)}
+                        </span>
+                        <Button
+                          size="icon"
+                          className="h-9 w-9 shrink-0 rounded-lg"
+                          aria-label={`Ku dar ${p.name}`}
+                          disabled={!p.stock || (cart[p.id] || 0) >= Math.min(p.stock, 99)}
+                          onClick={() => change(p, 1)}
+                        >
+                          <Plus className="h-5 w-5" />
+                        </Button>
+                      </div>
+                    </article>
+                  ))}
+              </div>
+              {!catalog.isLoading &&
+                !catalog.isError &&
+                !products.some(
                   (p) =>
                     (!category || p.category_id === category) &&
-                    p.name.toLowerCase().includes(search.toLowerCase()),
-                )
-                .map((p) => (
-                  <div key={p.id} className="rounded-2xl border bg-card p-2">
-                    <button
-                      onClick={() => go("product", `&product=${p.id}`)}
-                      className="w-full text-left"
-                    >
-                      <ProductImage url={p.image_url} name={p.name} />
-                      <strong className="block py-2">{p.name}</strong>
-                    </button>
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-primary">{money(p.price)}</span>
-                      <Button
-                        size="icon"
-                        aria-label={`Ku dar ${p.name}`}
-                        disabled={!p.stock || (cart[p.id] || 0) >= p.stock}
-                        onClick={() => change(p, 1)}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    {!p.stock && <p className="text-sm">Waa dhammaatay</p>}
-                  </div>
-                ))}
-            </div>
-            {!catalog.isLoading &&
-              !products.filter(
-                (p) =>
-                  (!category || p.category_id === category) &&
-                  p.name.toLowerCase().includes(search.toLowerCase()),
-              ).length && <p>Alaab lama helin.</p>}
+                    p.name.toLowerCase().includes(search.trim().toLowerCase()),
+                ) && (
+                  <p className="rounded-2xl border bg-card p-6 text-center text-muted-foreground">
+                    {products.length
+                      ? "Alaab lama helin."
+                      : "Alaabta dukaanka dhowaan ayaa la soo gelinayaa."}
+                  </p>
+                )}
+            </section>
           </>
         )}
         {view === "product" &&
@@ -507,7 +549,7 @@ function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: s
                 key={v}
                 onClick={() => go(v)}
                 aria-current={view === v ? "page" : undefined}
-                className={`flex flex-col items-center gap-1 px-1 py-3 text-xs ${view === v ? "bg-primary/10 font-bold text-primary" : "text-muted-foreground"}`}
+                className={`flex flex-col items-center gap-1 rounded-t-2xl px-1 py-3 text-xs ${view === v ? "bg-primary/10 font-bold text-primary" : "text-muted-foreground"}`}
               >
                 <span className="flex gap-1">
                   <Icon className="h-6 w-6" />
