@@ -1,18 +1,17 @@
 import React from 'react';
-import najaxLogo from '@/assets/najax-logo.jpeg';
+import TenantBrandMark from '@/components/TenantBrandMark';
 import { useTenant } from '@/contexts/TenantContext';
-import CachedImage from '@/components/CachedImage';
 
 const HeroSection = () => {
   const t = useTenant();
   const tenant = t.status === 'ready' || t.status === 'suspended' ? t.tenant : null;
-  const logo = tenant?.logo_url || najaxLogo;
+  const logo = tenant?.logo_url || (import.meta.env.VITE_TENANT_LOGO_URL as string | undefined) || null;
   const name = tenant?.name || (import.meta.env.VITE_TENANT_NAME as string) || '';
 
   return (
     <div className="text-center space-y-5 pt-4">
       <div className="w-36 h-36 mx-auto rounded-[2rem] overflow-hidden shadow-xl shadow-primary/20 bg-card">
-        <CachedImage src={logo} alt={name} kind="provider" className="w-full h-full object-cover" fallback={<img src={najaxLogo} alt={name} className="w-full h-full object-cover" />} />
+        <TenantBrandMark logoUrl={logo} name={name} className="w-full h-full object-cover" />
       </div>
 
       <div className="space-y-1">
