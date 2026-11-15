@@ -81,7 +81,7 @@ interface DataPackage {
 interface PackageCategory {
   id: string;
   category_name: string;
-  provider_id: string;
+  provider_id: string | null;
 }
 
 interface DeliveryRule {
