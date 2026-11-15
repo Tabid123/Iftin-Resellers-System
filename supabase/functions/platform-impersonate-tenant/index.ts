@@ -52,17 +52,19 @@ Deno.serve(async (req) => {
       .single()
     if (tErr || !tenant) return json({ error: 'tenant not found' }, 404)
 
-    const { data: member, error: mErr } = await admin
+    // Do not impersonate an arbitrary admin: explicitly require exactly one owner.
+    const { data: owners, error: mErr } = await admin
       .from('tenant_members')
       .select('user_id, role')
       .eq('tenant_id', tenant_id)
-      .order('role', { ascending: true })
-      .limit(1)
-      .maybeSingle()
+      .eq('role', 'owner')
+      .limit(2)
     if (mErr) return json({ error: mErr.message }, 500)
-    if (!member?.user_id) return json({ error: 'Reseller wax owner ah ma laha' }, 404)
+    if (!owners?.length) return json({ error: 'Reseller wax owner ah ma laha' }, 404)
+    if (owners.length > 1) return json({ error: 'Tenant-kan wuxuu leeyahay owners badan; owner-ka kala caddee' }, 409)
+    const ownerId = owners[0].user_id
 
-    const { data: ownerUser, error: oErr } = await admin.auth.admin.getUserById(member.user_id)
+    const { data: ownerUser, error: oErr } = await admin.auth.admin.getUserById(ownerId)
     if (oErr || !ownerUser.user?.email) return json({ error: 'owner email lama helin' }, 404)
 
     // 2. Generate magic link for owner
@@ -79,7 +81,7 @@ Deno.serve(async (req) => {
       action: 'impersonate_tenant',
       actor_id: claims.claims.sub,
       tenant_id,
-      details: { owner_email: ownerUser.user.email, owner_id: member.user_id },
+      details: { owner_email: ownerUser.user.email, owner_id: ownerId },
     }).then(() => {}, () => {}) // ignore if audit_logs schema differs
 
     return json({
