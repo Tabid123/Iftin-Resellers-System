@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from '@/hooks/use-toast'
 import { Loader2 } from 'lucide-react'
-import iftinLogo from '@/assets/iftin-resellers-logo.jpg'
+import { PLATFORM_LOGO_URL, PLATFORM_ICON_URL } from '@/lib/platformBrand'
 
 export default function PlatformAuth({
   onSuccess,
@@ -60,7 +60,16 @@ export default function PlatformAuth({
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-2">
           <img
-            src={iftinLogo}
+            src={PLATFORM_LOGO_URL}
+            onError={(event) => {
+              const image = event.currentTarget;
+              if (image.dataset.fallback !== 'yes') {
+                image.dataset.fallback = 'yes';
+                image.src = PLATFORM_ICON_URL;
+              } else {
+                image.style.display = 'none';
+              }
+            }}
             alt="Iftin Resellers"
             className="mx-auto h-28 w-auto object-contain"
           />
