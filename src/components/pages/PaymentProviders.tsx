@@ -289,8 +289,7 @@ const PaymentProviders = () => {
       case '77': return { name: 'Hormuud', logo: hormuudLogo };
       case '62': return { name: 'Somtel', logo: somtelLogo };
       case '68': return { name: 'Somnet', logo: somnetLogo };
-      case '63':
-      case '65': return { name: 'Somlink', logo: somlinkLogo };
+      case '64': return { name: 'Somlink', logo: somlinkLogo };
       case '71': return { name: 'Amtel', logo: amtelLogo };
       default: return { name: 'Provider', logo: '' };
     }

@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import RotatingBanner from '@/components/RotatingBanner';
 import CachedImage from '@/components/CachedImage';
 import { localizeImage } from '@/lib/localImages';
+import somlinkCategoryMark from '@/assets/categories/somlink-category-mark.svg';
 import { Button } from '@/components/ui/button';
 import { useConnectivity } from '@/contexts/ConnectivityContext';
 import { useTenant } from '@/contexts/TenantContext';
@@ -56,6 +57,7 @@ const CategorySelection = () => {
     provider: string;
   }>();
   const providerName = location.state?.providerName || 'Provider';
+  const isSomlinkCategoryPage = providerName.toLowerCase().includes('somlink') || String(provider || '').toLowerCase() === 'somlink';
 
   // Show banner ad when component mounts
 
@@ -352,10 +354,10 @@ const CategorySelection = () => {
                     style={{ animationDelay: `${index * 100}ms`, animationFillMode: 'forwards' }}
                   >
                     <CachedImage
-                      src={versionedCategoryImage(category)}
+                      src={isSomlinkCategoryPage ? somlinkCategoryMark : versionedCategoryImage(category)}
                       alt={category.category_name}
                       kind="category"
-                      bundledName={category.category_name}
+                      bundledName={isSomlinkCategoryPage ? null : category.category_name}
                       providerName={providerName}
                       className="w-12 h-12 object-contain"
                       loading="eager"

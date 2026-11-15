@@ -19,6 +19,11 @@ function cleanDigits(value: string) {
   return String(value || '').replace(/\D/g, '');
 }
 
+/** Shared protection for all Somlink tenants: local 64xxxxxxx or 25264xxxxxxx. */
+export function isValidSomlinkReceiverPhone(value: string) {
+  return /^(?:252)?64[0-9]{7}$/.test(cleanDigits(value));
+}
+
 function normalizeReceiver(value: string) {
   const digits = cleanDigits(value);
   return digits.startsWith('252') ? digits : `252${digits}`;
@@ -108,6 +113,10 @@ export async function somlinkSendData(input: {
   amount: number;
   bundleId: number;
 }) {
+  // Prevent paid delivery to 63/65 or any other invalid Somlink receiver.
+  if (!isValidSomlinkReceiverPhone(input.receiverPhone)) {
+    throw new SomlinkApiError('send', 'Somlink receiver phone must start with 64 and have 9 digits', null, null);
+  }
   // Prevent an invalid wallet name from reaching the paid delivery endpoint.
   if (!/^\+?[0-9]{7,15}$/.test(String(input.walletPhone || '').trim())) {
     throw new SomlinkApiError('send', 'Invalid Somlink wallet phone', null, null);

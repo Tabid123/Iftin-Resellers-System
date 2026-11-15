@@ -5,6 +5,7 @@ import {
   sanitizeSomlinkResponse,
   somlinkLogin,
   somlinkSendData,
+  isValidSomlinkReceiverPhone,
 } from '../_shared/somlink.ts';
 
 function json(body: unknown, status = 200) {
@@ -118,10 +119,11 @@ serve(async (req) => {
 
     const bundleId = Number(pkg?.somlink_bundle_id);
     const amount = Number(pkg?.cost_price);
-    const receiverDigits = String(order.receiver_phone || '').replace(/\D/g, '');
     if (!Number.isInteger(bundleId) || bundleId <= 0) throw new Error('Somlink bundle id is missing or invalid');
     if (!Number.isFinite(amount) || amount <= 0) throw new Error('Somlink package cost price is missing or invalid');
-    if (receiverDigits.length < 9) throw new Error('Somlink receiver phone is invalid');
+    if (!isValidSomlinkReceiverPhone(order.receiver_phone)) {
+      throw new Error('Somlink receiver phone must start with 64 and have 9 digits');
+    }
 
     const { data: credentials, error: credentialsError } = await admin.rpc('somlink_admin_credentials', {
       p_tenant_id: tenantId,
