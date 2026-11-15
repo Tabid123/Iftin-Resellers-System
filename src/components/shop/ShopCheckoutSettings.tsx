@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { useShop, shopDb } from "./useShop";
 import { toast } from "@/hooks/use-toast";
 import { CreditCard, Headset, Save } from "lucide-react";
+import { Link } from "@/lib/router-compat";
 
 type CheckoutConfig = {
   payment_provider: string;
@@ -114,22 +115,15 @@ export default function ShopCheckoutSettings() {
         </p>
       </section>
 
-      <section className="admin-card space-y-4">
+      <section className="admin-card space-y-2">
         <h2 className="flex items-center gap-2 text-lg font-bold"><Headset className="h-5 w-5" /> Support — FAB</h2>
         <p className="text-sm text-muted-foreground">
-          Macaamilku wuxuu dukaanka ka arkayaa floating button WhatsApp iyo Call. Haddii aad labadan
-          bannaan ka tagto, waxaa la isticmaalayaa support phone-ka tenant-ka haddii uu jiro.
+          Lambarada WhatsApp iyo Call ee floating support button-ka hadda waxaa laga maamulaa
+          Settings → App Settings. Lambarradii hore waa la ilaaliyey.
         </p>
-        <label className="block space-y-1">
-          WhatsApp number
-          <Input type="tel" inputMode="tel" maxLength={25} placeholder="+25261xxxxxxx"
-            value={form.support_whatsapp} onChange={e => update("support_whatsapp", e.target.value)} />
-        </label>
-        <label className="block space-y-1">
-          Call number
-          <Input type="tel" inputMode="tel" maxLength={25} placeholder="+25261xxxxxxx"
-            value={form.support_call} onChange={e => update("support_call", e.target.value)} />
-        </label>
+        <Link to="/dashboard/app-settings" className="inline-flex text-sm font-semibold text-primary underline">
+          Tag FAB WhatsApp & Call Settings
+        </Link>
       </section>
       <Button type="submit" className="w-full gap-2" disabled={busy}>
         <Save className="h-4 w-4" /> {busy ? "Waa la kaydinayaa..." : "Kaydi Payment & Support"}
