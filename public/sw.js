@@ -11,8 +11,7 @@ const getCacheName = (prefix) => prefix + (CACHE_VERSION || 'default');
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
-  '/offline.html',
-  '/icon-192.png'
+  '/offline.html'
 ];
 
 // Cache each asset on its own: one 404 must not fail the whole install,
