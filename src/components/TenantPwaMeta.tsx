@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 import { useTenant } from "@/contexts/TenantContext";
+import { useLocation } from "@/lib/router-compat";
+import { isTenantAdminPath, tenantAdminManifestHref, tenantCustomerManifestHref } from "@/lib/tenantPwaManifest";
 import { initializeOneSignal, syncOneSignalTenant } from "@/services/onesignal";
 
 function upsertLink(rel: string, href: string, attrs: Record<string, string> = {}) {
@@ -30,6 +32,8 @@ function upsertMeta(name: string, content: string) {
  */
 export function TenantPwaMeta() {
   const { tenant } = useTenant();
+  const { pathname } = useLocation();
+  const isAdmin = isTenantAdminPath(pathname);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -40,16 +44,16 @@ export function TenantPwaMeta() {
       ? `/api/public/tenant-icon?tenant=${encodeURIComponent(slug)}`
       : "/icon-512.png";
 
-    upsertLink("manifest", slug ? `/api/public/manifest?tenant=${encodeURIComponent(slug)}` : "/manifest.json");
+    upsertLink("manifest", isAdmin ? tenantAdminManifestHref(slug) : tenantCustomerManifestHref(slug));
     upsertMeta("theme-color", theme);
     upsertMeta("apple-mobile-web-app-capable", "yes");
     upsertMeta("apple-mobile-web-app-status-bar-style", "black-translucent");
-    upsertMeta("apple-mobile-web-app-title", tenant?.name || "Iftin Agents");
+    upsertMeta("apple-mobile-web-app-title", `${tenant?.name || "Iftin Agents"}${isAdmin ? " Admin" : ""}`);
     upsertLink("apple-touch-icon", logo);
     upsertLink("icon", logo, { type: "image/png" });
 
-    if (tenant?.name) document.title = tenant.name;
-  }, [tenant?.slug, tenant?.name, tenant?.logo_url, tenant?.primary_color]);
+    if (tenant?.name) document.title = `${tenant.name}${isAdmin ? " Admin" : ""}`;
+  }, [tenant?.slug, tenant?.name, tenant?.logo_url, tenant?.primary_color, isAdmin]);
 
   // Native push must only be initialized after the authoritative tenant has
   // resolved. This prevents a previously opened tenant from leaking its push
