@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Loader2, LogOut, Users, Package, BarChart3, Smartphone, Menu, PanelLeftClose, Moon, Sun, SlidersHorizontal } from 'lucide-react'
 import PlatformAuth from './PlatformAuth'
-import iftinLogo from '@/assets/iftin-resellers-icon.jpg'
+import { PLATFORM_ICON_URL } from '@/lib/platformBrand'
 
 export default function PlatformLayout() {
   const navigate = useNavigate()
@@ -94,8 +94,8 @@ export default function PlatformLayout() {
     <div className="flex h-full flex-col bg-[#0c1220] text-slate-200">
       <div className="flex h-[62px] items-center justify-between border-b border-white/5 px-4">
         <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white">
-            <img src={iftinLogo} alt="Iftin Resellers" className="h-7 w-7 object-contain" />
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
+            <img src={PLATFORM_ICON_URL} alt="Iftin Resellers" className="h-7 w-7 object-contain scale-[1.15]" />
           </div>
           <div className="min-w-0">
             <div className="truncate text-[13px] font-semibold tracking-tight text-white">Iftin Resellers</div>
@@ -176,7 +176,7 @@ export default function PlatformLayout() {
               <SidebarBody onNavigate={() => setMenuOpen(false)} />
             </SheetContent>
           </Sheet>
-          <img src={iftinLogo} alt="Iftin Resellers" className="h-7 w-7 shrink-0 object-contain" />
+          <img src={PLATFORM_ICON_URL} alt="Iftin Resellers" className="h-7 w-7 shrink-0 object-contain" />
           <div className="min-w-0 truncate text-sm font-semibold">Iftin Resellers</div>
         </header>
 
