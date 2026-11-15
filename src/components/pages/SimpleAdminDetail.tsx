@@ -81,6 +81,7 @@ const DETAIL_CONFIGS: Record<string, DetailConfig> = {
   'ecommerce-packages': { title: 'eCommerce — Packages / Products', titleSo: 'eCommerce — Packages / Alaabta', headerBg: 'from-blue-600 to-indigo-800' },
   'ecommerce-stock': { title: 'eCommerce — Stock', titleSo: 'eCommerce — Stock', headerBg: 'from-blue-600 to-indigo-800' },
   'ecommerce-orders': { title: 'eCommerce — Orders', titleSo: 'eCommerce — Dalabyada', headerBg: 'from-blue-600 to-indigo-800' },
+  'ecommerce-settings': { title: 'eCommerce — Payment & Support', titleSo: 'eCommerce — Lacag & Support', headerBg: 'from-blue-600 to-indigo-800' },
   customers: { title: 'Customers', titleSo: 'Macaamiisha', headerBg: 'from-teal-500 to-teal-700' },
   'offline-registrations': { title: 'Offline Registrations', titleSo: 'Offline Reg', headerBg: 'from-orange-500 to-orange-700' },
   'auto-topup': { title: 'Auto Top-Up', titleSo: 'Auto Top-Up', headerBg: 'from-lime-500 to-lime-700' },
@@ -183,6 +184,7 @@ const SimpleAdminDetail = () => {
       case 'ecommerce-categories': return <ShopAdmin key="categories" section="categories" />;
       case 'ecommerce-stock': return <ShopAdmin key="stock" section="stock" />;
       case 'ecommerce-orders': return <ShopAdmin key="orders" section="orders" />;
+      case 'ecommerce-settings': return <ShopAdmin key="settings" section="settings" />;
       // Custom views (lazy-loaded)
       case 'daily-orders': return isPartner ? <IftinDailyOrders isSo={isSo} /> : <DailyOrdersCustomView isSo={isSo} />;
       case 'customers': return <CustomersCustomView isSo={isSo} />;
