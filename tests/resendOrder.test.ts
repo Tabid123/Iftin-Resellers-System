@@ -36,14 +36,14 @@ function mockDatabase(options: {
     let operation = 'select';
     let values: unknown;
     const filters: [string, unknown][] = [];
-    const result = () => {
+    const result = (many = false) => {
       if (table === options.errorTable) return { data: null, error: { message: 'Lookup unavailable' } };
       if (operation !== 'select') {
         writes.push({ table, operation, values });
         return { data: table === 'orders' ? { id: 'created-order' } : null, error: null };
       }
       const matches = (rows[table] ?? []).filter(row => filters.every(([key, value]) => row[key] === value));
-      return { data: matches[0] ?? null, error: null };
+      return { data: many ? matches : matches[0] ?? null, error: null };
     };
     const query: any = {
       select: () => query,
@@ -55,7 +55,7 @@ function mockDatabase(options: {
       single: async () => result(),
       insert: (payload: unknown) => { operation = 'insert'; values = payload; return query; },
       update: (payload: unknown) => { operation = 'update'; values = payload; return query; },
-      then: (resolve: (value: unknown) => unknown) => Promise.resolve(result()).then(resolve),
+      then: (resolve: (value: unknown) => unknown) => Promise.resolve(result(true)).then(resolve),
     };
     return query;
   });
@@ -180,6 +180,32 @@ describe('unmatched payment USSD resolution', () => {
       order_id: 'old-order', ussd_code: '*829*680000001*020*1234#',
       android_device_id: 'device-a', sim_slot: 2,
     });
+  });
+
+  it('blocks same-number resend after a previously completed USSD receipt, even if order says verification_required', async () => {
+    const db = mockDatabase({ previous: [
+      { order_id: 'old-order', status: 'completed', receiver_phone: '+252680000001', provider_name: 'Somnet' },
+      { order_id: 'old-order', status: 'verification_required', receiver_phone: phone, provider_name: 'Somnet' },
+    ] });
+    const res = await resendOrder({
+      ...order, id: 'old-order', receiver_phone: phone, delivery_status: 'verification_required',
+    }, phone);
+    expect(res).toMatchObject({ ok: false, message: expect.stringContaining('hore') });
+    expect(db.writes).toEqual([]);
+  });
+
+  it('refuses resend when completed-attempt lookup fails instead of risking a second charge', async () => {
+    const db = mockDatabase({ errorTable: 'delivery_queue' });
+    const res = await resendOrder({ ...order, id: 'old-order', receiver_phone: phone }, phone);
+    expect(res).toMatchObject({ ok: false, message: expect.stringContaining('lama hubin') });
+    expect(db.writes).toEqual([]);
+  });
+
+  it('blocks repeat delivery of a final delivered order', async () => {
+    const db = mockDatabase();
+    const res = await resendOrder({ ...order, id: 'old-order', receiver_phone: phone, delivery_status: 'delivered' }, phone);
+    expect(res).toMatchObject({ ok: false, message: expect.stringContaining('Delivered') });
+    expect(db.writes).toEqual([]);
   });
 
   it('reuses an existing delivery and routing without creating another order', async () => {
