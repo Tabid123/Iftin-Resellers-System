@@ -277,11 +277,11 @@ class UssdAccessibilityService : AccessibilityService() {
         val timeSinceLastClick = System.currentTimeMillis() - lastClickTime
         val currentDebounceMs = if (flow870Active) UssdFlowTiming.FLOW_EVENT_DEBOUNCE_MS else DEBOUNCE_MS
         if (!discoveryActive && timeSinceLastClick < currentDebounceMs) {
-            // Never silently discard a freshly rendered carrier menu after
-            // our previous Send. Wake the flow watcher when the guard expires.
-            if (flow870Active) {
-                kickFlowWatcher(currentDebounceMs - timeSinceLastClick)
-            }
+            // The active flow watcher already polls every 200/300ms. Do NOT
+            // remove/re-schedule that runnable on each ACTION_SET_TEXT event:
+            // Samsung emits several events while its USSD field settles, and
+            // continuously restarting the watcher was delaying the next menu.
+            // Suppress the duplicate event only; the watcher keeps running.
             Log.d(TAG, "⏳ Debounce: ignoring event (${timeSinceLastClick}ms since last click)")
             return
         }
