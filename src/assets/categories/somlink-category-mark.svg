@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Somlink category">
+  <rect width="128" height="128" rx="22" fill="#B027AD"/>
+  <path d="M27 48 52 26 V102" fill="none" stroke="#FFFFFF" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M81 26 V101 L106 79" fill="none" stroke="#FFFFFF" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
