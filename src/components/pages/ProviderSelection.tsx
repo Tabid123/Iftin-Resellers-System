@@ -10,7 +10,6 @@ import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
 import { logScreenView } from '@/services/firebase';
 import { useConnectivity } from '@/contexts/ConnectivityContext';
-import najaxLogo from '@/assets/najax-logo.jpeg';
 import { useTenant } from '@/contexts/TenantContext';
 import { useSupportPhone } from '@/hooks/useSupportPhone';
 import { fetchIftinCatalog, hasCatalog, isApiPartnerTenant, mapProviders, mapCategories, mapPackages } from '@/lib/iftinCatalog';
@@ -40,7 +39,6 @@ const ProviderSelection = () => {
   const t = useTenant();
   const support = useSupportPhone();
   const tenant = t.status === 'ready' || t.status === 'suspended' ? t.tenant : null;
-  const brandLogo = tenant?.logo_url || najaxLogo;
   const brandName = tenant?.name || (import.meta.env.VITE_TENANT_NAME as string) || 'App';
   const [showOfflineToast, setShowOfflineToast] = useState(false);
   const [showAI, setShowAI] = useState(false);
