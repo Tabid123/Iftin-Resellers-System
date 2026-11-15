@@ -33,6 +33,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { registerServiceWorker } from "@/lib/registerServiceWorker";
+import { initAdminInstallPromptListener } from "@/lib/adminPwaInstall";
 
 const CHUNK_RELOAD_KEY = "iftin:chunk-reload";
 const OFFLINE_CACHE_SCHEMA_KEY = "iftin:offline-cache-schema";
@@ -249,6 +250,7 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   useEffect(() => {
+    initAdminInstallPromptListener();
     registerServiceWorker();
     const buildVersion = import.meta.env.VITE_BUILD_VERSION;
     if (!buildVersion || !("serviceWorker" in navigator)) return;
