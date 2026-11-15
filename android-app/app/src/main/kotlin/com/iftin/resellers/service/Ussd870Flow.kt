@@ -239,6 +239,18 @@ object Ussd870Flow {
         return if (fields.isEmpty()) listOf("1", "1") else fields
     }
 
+    /**
+     * Somtel *101# Menu 3 (e.g. "Ugu Shub Qof Kale") must match a real
+     * numbered carrier row. Do not fall back to row 1 when the menu changes.
+     */
+    fun somtelMenu3Choice(menuPath: List<String>, dialogText: String?): String? {
+        val requestedLabel = menuPath.getOrNull(2)?.trim().orEmpty()
+        if (requestedLabel.isEmpty() || dialogText.isNullOrBlank()) return null
+        val acceptedLabels = requestedLabel.split(';').map { it.trim() }.filter { it.isNotEmpty() }
+        if (acceptedLabels.isEmpty()) return null
+        return findNumberForKeywords(dialogText, acceptedLabels)?.toString()
+    }
+
     fun stripMenuSuffix(template: String): String {
         val idx = template.indexOf('|')
         return if (idx < 0) template else template.substring(0, idx)
@@ -739,7 +751,26 @@ object Ussd870Flow {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val done = completedSteps(prefs)
         val lower = dialogText.lowercase()
-        if (isSomtel101Flow(context) && 2 !in done) {
+        val somtel101 = isSomtel101Flow(context)
+        val activePath = parseMenuPath(prefs.getString(KEY_MENU_PATH, "1,1"))
+        val hasThirdMenu = activePath.getOrNull(2)?.isNotBlank() == true
+
+        // Somtel *101# can show the "Ugu Shub Qof Kale" list without any
+        // "Dooro"/"Xulo" keyword. Resolve the configured label against
+        // numbered live options BEFORE generic receiver/PIN heuristics.
+        // If Menu 3 has not been selected, never send the receiver phone as
+        // a menu number or guess a different row.
+        if (somtel101 && hasThirdMenu && 2 in done && 3 in done && 7 !in done) {
+            if (somtelMenu3Choice(activePath, dialogText) != null) {
+                return STEPS.firstOrNull { it.name == "menu_extra" }
+            }
+            if (parseMenuItems(dialogText).isNotEmpty()) {
+                Log.w(TAG, "Somtel *101# Menu 3: configured label absent; waiting instead of selecting wrong option")
+            }
+            return null
+        }
+
+        if (somtel101 && 2 !in done) {
             return STEPS.firstOrNull { it.order == 2 && parseMenuItems(dialogText).isNotEmpty() }
         }
         if (isSomtel101Flow(context) && lower.contains("somtel services") &&
@@ -779,8 +810,8 @@ object Ussd870Flow {
                 // menu_data (Step 2) waa lagu qaldi karaa dialog-ga xirmada; haddii dialog-gu
                 // yahay package menu, ha u ogolaan Step 2 inuu qabsado.
                 !(step.name == "menu_data" && isPackageDialog) &&
-                (step.name != "receiver_phone" || isSomtel101) &&
-                (step.name != "menu_extra" || allowMenuExtra) &&
+                (step.name != "receiver_phone" || (isSomtel101 && (!hasMenuExtra || 7 in done))) &&
+                (step.name != "menu_extra" || (!isSomtel101 && allowMenuExtra)) &&
                 step.keywords.any { lower.contains(it.lowercase()) }
         }
     }
@@ -789,6 +820,11 @@ object Ussd870Flow {
     /** Hel qiimaha la geliyo tallaabada la helay. dialogText waa loo baahan yahay keyword resolution. */
     fun inputFor(context: Context, step: Step, dialogText: String?): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (isSomtel101Flow(context) && step.name == "menu_extra") {
+            // Strict match; a missing "Ugu Shub Qof Kale" row must NOT
+            // silently select option 1 (which may top-up the seller's SIM).
+            return somtelMenu3Choice(parseMenuPath(prefs.getString(KEY_MENU_PATH, "")), dialogText).orEmpty()
+        }
         if (isSomtel101Flow(context) && step.order in 2..3) {
             val field = prefs.getString(KEY_MENU_PATH, "").orEmpty().split(',')
                 .getOrNull(step.order - 2)?.trim().orEmpty()

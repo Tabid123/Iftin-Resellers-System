@@ -2,6 +2,7 @@ package com.iftin.resellers.service
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -40,4 +41,28 @@ class Ussd101FlowTest {
         assertTrue(receiver.order > pin.order)
         assertFalse(receiver.isPinField)
     }
+
+    @Test
+    fun selectsSomtelSocialGiftMenuByExactRowNotByGenericDooroLabel() {
+        val path = Ussd870Flow.parseMenuPath("*101#|Xulmo-Social Bundle,Daily,Ugu Shub Qof Kale")
+        val menu = """
+            Somtel Social Media Bundles
+            1. Isku Shub
+            2. Ugu Shub Qof Kale
+            Cancel | Send
+        """.trimIndent()
+        assertEquals("2", Ussd870Flow.somtelMenu3Choice(path, menu))
+        assertEquals("2", Ussd870Flow.somtelMenu3Choice(path, menu.replace("\n", " | ")))
+    }
+
+    @Test
+    fun doesNotGuessWrongThirdMenuItemOrTypeReceiverInMenu() {
+        val path = listOf("Xulmo-Social Bundle", "Daily", "Ugu Shub Qof Kale")
+        val changedMenu = "1. Isku Shub | 2. Ugu Shub Qof Kale oo xirnaa | Cancel | Send"
+        val noOptions = "Geli lambarka qaataha | Cancel | Send"
+        assertNull(Ussd870Flow.somtelMenu3Choice(path, "1. Isku Shub | 2. Ka noqo | Cancel | Send"))
+        assertNull(Ussd870Flow.somtelMenu3Choice(path, noOptions))
+        assertNull(Ussd870Flow.somtelMenu3Choice(path.take(2), changedMenu))
+    }
+
 }
