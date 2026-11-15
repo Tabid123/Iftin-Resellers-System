@@ -15,7 +15,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { AddManualDeliveryDialog } from '@/components/admin/AddManualDeliveryDialog';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
-import najaxLogo from '@/assets/najax-logo.jpeg';
+import TenantBrandMark from '@/components/TenantBrandMark';
 import { useTenant } from '@/contexts/TenantContext';
 import { useTenantCapabilities } from '@/hooks/useTenantCapabilities';
 import { prefetchAdminViews } from '@/lib/prefetchAdminViews';
@@ -411,7 +411,7 @@ const SimpleAdminDashboard = () => {
           <header className="text-white" style={{ backgroundColor: 'var(--brand-primary, #2563eb)' }}>
             <div className="flex items-center justify-center px-4 py-3">
               <div className="flex items-center gap-2">
-                <CachedImage src={tenant?.logo_url || najaxLogo} alt={`${tenant?.name || (import.meta.env.VITE_TENANT_NAME as string) || 'App'} logo`} className="w-8 h-8 rounded-lg object-contain bg-white" fallback={<img src={najaxLogo} alt="Logo" className="w-8 h-8 rounded-lg object-contain bg-white" />} />
+                <TenantBrandMark logoUrl={tenant?.logo_url} name={tenant?.name || (import.meta.env.VITE_TENANT_NAME as string) || 'App'} className="w-8 h-8 rounded-lg object-contain bg-white" />
                 <h1 className="text-lg font-bold">{tenant?.name || (import.meta.env.VITE_TENANT_NAME as string) || 'App'}</h1>
                 <span className="flex items-center gap-1 bg-white/15 border border-white/25 px-2 py-0.5 rounded-full ml-1">
                   <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-300 opacity-75" /><span className="relative inline-flex rounded-full h-2 w-2 bg-green-400" /></span>
