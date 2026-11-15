@@ -65,4 +65,40 @@ class Ussd101FlowTest {
         assertNull(Ussd870Flow.somtelMenu3Choice(path.take(2), changedMenu))
     }
 
+    @Test
+    fun actualSamsungSocialBundleGiftMenuResolvesSecondRow() {
+        val configured = Ussd870Flow.parseMenuPath("*101#|Xulmo-Social Bundle,Daily,Ugu Shub Qof Kale")
+        val screenshotText = """
+            [-Xulmo-Social Bundle-]
+            Dooro:
+            1. Ku Shubo
+            2. Ugu Shub Qof Kale
+            0. Back
+            Cancel
+            Send
+        """.trimIndent()
+        assertEquals("2", Ussd870Flow.somtelMenu3Choice(configured, screenshotText))
+    }
+
+    @Test
+    fun flattenedSamsungGiftMenuMustNeverMistakeRowTwoForRowOne() {
+        val configured = listOf("Xulmo-Social Bundle", "Daily", "Ugu Shub Qof Kale")
+        val flattened = "[-Xulmo-Social Bundle-] Dooro: 1. Ku Shubo 2. Ugu Shub Qof Kale 0. Back Cancel Send"
+        val separated = "[-Xulmo-Social Bundle-] | Dooro: | 1 | Ku Shubo | 2 | Ugu Shub Qof Kale | 0 | Back | Cancel | Send"
+        assertEquals("2", Ussd870Flow.somtelMenu3Choice(configured, flattened))
+        assertEquals("2", Ussd870Flow.somtelMenu3Choice(configured, separated))
+        assertFalse(Ussd870Flow.somtelMenu3Choice(configured, flattened) == "1")
+    }
+
+    @Test
+    fun giftMenuRejectsAmbiguousOrWrongCarrierRows() {
+        val configured = listOf("Xulmo-Social Bundle", "Daily", "Ugu Shub Qof Kale")
+        val renamed = "1. Ku Shubo | 2. Ugu Shub Qof Kale oo xiran | 0. Back | Cancel | Send"
+        val mismatched = "1. Ku Shubo 2. Doorasho Kale 0. Back Cancel Send"
+        val duplicated = "1. Ugu Shub Qof Kale 2. Ugu Shub Qof Kale 0. Back Cancel Send"
+        assertNull(Ussd870Flow.somtelMenu3Choice(configured, renamed))
+        assertNull(Ussd870Flow.somtelMenu3Choice(configured, mismatched))
+        assertNull(Ussd870Flow.somtelMenu3Choice(configured, duplicated))
+    }
+
 }
