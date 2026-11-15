@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { platformSupabase as supabase, supabase as tenantSupabase } from '@/integrations/supabase/client'
-import { NavLink, Outlet, useNavigate } from "@/lib/router-compat"
+import { NavLink, Outlet } from "@/lib/router-compat"
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Loader2, LogOut, Users, Package, BarChart3, Smartphone, Menu, PanelLeftClose, Moon, Sun, SlidersHorizontal } from 'lucide-react'
 import PlatformAuth from './PlatformAuth'
+import { warmPlatformPages } from '@/lib/lazyPages'
 import { PLATFORM_ICON_URL } from '@/lib/platformBrand'
 
 export default function PlatformLayout() {
-  const navigate = useNavigate()
+  const refreshAuthRef = useRef<() => void>(() => {})
   const [loading, setLoading] = useState(true)
   const [authed, setAuthed] = useState(false)
   const [isSuper, setIsSuper] = useState(false)
@@ -21,12 +22,17 @@ export default function PlatformLayout() {
 
   useEffect(() => {
     let mounted = true
+    let checkNumber = 0
+    let migrationAttempted = false
+    const scheduled = new Set<ReturnType<typeof setTimeout>>()
     const check = async () => {
+      const request = ++checkNumber
       let { data: { session } } = await supabase.auth.getSession()
 
       // One-time migration from the old shared auth storage. After this,
       // platform and tenant-admin sessions are completely independent.
-      if (!session) {
+      if (!session && !migrationAttempted) {
+        migrationAttempted = true
         const { data: { session: legacySession } } = await tenantSupabase.auth.getSession()
         if (legacySession?.access_token && legacySession?.refresh_token) {
           const { data: legacyRoles } = await tenantSupabase
@@ -42,23 +48,43 @@ export default function PlatformLayout() {
         }
       }
 
-      if (!mounted) return
+      if (!mounted || request !== checkNumber) return
       if (!session) {
         setAuthed(false); setIsSuper(false); setEmail(''); setLoading(false); return
       }
 
       const { data: roles } = await supabase
         .from('user_roles').select('role').eq('user_id', session.user.id)
+      if (!mounted || request !== checkNumber) return
       const sa = (roles ?? []).some((r: any) => r.role === 'super_admin')
       setAuthed(true)
       setEmail(session.user.email ?? '')
       setIsSuper(sa)
       setLoading(false)
     }
-    check()
-    const { data: sub } = supabase.auth.onAuthStateChange(() => check())
-    return () => { mounted = false; sub.subscription.unsubscribe() }
+    refreshAuthRef.current = () => { void check() }
+    void check()
+    const { data: sub } = supabase.auth.onAuthStateChange(() => {
+      // Never call an awaited Supabase API from inside the auth-state callback.
+      // Schedule the role check after the auth lock has been released.
+      const timer = setTimeout(() => {
+        scheduled.delete(timer)
+        if (mounted) void check()
+      }, 0)
+      scheduled.add(timer)
+    })
+    return () => {
+      mounted = false
+      checkNumber++
+      refreshAuthRef.current = () => {}
+      scheduled.forEach(clearTimeout)
+      sub.subscription.unsubscribe()
+    }
   }, [])
+
+  useEffect(() => {
+    if (authed && isSuper) warmPlatformPages()
+  }, [authed, isSuper])
 
   if (loading) {
     return (
@@ -69,7 +95,7 @@ export default function PlatformLayout() {
   }
 
   if (!authed || !isSuper) {
-    return <PlatformAuth onSuccess={() => window.location.reload()} authed={authed} />
+    return <PlatformAuth onSuccess={() => refreshAuthRef.current()} authed={authed} />
   }
 
   const navItems = [
@@ -80,7 +106,14 @@ export default function PlatformLayout() {
     { to: '/admin/apps', label: 'Apps', icon: Smartphone },
   ]
 
-  const signOut = async () => { await supabase.auth.signOut(); navigate(0) }
+  const signOut = async () => {
+    const { error } = await supabase.auth.signOut()
+    if (!error) {
+      setAuthed(false)
+      setIsSuper(false)
+      setEmail('')
+    }
+  }
 
   const togglePlatformTheme = () => {
     setPlatformDark((current) => {
