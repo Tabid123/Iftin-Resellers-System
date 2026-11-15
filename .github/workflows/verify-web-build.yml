@@ -43,6 +43,9 @@ jobs:
       - name: Verify tenant admin PWA install routing
         run: bun run test -- tests/adminPwaInstall.test.ts
 
+      - name: Verify owner-only password reset routing
+        run: bun run test -- tests/platformOwnerPasswordReset.test.ts
+
       - name: Verify compatibility of OTA with existing Android tenant APKs
         run: node --test tests/nativeOta.test.mjs
 
