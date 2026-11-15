@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Save } from 'lucide-react';
 import { toast } from 'sonner';
+import TenantFabSettings from '@/components/admin/TenantFabSettings';
 
 interface AppSetting {
   id: string;
@@ -145,6 +146,8 @@ const AppSettings = () => {
         <h2 className="text-2xl font-bold text-foreground mb-2">App Settings</h2>
         <p className="text-muted-foreground">Maaree sida app-ka u muuqdo</p>
       </div>
+
+      <TenantFabSettings />
 
       <div className="space-y-4">
         {settings.map((setting) => {
