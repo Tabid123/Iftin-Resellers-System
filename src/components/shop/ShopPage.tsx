@@ -10,6 +10,7 @@ import {
   Plus,
   Minus,
   CheckCircle2,
+  Truck,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "@/lib/router-compat";
 import { Button } from "@/components/ui/button";
@@ -99,6 +100,10 @@ function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: s
     }
   });
   const [search, setSearch] = useState("");
+  const [quantity, setQuantity] = useState(1);
+  useEffect(() => {
+    setQuantity(1);
+  }, [productId]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [name, setName] = useState("");
@@ -163,6 +168,10 @@ function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: s
   const products = catalog.data?.products || [];
   const categories = catalog.data?.categories || [];
   const selected = products.find((p) => p.id === productId);
+  const availableQuantity = selected
+    ? Math.max(0, Math.min(99, selected.stock) - (cart[selected.id] || 0))
+    : 0;
+  const chosenQuantity = Math.min(quantity, availableQuantity);
   const cartItems = products.filter((p) => cart[p.id]);
   const unavailable = Object.keys(cart).some((id) => !products.some((p) => p.id === id));
   const total = cartItems.reduce((sum, p) => sum + p.price * cart[p.id], 0);
@@ -214,9 +223,15 @@ function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: s
   ];
   return (
     <div
-      className={`shop-screen min-h-screen bg-background pb-28 ${view === "home" || view === "search" ? "shop-catalog-screen" : ""}`}
+      className={`shop-screen ${view === "product" ? "shop-detail" : ""} min-h-screen bg-background pb-28 ${view === "home" || view === "search" ? "shop-catalog-screen" : ""}`}
     >
       <style>{`
+        .shop-detail > header { padding: 10px 12px !important; }
+        .shop-detail > main { padding: 14px 8px 100px; }
+        .shop-detail .detail-gallery { margin-bottom: 18px; }
+        .shop-detail .detail-name { font-size: 23px; line-height: 28px; font-weight: 800; letter-spacing: -.5px; }
+        .shop-detail .detail-price { font-size: 24px; line-height: 30px; font-weight: 800; }
+        .shop-detail .detail-footer { padding: 12px 8px calc(12px + env(safe-area-inset-bottom)); }
         .shop-screen { font-family: Arial, Helvetica, sans-serif; -webkit-text-size-adjust: 100%; }
         .shop-screen > header { padding: 10px 13px 14px; }
         .shop-screen > header > div > a { font-size: 13px; line-height: 18px; margin-bottom: 10px; gap: 8px; }
@@ -251,22 +266,41 @@ function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: s
         @media (min-width: 480px) { .shop-catalog-screen article img, .shop-catalog-screen article button > div { height: 170px; } }
       `}</style>
       <header className="bg-primary px-4 py-5 text-primary-foreground">
-        <div className="mx-auto max-w-xl">
-          <Link to="/providers" className="mb-2 flex items-center gap-2 text-sm">
-            <ArrowLeft className="h-4 w-4" />
-            {tenantName}
-          </Link>
-          <div className="flex items-center justify-between">
-            <h1 className="text-[28px] font-extrabold tracking-tight">Dukaanka</h1>
-            <button aria-label="Fur dambiisha" onClick={() => go("cart")} className="flex gap-1">
+        {view === "product" ? (
+          <div className="mx-auto flex max-w-xl items-center justify-between gap-3">
+            <button aria-label="Ku noqo dukaanka" onClick={() => go("home")}>
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <strong className="truncate text-lg">{tenantName}</strong>
+            <button
+              aria-label="Fur dambiisha"
+              className="relative flex items-center"
+              onClick={() => go("cart")}
+            >
               <ShoppingCart />
-              {count}
+              <span className="absolute -right-1 -top-1 rounded-full bg-white px-1 text-[10px] text-primary">
+                {count}
+              </span>
             </button>
           </div>
-        </div>
+        ) : (
+          <div className="mx-auto max-w-xl">
+            <Link to="/providers" className="mb-2 flex items-center gap-2 text-sm">
+              <ArrowLeft className="h-4 w-4" />
+              {tenantName}
+            </Link>
+            <div className="flex items-center justify-between">
+              <h1 className="text-[28px] font-extrabold tracking-tight">Dukaanka</h1>
+              <button aria-label="Fur dambiisha" onClick={() => go("cart")} className="flex gap-1">
+                <ShoppingCart />
+                {count}
+              </button>
+            </div>
+          </div>
+        )}
       </header>
       <main className="mx-auto max-w-xl space-y-7 p-4">
-        {view !== "home" && (
+        {view !== "home" && view !== "product" && (
           <button className="flex items-center gap-2 text-primary" onClick={() => go("home")}>
             <ArrowLeft className="h-4 w-4" />
             Dukaanka
@@ -417,20 +451,67 @@ function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: s
               ) : (
                 <ProductImage url={selected.image_url} name={selected.name} />
               )}
-              <h2 className="text-2xl font-bold">{selected.name}</h2>
-              <p className="text-2xl font-bold text-primary">{money(selected.price)}</p>
-              <p className="whitespace-pre-wrap">{selected.description}</p>
-              <p>{selected.stock ? "Waa diyaar" : "Waa dhammaatay"}</p>
-              <Button
-                className="w-full"
-                disabled={!selected.stock || (cart[selected.id] || 0) >= selected.stock}
-                onClick={() => {
-                  change(selected, 1);
-                  go("cart");
-                }}
-              >
-                Ku dar dambiisha
-              </Button>
+              <div className="!mt-4 space-y-2">
+                <h2 className="detail-name">{selected.name}</h2>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="detail-price text-primary">{money(selected.price)}</p>
+                  <span
+                    className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium ${selected.stock ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    {selected.stock ? "Waa diyaar" : "Waa dhammaatay"}
+                  </span>
+                </div>
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+                  {selected.description}
+                </p>
+              </div>
+              <div className="!mt-4 flex items-center justify-between border-t pt-4">
+                <span className="text-sm font-bold">Tirada</span>
+                <div className="flex items-center rounded-lg border bg-card p-1">
+                  <button
+                    aria-label="Yaree tirada"
+                    className="flex h-8 w-9 items-center justify-center rounded bg-muted disabled:opacity-40"
+                    disabled={chosenQuantity <= 1}
+                    onClick={() => setQuantity(Math.max(1, chosenQuantity - 1))}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <span aria-live="polite" className="w-10 text-center text-sm">
+                    {chosenQuantity}
+                  </span>
+                  <button
+                    aria-label="Kordhi tirada"
+                    className="flex h-8 w-9 items-center justify-center rounded bg-muted disabled:opacity-40"
+                    disabled={chosenQuantity >= availableQuantity}
+                    onClick={() => setQuantity(chosenQuantity + 1)}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              <p className="!mt-4 flex items-center gap-3 rounded-xl bg-primary/5 p-3 text-xs">
+                <Truck className="h-5 w-5 shrink-0 text-primary" />
+                Gaarsiinta dukaanka ayaa kula xaqiijinaya.
+              </p>
+              <div className="detail-footer fixed inset-x-0 bottom-0 z-50 border-t bg-background shadow-[0_-4px_20px_#172b4d08]">
+                <div className="mx-auto flex max-w-xl items-center gap-5">
+                  <strong className="text-2xl font-extrabold">
+                    {money(selected.price * chosenQuantity)}
+                  </strong>
+                  <Button
+                    className="h-12 flex-1 gap-2 rounded-xl text-sm"
+                    disabled={chosenQuantity < 1}
+                    onClick={() => {
+                      change(selected, chosenQuantity);
+                      go("cart");
+                    }}
+                  >
+                    <ShoppingCart className="h-5 w-5" />
+                    Ku dar dambiisha
+                  </Button>
+                </div>
+              </div>
             </>
           ) : (
             !catalog.isLoading && <p>Alaabtan hadda lama heli karo.</p>
@@ -580,7 +661,7 @@ function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: s
           </>
         )}
       </main>
-      {view !== "checkout" && (
+      {view !== "checkout" && view !== "product" && (
         <nav
           aria-label="Dukaanka"
           className="fixed inset-x-0 bottom-0 z-50 border-t bg-background pb-[env(safe-area-inset-bottom)]"
