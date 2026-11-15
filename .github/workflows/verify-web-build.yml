@@ -43,6 +43,9 @@ jobs:
       - name: Verify tenant admin PWA install routing
         run: bun run test -- tests/adminPwaInstall.test.ts
 
+      - name: Verify smart Admin PWA banner
+        run: bun run test -- tests/adminSmartInstallBanner.test.ts
+
       - name: Verify owner-only password reset routing
         run: bun run test -- tests/platformOwnerPasswordReset.test.ts
 
