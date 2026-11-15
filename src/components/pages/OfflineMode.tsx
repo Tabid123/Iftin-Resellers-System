@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import najaxLogo from '@/assets/najax-logo.jpeg';
+import TenantBrandMark from '@/components/TenantBrandMark';
 import { useNavigate } from "@/lib/router-compat";
 import { ArrowLeft, Phone, CheckCircle2 } from 'lucide-react';
 import { Link } from "@/lib/router-compat";
@@ -62,7 +62,7 @@ const OfflineMode = () => {
   const { isReallyOnline } = useConnectivity();
   const t = useTenant();
   const tenant = t.status === 'ready' || t.status === 'suspended' ? t.tenant : null;
-  const brandLogo = tenant?.logo_url || najaxLogo;
+  const brandLogo = tenant?.logo_url || (import.meta.env.VITE_TENANT_LOGO_URL as string | undefined) || null;
   const brandName = tenant?.name || (import.meta.env.VITE_TENANT_NAME as string) || 'App';
   const [senderPhone, setSenderPhone] = useState('');
   const [receiverPhone, setReceiverPhone] = useState('');
@@ -194,7 +194,7 @@ const OfflineMode = () => {
 
       {/* Logo */}
       <div className="mb-6 mt-2">
-        <CachedImage alt={brandName} className="w-28 h-28 object-cover rounded-2xl" src={brandLogo} fallback={<img src={najaxLogo} alt={brandName} className="w-28 h-28 object-cover rounded-2xl" />} />
+        <TenantBrandMark logoUrl={brandLogo} name={brandName} className="w-28 h-28 object-cover rounded-2xl" />
       </div>
 
       {/* Tagline */}
