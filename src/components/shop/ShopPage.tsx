@@ -228,9 +228,11 @@ function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: s
         .shop-catalog-screen section:first-of-type input { height: 40px; padding-left: 43px; border-radius: 12px; font-size: 15px; }
         .shop-catalog-screen section:first-of-type svg { left: 16px; width: 19px; height: 19px; }
         .shop-catalog-screen section[aria-labelledby="shop-categories"] { margin-top: -10px; }
-        .shop-catalog-screen section[aria-labelledby="shop-categories"] > div { margin: 12px -13px 0; padding: 3px 13px 0; gap: 12px; }
+        .shop-catalog-screen section[aria-labelledby="shop-categories"] > div { margin: 18px -13px 0; padding: 8px 13px 4px; gap: 12px; }
         .shop-catalog-screen section[aria-labelledby="shop-categories"] button { width: 76px; gap: 6px; }
-        .shop-catalog-screen section[aria-labelledby="shop-categories"] button > span:first-child { width: 76px; height: 76px; padding: 3px; flex-shrink: 0; }
+        .shop-catalog-screen section[aria-labelledby="shop-categories"] button > span:first-child { width: 76px; height: 76px; padding: 3px; flex-shrink: 0; transform: scale(1); transition: transform 220ms cubic-bezier(.2,.8,.2,1), border-color 220ms ease, box-shadow 220ms ease; }
+        .shop-catalog-screen section[aria-labelledby="shop-categories"] button[aria-pressed="true"] > span:first-child { transform: scale(1.06); }
+        @media (prefers-reduced-motion: reduce) { .shop-catalog-screen section[aria-labelledby="shop-categories"] button > span:first-child { transition: none; } }
         .shop-catalog-screen section[aria-labelledby="shop-categories"] button > span:last-child { min-height: 0; font-size: 12px; line-height: 16px; }
         .shop-catalog-screen section[aria-labelledby="shop-products"] > div { margin-top: 12px; gap: 10px; }
         .shop-catalog-screen article { padding: 12px; border-radius: 11px; }
