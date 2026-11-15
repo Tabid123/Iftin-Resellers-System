@@ -163,7 +163,7 @@ if(a){st.setProperty('--accent',a);st.setProperty('--brand-accent','hsl('+a+')')
 // The dashboard must advertise its own manifest on the first HTML load.
 // If this runs only after React hydration, Chromium can capture the storefront
 // manifest first and install a shortcut that launches the customer app.
-const earlyAdminManifestScript = \`(function(){try{
+const earlyAdminManifestScript = `(function(){try{
 var p=location.pathname;
 var m=p.match(/^\\/t\\/([a-z0-9-]{1,60})\\/dashboard(?:\\/|$)/);
 if(!m && !/^\\/dashboard(?:\\/|$)/.test(p))return;
@@ -176,7 +176,7 @@ if(!slug){
 }
 var link=document.querySelector('link[rel="manifest"]');
 if(link)link.setAttribute('href','/api/public/manifest?app=admin'+(slug?'&tenant='+encodeURIComponent(slug):''));
-}catch(e){}})();\`;
+}catch(e){}})();`;
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
