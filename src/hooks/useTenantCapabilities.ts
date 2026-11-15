@@ -135,7 +135,7 @@ export function useTenantCapabilities() {
 
   const canSee = (view?: string) => {
     if (!view) return true;
-    const key = view.replace(/^\\/dashboard\\/?/, '').split('?')[0];
+    const key = view.replace(/^\/dashboard\/?/, '').split('?')[0];
     if (!key) return true;
     if (key === 'integrations') return false;
     if (['shop', 'ecommerce-categories', 'ecommerce-packages', 'ecommerce-stock', 'ecommerce-orders', 'ecommerce-settings'].includes(key)) {
