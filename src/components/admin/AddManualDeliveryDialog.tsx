@@ -28,6 +28,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { packagesForSystemCode } from '@/lib/packagesForSystemCode';
 
 // --- Helper Functions ---
 
@@ -68,12 +69,19 @@ interface Provider {
 
 interface DataPackage {
   id: string;
+  provider_id: string;
   package_name: string;
   data_amount: string;
   selling_price: number;
   cost_price: number;
   ussd_code: string | null;
   category_id: string | null;
+}
+
+interface PackageCategory {
+  id: string;
+  category_name: string;
+  provider_id: string | null;
 }
 
 interface DeliveryRule {
@@ -117,6 +125,7 @@ export const AddManualDeliveryDialog: React.FC<AddManualDeliveryDialogProps> = (
   const [loading, setLoading] = useState(false);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [packages, setPackages] = useState<DataPackage[]>([]);
+  const [categories, setCategories] = useState<PackageCategory[]>([]);
   const [loadingPackages, setLoadingPackages] = useState(false);
   const [bundleRules, setBundleRules] = useState<DeliveryRule[]>([]);
 
@@ -125,6 +134,7 @@ export const AddManualDeliveryDialog: React.FC<AddManualDeliveryDialogProps> = (
 
   // Form state
   const [selectedProviderId, setSelectedProviderId] = useState<string>('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [selectedPackageId, setSelectedPackageId] = useState<string>('');
   const [receiverPhone, setReceiverPhone] = useState('');
   const [senderPhone, setSenderPhone] = useState('');
@@ -156,26 +166,49 @@ export const AddManualDeliveryDialog: React.FC<AddManualDeliveryDialogProps> = (
     }
   }, [open, providerName]);
 
-  // Load packages when provider changes
+  // Load categories and packages only for the selected provider.
+  // Prevent an earlier provider request from overwriting a later selection.
   useEffect(() => {
-    const loadPackages = async () => {
-      if (!selectedProviderId) {
-        setPackages([]);
-        return;
-      }
-      setLoadingPackages(true);
-      const { data } = await supabase
-        .from('data_packages_config')
-        .select('id, package_name, data_amount, selling_price, cost_price, ussd_code, category_id')
-        .eq('provider_id', selectedProviderId)
-        .eq('is_active', true)
-        .order('selling_price');
-
-      if (data) setPackages(data);
+    if (!open || !selectedProviderId) {
+      setPackages([]);
+      setCategories([]);
       setLoadingPackages(false);
-    };
-    loadPackages();
-  }, [selectedProviderId]);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingPackages(true);
+    setPackages([]);
+    setCategories([]);
+    void (async () => {
+      const [packageResult, categoryResult] = await Promise.all([
+        supabase.from('data_packages_config')
+          .select('id, provider_id, package_name, data_amount, selling_price, cost_price, ussd_code, category_id')
+          .eq('provider_id', selectedProviderId)
+          .eq('is_active', true)
+          .order('selling_price'),
+        supabase.from('package_categories')
+          .select('id, category_name, provider_id')
+          .eq('provider_id', selectedProviderId)
+          .order('display_order'),
+      ]);
+      if (cancelled) return;
+      if (packageResult.error || categoryResult.error) {
+        toast({
+          title: language === 'so' ? 'Xirmooyinka lama soo qaadi karo' : 'Unable to load packages',
+          description: packageResult.error?.message || categoryResult.error?.message,
+          variant: 'destructive',
+        });
+      }
+      setPackages(packageResult.data || []);
+      setCategories(categoryResult.data || []);
+      setLoadingPackages(false);
+    })();
+
+    return () => { cancelled = true; };
+  }, [open, selectedProviderId, language]);
+
+  const filteredPackages = packagesForSystemCode(packages, selectedProviderId, selectedCategoryId);
 
   // Check bundle rules when package changes
   useEffect(() => {
@@ -196,7 +229,7 @@ export const AddManualDeliveryDialog: React.FC<AddManualDeliveryDialogProps> = (
           rules.map(async (rule) => {
             const { data: targetPkg } = await supabase
               .from('data_packages_config')
-              .select('id, package_name, data_amount, selling_price, cost_price, ussd_code, category_id')
+              .select('id, provider_id, package_name, data_amount, selling_price, cost_price, ussd_code, category_id')
               .eq('id', rule.target_package_id)
               .single();
             return { ...rule, target_package: targetPkg || undefined };
@@ -213,6 +246,7 @@ export const AddManualDeliveryDialog: React.FC<AddManualDeliveryDialogProps> = (
   // Reset form when dialog closes
   useEffect(() => {
     if (!open) {
+      setSelectedCategoryId('');
       setSelectedPackageId('');
       setReceiverPhone('');
       setSenderPhone('');
@@ -296,7 +330,8 @@ export const AddManualDeliveryDialog: React.FC<AddManualDeliveryDialogProps> = (
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedProviderId || !selectedPackageId || !receiverPhone || receiverPhone.length < 9) {
+    if (!selectedProviderId || !selectedPackageId || !receiverPhone || receiverPhone.length < 9 || loadingPackages ||
+      !filteredPackages.some(pkg => pkg.id === selectedPackageId)) {
       toast({
         title: language === 'so' ? 'Fadlan buuxi dhammaan meelaha' : 'Please fill all required fields',
         variant: 'destructive',
@@ -315,7 +350,7 @@ export const AddManualDeliveryDialog: React.FC<AddManualDeliveryDialogProps> = (
     setLoading(true);
 
     try {
-      const selectedPackage = packages.find(p => p.id === selectedPackageId);
+      const selectedPackage = filteredPackages.find(p => p.id === selectedPackageId);
       const selectedProvider = providers.find(p => p.id === selectedProviderId);
       if (!selectedPackage || !selectedProvider) throw new Error('Package or provider not found');
 
@@ -545,7 +580,12 @@ export const AddManualDeliveryDialog: React.FC<AddManualDeliveryDialogProps> = (
           {/* Provider Selection */}
           <div className="space-y-2">
             <Label>Provider</Label>
-            <Select value={selectedProviderId} onValueChange={setSelectedProviderId}>
+            <Select value={selectedProviderId} onValueChange={(providerId) => {
+              setSelectedProviderId(providerId);
+              setSelectedCategoryId('');
+              setSelectedPackageId('');
+              setBundleRules([]);
+            }}>
               <SelectTrigger>
                 <SelectValue placeholder={language === 'so' ? 'Dooro provider' : 'Select provider'} />
               </SelectTrigger>
@@ -553,6 +593,34 @@ export const AddManualDeliveryDialog: React.FC<AddManualDeliveryDialogProps> = (
                 {providers.map((provider) => (
                   <SelectItem key={provider.id} value={provider.id}>
                     {provider.provider_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Category Selection: optional; when selected, only its packages appear. */}
+          <div className="space-y-2">
+            <Label>{language === 'so' ? 'Category' : 'Category'}</Label>
+            <Select
+              value={selectedCategoryId || '__all__'}
+              onValueChange={(categoryId) => {
+                setSelectedCategoryId(categoryId === '__all__' ? '' : categoryId);
+                setSelectedPackageId('');
+                setBundleRules([]);
+              }}
+              disabled={!selectedProviderId || loadingPackages}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={language === 'so' ? 'Dooro category' : 'Select category'} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">
+                  {language === 'so' ? 'Dhammaan Categories' : 'All Categories'}
+                </SelectItem>
+                {categories.map(category => (
+                  <SelectItem key={category.id} value={category.id}>
+                    {category.category_name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -575,7 +643,7 @@ export const AddManualDeliveryDialog: React.FC<AddManualDeliveryDialogProps> = (
                 } />
               </SelectTrigger>
               <SelectContent>
-                {packages.map((pkg) => (
+                {filteredPackages.map((pkg) => (
                   <SelectItem key={pkg.id} value={pkg.id}>
                     {pkg.package_name} - {pkg.data_amount} (${pkg.selling_price})
                   </SelectItem>
