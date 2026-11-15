@@ -40,6 +40,9 @@ jobs:
       - name: Test tenant admin skeleton and access gating
         run: bun run test -- tests/adminLoadingStates.test.ts
 
+      - name: Verify tenant admin PWA install routing
+        run: bun run test -- tests/adminPwaInstall.test.ts
+
       - name: Verify compatibility of OTA with existing Android tenant APKs
         run: node --test tests/nativeOta.test.mjs
 
