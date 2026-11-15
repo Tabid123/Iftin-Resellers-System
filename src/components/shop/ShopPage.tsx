@@ -211,7 +211,41 @@ function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: s
     { view: "orders", label: "Dalabyadayda", Icon: Package },
   ];
   return (
-    <div className="min-h-screen bg-background pb-28">
+    <div
+      className={`shop-screen min-h-screen bg-background pb-28 ${view === "home" || view === "search" ? "shop-catalog-screen" : ""}`}
+    >
+      <style>{`
+        .shop-screen { font-family: Arial, Helvetica, sans-serif; -webkit-text-size-adjust: 100%; }
+        .shop-screen > header { padding: 10px 13px 14px; }
+        .shop-screen > header > div > a { font-size: 13px; line-height: 18px; margin-bottom: 10px; gap: 8px; }
+        .shop-screen > header h1 { font-size: 22px; line-height: 26px; font-weight: 800; letter-spacing: -.5px; }
+        .shop-screen > header button { align-items: center; font-size: 14px; gap: 4px; }
+        .shop-screen > header button svg { width: 25px; height: 25px; }
+        .shop-catalog-screen > main { padding: 12px 13px 24px; display: flex; flex-direction: column; gap: 26px; }
+        .shop-catalog-screen > main > * { margin-block: 0; }
+        .shop-catalog-screen section h2 { font-size: 20px; line-height: 26px; font-weight: 800; letter-spacing: -.5px; margin: 0; }
+        .shop-catalog-screen section:first-of-type > div { margin-top: 6px; }
+        .shop-catalog-screen section:first-of-type input { height: 40px; padding-left: 43px; border-radius: 12px; font-size: 15px; }
+        .shop-catalog-screen section:first-of-type svg { left: 16px; width: 19px; height: 19px; }
+        .shop-catalog-screen section[aria-labelledby="shop-categories"] { margin-top: -10px; }
+        .shop-catalog-screen section[aria-labelledby="shop-categories"] > div { margin: 12px -13px 0; padding: 3px 13px 0; gap: 12px; }
+        .shop-catalog-screen section[aria-labelledby="shop-categories"] button { width: 76px; gap: 6px; }
+        .shop-catalog-screen section[aria-labelledby="shop-categories"] button > span:first-child { width: 76px; height: 76px; padding: 3px; flex-shrink: 0; }
+        .shop-catalog-screen section[aria-labelledby="shop-categories"] button > span:last-child { min-height: 0; font-size: 12px; line-height: 16px; }
+        .shop-catalog-screen section[aria-labelledby="shop-products"] > div { margin-top: 12px; gap: 10px; }
+        .shop-catalog-screen article { padding: 12px; border-radius: 11px; }
+        .shop-catalog-screen article img, .shop-catalog-screen article button > div { height: 112px; aspect-ratio: auto; padding: 0; border-radius: 8px; }
+        .shop-catalog-screen article h3 { font-size: 15px; line-height: 18px; font-weight: 700; margin-top: 8px; }
+        .shop-catalog-screen article p { font-size: 11px; line-height: 15px; margin-top: 3px; gap: 4px; }
+        .shop-catalog-screen article p svg { width: 12px; height: 12px; }
+        .shop-catalog-screen article > div { margin-top: 4px; }
+        .shop-catalog-screen article > div > span { font-size: 18px; line-height: 26px; font-weight: 800; }
+        .shop-catalog-screen article > div > button { width: 29px; height: 27px; min-height: 27px; border-radius: 6px; }
+        .shop-catalog-screen article > div > button svg { width: 20px; height: 20px; }
+        .shop-screen > nav button { font-size: 12px; line-height: 16px; padding: 10px 2px; gap: 5px; border-radius: 12px 12px 0 0; }
+        .shop-screen > nav svg { width: 25px; height: 25px; }
+        @media (min-width: 480px) { .shop-catalog-screen article img, .shop-catalog-screen article button > div { height: 170px; } }
+      `}</style>
       <header className="bg-primary px-4 py-5 text-primary-foreground">
         <div className="mx-auto max-w-xl">
           <Link to="/providers" className="mb-2 flex items-center gap-2 text-sm">
