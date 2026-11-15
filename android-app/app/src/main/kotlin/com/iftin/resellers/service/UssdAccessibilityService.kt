@@ -103,7 +103,6 @@ class UssdAccessibilityService : AccessibilityService() {
         private const val EXPECTING_USSD_TIMEOUT_MS = 30000L
         private const val DEBOUNCE_MS = 400L
         private const val CLICK_DELAY_MS = 350L
-        private const val INPUT_SETTLE_DELAY_MS = 1000L
         private const val MULTI_DIALOG_TIMEOUT_MS = 10000L
         private const val FLOW_WATCHER_MAX_POLLS = 900
 
@@ -276,9 +275,12 @@ class UssdAccessibilityService : AccessibilityService() {
         val discoveryActive = Ussd870Flow.isDiscoveryMode(this)
         if (discoveryActive) startDiscoveryMenuWatcher()
         val timeSinceLastClick = System.currentTimeMillis() - lastClickTime
-        if (!discoveryActive && timeSinceLastClick < DEBOUNCE_MS) {
-            if (Ussd870Flow.isActive(this) && Ussd870Flow.isSomtel101Flow(this)) {
-                kickFlowWatcher(DEBOUNCE_MS - timeSinceLastClick)
+        val currentDebounceMs = if (flow870Active) UssdFlowTiming.FLOW_EVENT_DEBOUNCE_MS else DEBOUNCE_MS
+        if (!discoveryActive && timeSinceLastClick < currentDebounceMs) {
+            // Never silently discard a freshly rendered carrier menu after
+            // our previous Send. Wake the flow watcher when the guard expires.
+            if (flow870Active) {
+                kickFlowWatcher(currentDebounceMs - timeSinceLastClick)
             }
             Log.d(TAG, "⏳ Debounce: ignoring event (${timeSinceLastClick}ms since last click)")
             return
@@ -292,7 +294,7 @@ class UssdAccessibilityService : AccessibilityService() {
             AccessibilityEvent.TYPE_WINDOWS_CHANGED -> {
                 handler.postDelayed({
                     tryClickConfirmButton(null)
-                }, CLICK_DELAY_MS)
+                }, if (flow870Active) UssdFlowTiming.FLOW_DIALOG_SCAN_MS else CLICK_DELAY_MS)
             }
         }
     }
@@ -436,12 +438,15 @@ class UssdAccessibilityService : AccessibilityService() {
                                     }
                                     submitFlowStep(retryRoot, step, input)
                                     retryRoot.recycle()
-                                }, INPUT_SETTLE_DELAY_MS)
+                                }, UssdFlowTiming.RETRY_INPUT_SETTLE_MS)
                                 return@postDelayed
                             }
                             submitFlowStep(root, step, input)
                             root.recycle()
-                        }, if (!step.isPinField && Ussd870Flow.isSomtel101Flow(this)) 250L else INPUT_SETTLE_DELAY_MS)
+                        }, UssdFlowTiming.inputSettleDelay(
+                            isSomtel101 = Ussd870Flow.isSomtel101Flow(this),
+                            isPinField = step.isPinField,
+                        ))
                         source.recycle()
                         return
                     } else {
@@ -1119,7 +1124,7 @@ class UssdAccessibilityService : AccessibilityService() {
             } else {
                 handler.postDelayed({
                     if (Ussd870Flow.isActive(this)) tryClickConfirmButton(null)
-                }, 350L)
+                }, UssdFlowTiming.NEXT_FLOW_STEP_SCAN_MS)
             }
         } else if (attempt < 20) {
             Log.w(TAG, "⏳ [Flow870] Send not ready for ${step.name}; retry ${attempt + 1}/20")
