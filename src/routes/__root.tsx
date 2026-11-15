@@ -31,7 +31,7 @@ import { useStorefrontRealtime } from "@/hooks/useStorefrontRealtime";
 import { onStorefront } from "@/lib/storefrontEvents";
 import { useQueryClient } from "@tanstack/react-query";
 import appCss from "../styles.css?url";
-import iftinPlatformIcon from "@/assets/iftin-resellers-icon.jpg";
+import { PLATFORM_ICON_URL } from "@/lib/platformBrand";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { registerServiceWorker } from "@/lib/registerServiceWorker";
 import { initAdminInstallPromptListener } from "@/lib/adminPwaInstall";
@@ -132,9 +132,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "icon", href: iftinPlatformIcon, type: "image/jpeg" },
+      { rel: "icon", href: PLATFORM_ICON_URL, type: "image/png" },
       { rel: "manifest", href: "/manifest.json" },
-      { rel: "apple-touch-icon", href: iftinPlatformIcon, type: "image/jpeg" },
+      { rel: "apple-touch-icon", href: PLATFORM_ICON_URL, type: "image/png" },
     ],
   }),
   shellComponent: RootShell,
