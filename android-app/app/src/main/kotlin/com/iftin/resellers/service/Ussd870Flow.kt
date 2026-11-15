@@ -260,7 +260,14 @@ object Ussd870Flow {
                 val number = m.groupValues[1].toIntOrNull() ?: return@mapIndexedNotNull null
                 val start = m.range.last + 1
                 val end = matches.getOrNull(i + 1)?.range?.first ?: flattened.length
-                number to flattened.substring(start, end).trim()
+                // The final option may be followed by "Cancel | Send" with
+                // no extra numbered row. Those are system buttons, NOT part
+                // of the carrier option label (see Samsung live dialogs).
+                val rawLabel = flattened.substring(start, end).trim()
+                val optionLabel = rawLabel.replace(
+                    Regex("""(?i)\s+(?:Cancel|Send|Jooji)(?=\s|$).*"""), ""
+                ).trim()
+                number to optionLabel
             }
         }
         // Some Samsung Accessibility trees expose the number and its
