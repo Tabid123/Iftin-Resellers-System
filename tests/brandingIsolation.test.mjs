@@ -11,18 +11,18 @@ test('Najax imagery is absent from all default favicon/PWA surfaces', () => {
   const dynamicManifest = read('src/routes/api/public/manifest.ts');
   const fallbackIcon = read('src/routes/api/public/tenant-icon.ts');
   const platformIcon = read('src/routes/api/public/platform-icon.ts');
-  assert.match(root, /iftin-resellers-icon\.jpg/);
+  assert.match(root, /PLATFORM_ICON_URL/);
   assert.doesNotMatch(root, /href:\s*["']\/(?:favicon|icon-192|icon-512|apple-touch-icon)/);
   assert.match(meta, /tenant\?\.logo_url/);
   assert.match(meta, /\/api\/public\/tenant-icon/);
-  assert.match(meta, /iftinPlatformIcon/);
-  assert.ok(manifest.icons.every((i) => i.src === '/api/public/platform-icon'));
-  assert.match(dynamicManifest, /\/api\/public\/platform-icon/);
+  assert.match(meta, /PLATFORM_ICON_URL/);
+  assert.ok(manifest.icons.every((i) => i.src.startsWith('/iftin-resellers-') && i.type === 'image/png'));
+  assert.match(dynamicManifest, /\/iftin-resellers-favicon\.png/);
   assert.match(fallbackIcon, /\/api\/public\/platform-icon/);
-  assert.match(platformIcon, /iftin-resellers-icon\.jpg/);
+  assert.match(platformIcon, /PLATFORM_ICON_URL/);
 
   for (const file of [
-    'public/favicon.png', 'public/favicon.ico', 'public/apple-touch-icon.png',
+    'public/favicon.png', 'public/apple-touch-icon.png',
     'public/icon-192.png', 'public/icon-512.png', 'public/images/najax-splash-logo.png',
     'src/assets/najax-logo.jpeg', 'src/assets/najax-logo-source.jpeg',
   ]) {
