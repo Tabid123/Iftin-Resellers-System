@@ -240,15 +240,59 @@ object Ussd870Flow {
     }
 
     /**
-     * Somtel *101# Menu 3 (e.g. "Ugu Shub Qof Kale") must match a real
-     * numbered carrier row. Do not fall back to row 1 when the menu changes.
+     * Read exactly numbered Somtel menu rows, including Samsung accessibility
+     * flattening:
+     *   "1. Ku Shubo 2. Ugu Shub Qof Kale 0. Back"
+     *   "1 | Ku Shubo | 2 | Ugu Shub Qof Kale | 0 | Back"
+     *
+     * The generic keyword matcher may treat a whole flattened line as row 1
+     * and incorrectly return 1 for a phrase that is actually in row 2.
+     * NEVER use fuzzy row selection for a money-moving gift/top-up menu.
      */
+    fun somtelNumberedOptions(dialogText: String): List<Pair<Int, String>> {
+        val normalized = dialogText.replace(Regex("""\s*\|\s*"""), "\n")
+            .replace('\r', '\n')
+        val flattened = normalized.replace('\n', ' ')
+        val rowMarker = Regex("""(?<!\S)(\d{1,2})[.)\-:]\s+""")
+        val matches = rowMarker.findAll(flattened).toList()
+        if (matches.isNotEmpty()) {
+            return matches.mapIndexedNotNull { i, m ->
+                val number = m.groupValues[1].toIntOrNull() ?: return@mapIndexedNotNull null
+                val start = m.range.last + 1
+                val end = matches.getOrNull(i + 1)?.range?.first ?: flattened.length
+                // The final option may be followed by "Cancel | Send" with
+                // no extra numbered row. Those are system buttons, NOT part
+                // of the carrier option label (see Samsung live dialogs).
+                val rawLabel = flattened.substring(start, end).trim()
+                val optionLabel = rawLabel.replace(
+                    Regex("""(?i)\s+(?:Cancel|Send|Jooji)(?=\s|$).*"""), ""
+                ).trim()
+                number to optionLabel
+            }
+        }
+        // Some Samsung Accessibility trees expose the number and its
+        // description in separate adjacent nodes ("2 | Ugu Shub Qof Kale").
+        val parts = normalized.split('\n').map { it.trim() }.filter { it.isNotEmpty() }
+        return parts.mapIndexedNotNull { i, part ->
+            val number = part.toIntOrNull() ?: return@mapIndexedNotNull null
+            val label = parts.getOrNull(i + 1).orEmpty()
+            if (number !in 0..20 || label.isBlank() || label.toIntOrNull() != null) null
+            else number to label
+        }
+    }
+
     fun somtelMenu3Choice(menuPath: List<String>, dialogText: String?): String? {
         val requestedLabel = menuPath.getOrNull(2)?.trim().orEmpty()
         if (requestedLabel.isEmpty() || dialogText.isNullOrBlank()) return null
-        val acceptedLabels = requestedLabel.split(';').map { it.trim() }.filter { it.isNotEmpty() }
-        if (acceptedLabels.isEmpty()) return null
-        return findNumberForKeywords(dialogText, acceptedLabels)?.toString()
+        fun normalizeLabel(label: String): String = label.lowercase()
+            .replace(Regex("""[^\p{L}\p{N}]+"""), " ")
+            .trim().replace(Regex("""\s+"""), " ")
+        val accepted = requestedLabel.split(';').map { normalizeLabel(it) }.filter { it.isNotEmpty() }
+        if (accepted.isEmpty()) return null
+        val options = somtelNumberedOptions(dialogText)
+        // Requiring one exact row also rejects missing/ambiguous menu choices.
+        return options.filter { (_, label) -> normalizeLabel(label) in accepted }
+            .map { it.first }.distinct().singleOrNull()?.toString()
     }
 
     fun stripMenuSuffix(template: String): String {
@@ -520,8 +564,11 @@ object Ussd870Flow {
         ) return false
         val hasSend = lower.contains("send") || lower.contains("dir") || lower.contains("ok")
         val hasCancel = lower.contains("cancel") || lower.contains("jooji")
+        val flattenedSomtelGiftMenu = lower.contains("ugu shub qof kale") &&
+            lower.contains("ku shubo") && somtelNumberedOptions(dialogText).size >= 2
         val hasMenuRow = countNumberedRows(dialogText) >= 1 ||
-            Regex("""(?:^|\n)\s*\d+\s*[\.)\-:]\s*\S""").containsMatchIn(dialogText)
+            Regex("""(?:^|\n)\s*\d+\s*[\.)\-:]\s*\S""").containsMatchIn(dialogText) ||
+            flattenedSomtelGiftMenu
         val looksLikePrompt = lower.contains("ussd") || lower.contains("pin") ||
             lower.contains("furaha") || lower.contains("gali")
         return hasSend && hasCancel && (hasMenuRow || looksLikePrompt)
@@ -760,14 +807,32 @@ object Ussd870Flow {
         // numbered live options BEFORE generic receiver/PIN heuristics.
         // If Menu 3 has not been selected, never send the receiver phone as
         // a menu number or guess a different row.
-        if (somtel101 && hasThirdMenu && 2 in done && 3 in done && 7 !in done) {
-            if (somtelMenu3Choice(activePath, dialogText) != null) {
-                return STEPS.firstOrNull { it.name == "menu_extra" }
+        if (somtel101 && hasThirdMenu && 7 !in done) {
+            // Live Samsung screenshot: [-Xulmo-Social Bundle-] / Dooro:
+            // 1. Ku Shubo / 2. Ugu Shub Qof Kale / 0. Back
+            // The header contains "Bundle" and would otherwise cause the
+            // generic package menu detector to misclassify THIS exact screen.
+            val looksLikeGiftMenu = lower.contains("ku shubo") &&
+                lower.contains("ugu shub qof kale")
+            if (looksLikeGiftMenu) {
+                val choice = somtelMenu3Choice(activePath, dialogText)
+                if (choice != null) {
+                    // A verified gift menu can only appear AFTER the chosen
+                    // package. Recover missed click-complete callbacks from
+                    // Samsung, which may not mark steps 2/3 even after Send.
+                    if (2 !in done) markStepCompleted(context, 2)
+                    if (3 !in done) markStepCompleted(context, 3)
+                    Log.d(TAG, "Somtel *101# gift menu verified: selecting row $choice")
+                    return STEPS.firstOrNull { it.name == "menu_extra" }
+                }
+                Log.w(TAG, "Somtel *101# gift menu: exact configured option unavailable; not guessing")
+                return null
             }
-            if (parseMenuItems(dialogText).isNotEmpty()) {
-                Log.w(TAG, "Somtel *101# Menu 3: configured label absent; waiting instead of selecting wrong option")
+            if (2 in done && 3 in done) {
+                // Await the expected third menu: never send a phone number
+                // or guess a new package row while this step is outstanding.
+                return null
             }
-            return null
         }
 
         if (somtel101 && 2 !in done) {
