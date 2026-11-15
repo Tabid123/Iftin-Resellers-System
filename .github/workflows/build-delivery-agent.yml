@@ -36,6 +36,30 @@ jobs:
       - name: Build and test Iftin delivery agent
         working-directory: android-app
         run: gradle testDebugUnitTest assembleDebug --no-daemon
+      # The shared USSD agent is separate from each tenant's branded customer APK.
+      # Publish only after unit tests and build pass, never from pull requests.
+      - name: Publish shared USSD agent APK to Supabase
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SERVICE_KEY:-}" ]; then
+            echo "::error::Supabase storage publish secrets are missing"
+            exit 1
+          fi
+          APK="android-app/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          curl --retry 3 --retry-delay 2 -fsS -X POST \
+            "$SUPABASE_URL/storage/v1/object/apks/agents/iftin-resellers-ussd-agent.apk" \
+            -H "Authorization: Bearer $SERVICE_KEY" \
+            -H "apikey: $SERVICE_KEY" \
+            -H "x-upsert: true" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            --data-binary "@$APK"
+          echo "Shared USSD agent published; tenant-branded APK URLs remain unchanged."
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
