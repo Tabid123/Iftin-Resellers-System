@@ -141,6 +141,28 @@ export async function resendOrder(order: any, newReceiverRaw: string): Promise<R
   const phone = digits9(newReceiverRaw);
   if (phone.length !== 9) return { ok: false, message: 'Lambarka sax ma aha' };
 
+  // A completed delivery for this same receiver is proof that the original
+  // purchase has already been fulfilled. A later ambiguous manual resend may
+  // leave the parent order in verification_required: never recharge the same
+  // recipient just because the aggregate badge is not green.
+  if (order?.id) {
+    if (order.delivery_status === 'delivered' && digits9(order.receiver_phone) === phone) {
+      return { ok: false, message: 'Dalabkan horay ayaa lambarkan loogu diray (Delivered). Mar kale lacag ha ka jarin.' };
+    }
+    let existing = supabase.from('delivery_queue')
+      .select('id, receiver_phone')
+      .eq('order_id', order.id)
+      .eq('status', 'completed');
+    if (order.tenant_id) existing = existing.eq('tenant_id', order.tenant_id);
+    const { data: completedAttempts, error: completedError } = await existing.limit(100);
+    if (completedError) {
+      return { ok: false, message: 'Dirisyadii hore lama hubin karo. Dib u dirista waa la joojiyay si aan lacag laba jeer loo jarin.' };
+    }
+    if ((completedAttempts ?? []).some(attempt => digits9(attempt.receiver_phone) === phone)) {
+      return { ok: false, message: 'SMS/USSD guul ah ayaa hore ugu diiwaangashan lambarkan. Ha dib u dirin; hubi dalabka ama Dhamee.' };
+    }
+  }
+
   let delivery: Awaited<ReturnType<typeof lookupUssd>>;
   try {
     delivery = await lookupUssd(order, phone);
