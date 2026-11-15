@@ -6,6 +6,7 @@ import { decideWorkspace, fetchMemberships, rememberedWorkspace } from '@/lib/wo
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { SimpleAdminSidebar } from '@/components/admin/SimpleAdminSidebar';
 import { AdminDashboardSkeleton } from '@/components/admin/AdminLoadingSkeleton';
+import AdminPwaInstall from '@/components/admin/AdminPwaInstall';
 import { Menu, RefreshCw, Globe, Moon, Sun, Plus, Pencil, Volume2, VolumeX, CalendarIcon, Wallet } from 'lucide-react';
 import { format } from 'date-fns';
 import { Calendar } from '@/components/ui/calendar';
@@ -557,6 +558,8 @@ const SimpleAdminDashboard = () => {
 
               </>
             )}
+
+            <AdminPwaInstall tenantSlug={tenant?.slug} tenantName={tenant?.name} isSo={isSo} />
 
             <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg p-3 mt-2">
               <div className="flex items-center justify-between gap-2">
