@@ -173,6 +173,23 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
     staleTime: 10_000,
     refetchOnWindowFocus: true,
   });
+  // One shared source for the tenant's FAB support numbers, managed in
+  // Settings -> App Settings. Legacy eCommerce support values remain a fallback
+  // until the tenant saves a new global FAB contact row.
+  const fabContacts = useQuery({
+    queryKey: ["tenant-fab-contacts", tenantId],
+    queryFn: async () => {
+      const { data, error } = await shopDb
+        .from("tenant_fab_contacts")
+        .select("support_whatsapp,support_call")
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { support_whatsapp: string; support_call: string } | null;
+    },
+    staleTime: 10_000,
+    refetchOnWindowFocus: true,
+  });
   const orders = useQuery({
     queryKey: ["shop-orders", tenantId, tokens],
     enabled: view === "orders" || view === "success",
@@ -188,8 +205,12 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
   });
   const paymentNumber = checkoutSettings.data?.payment_number ?? "";
   const paymentProvider = checkoutSettings.data?.payment_provider || "Mobile Money";
-  const supportWhatsApp = checkoutSettings.data?.support_whatsapp || tenantSupportPhone;
-  const supportCall = checkoutSettings.data?.support_call || tenantSupportPhone;
+  const supportWhatsApp = fabContacts.data
+    ? (fabContacts.data.support_whatsapp || tenantSupportPhone)
+    : (checkoutSettings.data?.support_whatsapp || tenantSupportPhone);
+  const supportCall = fabContacts.data
+    ? (fabContacts.data.support_call || tenantSupportPhone)
+    : (checkoutSettings.data?.support_call || tenantSupportPhone);
   const products = catalog.data?.products || [];
   const categories = catalog.data?.categories || [];
   const selected = products.find((p) => p.id === productId);
