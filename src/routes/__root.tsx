@@ -31,6 +31,7 @@ import { useStorefrontRealtime } from "@/hooks/useStorefrontRealtime";
 import { onStorefront } from "@/lib/storefrontEvents";
 import { useQueryClient } from "@tanstack/react-query";
 import appCss from "../styles.css?url";
+import iftinPlatformIcon from "@/assets/iftin-resellers-icon.jpg";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { registerServiceWorker } from "@/lib/registerServiceWorker";
 import { initAdminInstallPromptListener } from "@/lib/adminPwaInstall";
@@ -131,9 +132,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "icon", href: "/favicon.png", type: "image/png" },
+      { rel: "icon", href: iftinPlatformIcon, type: "image/jpeg" },
       { rel: "manifest", href: "/manifest.json" },
-      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
+      { rel: "apple-touch-icon", href: iftinPlatformIcon, type: "image/jpeg" },
     ],
   }),
   shellComponent: RootShell,
@@ -144,6 +145,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 // Apply the last-known tenant colours before first paint so no default
 // tenant colours flash while the packaged app hydrates.
+const earlyTenantIconScript = `(function(){try{
+  var path=location.pathname;
+  if(/^\\/admin(?:\\/|$)/.test(path))return;
+  var match=path.match(/^\\/t\\/([a-z0-9-]+)(?:\\/|$)/i);
+  var slug=match?match[1]:(localStorage.getItem('najax.tenant_slug')||'');
+  if(!/^[a-z0-9-]{1,60}$/i.test(slug))return;
+  var t=JSON.parse(localStorage.getItem('najax.tenant_cache.'+slug)||'null');
+  if(!t||t.slug!==slug||!t.logo_url)return;
+  var icon=document.head.querySelector('link[rel="icon"]');
+  if(icon){icon.removeAttribute('type');icon.href=t.logo_url;}
+}catch(e){}})();`;
+
 const earlyTenantBrandScript = `(function(){try{
 if(location.pathname==='/admin'||location.pathname.indexOf('/admin/')===0)return;
 var s=localStorage.getItem('najax.tenant_slug');if(!s)return;
@@ -186,6 +199,7 @@ function RootShell({ children }: { children: ReactNode }) {
         <HeadContent />
         <script dangerouslySetInnerHTML={{ __html: earlyAdminManifestScript }} />
         <script dangerouslySetInnerHTML={{ __html: earlyTenantBrandScript }} />
+        <script dangerouslySetInnerHTML={{ __html: earlyTenantIconScript }} />
         <script dangerouslySetInnerHTML={{ __html: chunkRecoveryScript }} />
       </head>
       <body>
