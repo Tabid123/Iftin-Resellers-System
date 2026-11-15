@@ -127,7 +127,9 @@ export default function ResellerDetailPage() {
   const [pushSaving, setPushSaving] = useState(false)
 
   useEffect(() => {
-    (async () => {
+    setOwnerEmail(null)
+    setNewCreds(null)
+    ;(async () => {
       const { data } = await supabase.rpc('get_tenant_owner_emails')
       const row = (data ?? []).find((r: any) => r.tenant_id === id)
       setOwnerEmail(row?.owner_email ?? null)
@@ -216,18 +218,30 @@ export default function ResellerDetailPage() {
   }
 
   const resetPassword = async () => {
-    if (!confirm('Ma hubtaa inaad password cusub u abuurto reseller-kan? Password-kii hore wuu shaqayn doonin.')) return
+    if (!ownerEmail) {
+      toast({ title: 'Owner email lama helin', description: 'Hubi in tenant-kan leeyahay owner ka hor reset.', variant: 'destructive' })
+      return
+    }
+    const confirmed = confirm(
+      `Ma hubtaa inaad password cusub u sameyso OWNER-ka: ${ownerEmail}?\\n` +
+      'Admin-yada kale lama beddelayo. Password-kii hore ee Owner-ka wuu shaqayn doonin.',
+    )
+    if (!confirmed) return
+    setNewCreds(null)
     setResetting(true)
     try {
       const { data, error } = await supabase.functions.invoke('platform-reset-tenant-password', {
-        body: { tenant_id: id },
+        body: { tenant_id: id, expected_owner_email: ownerEmail },
       })
       if (error || (data as any)?.error) throw new Error((data as any)?.error ?? error?.message)
+      if (String(data?.email ?? '').toLowerCase() !== ownerEmail.toLowerCase()) {
+        throw new Error('Account-ka la beddelay ma aha Owner-ka la filayay. Hubi backend-ka.')
+      }
       setNewCreds({ email: data.email, password: data.password })
       setCopied(false)
-      toast({ title: '✅ Password cusub waa la abuuray' })
+      toast({ title: '✅ Owner password cusub waa la abuuray' })
     } catch (e: any) {
-      toast({ title: 'Khalad', description: e.message, variant: 'destructive' })
+      toast({ title: 'Reset-ka Owner-ka waa fashilmay', description: e.message, variant: 'destructive' })
     } finally { setResetting(false) }
   }
 
@@ -625,11 +639,11 @@ export default function ResellerDetailPage() {
                   Suspend
                 </Button>
               )}
-              <Button size="sm" variant="outline" onClick={resetPassword} disabled={resetting}>
+              <Button size="sm" variant="outline" onClick={resetPassword} disabled={resetting || !ownerEmail}>
                 {resetting
                   ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
                   : <KeyRound className="h-4 w-4 mr-1" />}
-                Generate Password
+                Reset Owner Password
               </Button>
               <Button size="sm" variant="secondary" onClick={impersonate} disabled={impersonating}>
                 {impersonating
@@ -646,7 +660,7 @@ export default function ResellerDetailPage() {
             {newCreds && (
               <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
                 <div className="text-xs font-medium text-muted-foreground uppercase">
-                  Password cusub — copy garee hadda
+                  Owner Password cusub — copy garee hadda
                 </div>
                 <div className="font-mono text-sm">
                   <div><span className="text-muted-foreground">Email:</span> {newCreds.email}</div>
