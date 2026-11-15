@@ -22,9 +22,7 @@ export const Route = createFileRoute('/api/public/manifest')({
         let shortName = 'Iftin';
         let themeColor = DEFAULT_THEME;
         let icons: Array<{ src: string; sizes: string; type: string; purpose: string }> = [
-          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: '/api/public/platform-icon', sizes: 'any', type: 'image/jpeg', purpose: 'any' },
         ];
         let scope = '/';
 

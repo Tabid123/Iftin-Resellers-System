@@ -46,5 +46,8 @@ jobs:
       - name: Verify compatibility of OTA with existing Android tenant APKs
         run: node --test tests/nativeOta.test.mjs
 
+      - name: Verify Iftin platform branding and tenant logo isolation
+        run: node --test tests/brandingIsolation.test.mjs
+
       - name: Build
         run: bun run build

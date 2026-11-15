@@ -14,14 +14,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 import { Shield, Loader2 } from 'lucide-react';
-import najaxLogo from '@/assets/najax-logo.jpeg';
+import TenantBrandMark from '@/components/TenantBrandMark';
+import iftinPlatformLogo from '@/assets/iftin-resellers-icon.jpg';
 
 const AdminLogin = () => {
   const navigate = useNavigate();
   const tenantState = useTenant();
   const tenant = tenantState.status === 'ready' || tenantState.status === 'suspended' ? tenantState.tenant : null;
   const brandName = tenant?.name || 'Admin';
-  const brandLogo = tenant?.logo_url || najaxLogo;
+  const brandLogo = tenant?.logo_url || (tenant ? null : iftinPlatformLogo);
   const primary = tenant?.primary_color || '#3D0066';
   const accent = tenant?.accent_color || '#C5F82A';
   const [email, setEmail] = useState('');
@@ -157,12 +158,7 @@ const AdminLogin = () => {
             className="w-20 h-20 mx-auto rounded-2xl overflow-hidden flex items-center justify-center"
             style={{ backgroundColor: tenant?.logo_url ? 'transparent' : primary }}
           >
-            <img
-              src={brandLogo}
-              alt={`${brandName} Logo`}
-              className="w-full h-full object-cover"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).src = najaxLogo; }}
-            />
+            <TenantBrandMark logoUrl={brandLogo} name={brandName} className="w-full h-full object-cover" />
           </div>
           <div className="flex items-center justify-center gap-2">
             <Shield className="h-6 w-6" style={{ color: primary }} />
