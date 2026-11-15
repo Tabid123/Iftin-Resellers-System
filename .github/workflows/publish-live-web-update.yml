@@ -1,14 +1,22 @@
 name: Publish local live web update
 
-# Online tenant apps already use the live website; the bundled offline
-# package needs periodic updates, not a fresh ~9 MB ZIP after every commit.
+# Publish one shared JS/CSS bundle to *existing* Play Store APKs through the
+# built-in native updater. No tenant-specific APK or AAB rebuild is required.
+# Concurrency cancels superseded uploads when several pushes land together.
 on:
   push:
     branches: [main]
     paths:
       - ".github/workflows/publish-live-web-update.yml"
+      - "src/**"
+      - "public/**"
+      - "scripts/build.mjs"
+      - "scripts/prepare-native-ota-route.mjs"
+      - "package.json"
+      - "bun.lock"
+      - "vite.config.ts"
   schedule:
-    - cron: "0 3 * * 0"  # Sunday, 06:00 Mogadishu
+    - cron: "0 3 * * *"  # Daily fallback at 06:00 Mogadishu
   workflow_dispatch:
 
 concurrency:
@@ -91,6 +99,13 @@ jobs:
           rm -rf dist
           mv dist_live dist
 
+      - name: Restore tenant route on native OTA startup
+        run: |
+          node scripts/prepare-native-ota-route.mjs
+          grep -Fq 'iftin-ota-native-tenant-route' dist/index.html
+          grep -Fq 'tenant-bootstrap.js' dist/index.html
+          test -s dist/tenant-bootstrap.json
+
       - name: Package and checksum bundle
         run: |
           set -e
@@ -119,12 +134,15 @@ jobs:
           curl -fsS -X POST "$SUPABASE_URL/storage/v1/object/$BUNDLE_OBJECT"             -H "Authorization: Bearer $SERVICE_KEY"             -H "x-upsert: true"             -H "Content-Type: application/zip"             --data-binary "@live-update.zip"
 
           cat > manifest.json <<EOF
-          {"version":"$VERSION","url":"$PUBLIC_URL","sha256":"$LIVE_UPDATE_SHA256","nativeVersionCode":1}
+          {"version":"$VERSION","url":"$PUBLIC_URL","sha256":"$LIVE_UPDATE_SHA256","nativeVersionCode":0}
           EOF
 
           curl -fsS -X POST "$SUPABASE_URL/storage/v1/object/apks/live-updates/manifest.json"             -H "Authorization: Bearer $SERVICE_KEY"             -H "x-upsert: true"             -H "Content-Type: application/json"             --data-binary "@manifest.json"
 
-          echo "Published local live update $VERSION"
+          # Android currently compares nativeVersionCode for exact equality.
+          # 0 intentionally means all APKs with the existing JS OTA updater,
+          # including Play builds with versionCode > 1. Keep native API unchanged.
+          echo "Published compatible web-only OTA for existing APKs: $VERSION"
 
       - name: Prune superseded OTA ZIPs after publishing
         env:
