@@ -26,6 +26,7 @@ function Thumb({ url, name }: { url: string; name: string }) {
   );
 }
 import ShopImages, { productImages } from "./ShopImages";
+import ShopCheckoutSettings from "./ShopCheckoutSettings";
 const blank = {
   id: "",
   category_id: "",
@@ -41,7 +42,7 @@ const blank = {
 export default function ShopAdmin({
   section = "products",
 }: {
-  section?: "products" | "categories" | "stock" | "orders";
+  section?: "products" | "categories" | "stock" | "orders" | "settings";
 }) {
   const navigate = useNavigate();
   const { tenant, enabled, loading } = useShop();
@@ -80,7 +81,7 @@ export default function ShopAdmin({
         shopDb.from("shop_products").select("*").eq("tenant_id", tenant!.id).order("name"),
         shopDb
           .from("shop_orders")
-          .select("id,customer_name,phone,address,items,total,status,created_at")
+          .select("id,customer_name,phone,address,items,total,status,created_at,payment_method,payment_provider,payment_number")
           .eq("tenant_id", tenant!.id)
           .order("created_at", { ascending: false })
           .limit(100),
@@ -116,7 +117,7 @@ export default function ShopAdmin({
     <div className="shop-admin space-y-4">
       <style>{`
         .shop-admin { font-family: Arial, Helvetica, sans-serif; max-width: 900px; margin: auto; }
-        .shop-admin .admin-tabs { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); background:hsl(var(--card)); border-bottom:1px solid hsl(var(--border)); border-radius:0 0 14px 14px; padding:0 4px; }
+        .shop-admin .admin-tabs { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); background:hsl(var(--card)); border-bottom:1px solid hsl(var(--border)); border-radius:0 0 14px 14px; padding:0 4px; }
         .shop-admin .admin-tabs button { position:relative; padding:16px 2px; font-size:13px; }
         .shop-admin .admin-tabs button[aria-current=page] { color:hsl(var(--primary)); font-weight:700; }
         .shop-admin .admin-tabs button[aria-current=page]:after { content:""; position:absolute; bottom:0; left:12px; right:12px; height:3px; border-radius:4px 4px 0 0; background:hsl(var(--primary)); }
@@ -152,6 +153,7 @@ export default function ShopAdmin({
           ["products", "Alaabta"],
           ["stock", "Stock"],
           ["orders", "Dalabyada"],
+          ["settings", "Lacag & Help"],
         ].map(([t, label]) => (
           <button
             key={t}
@@ -164,7 +166,7 @@ export default function ShopAdmin({
       </nav>
       <div>
         <h1>
-          {{ categories: "Qaybaha", products: "Alaabta", stock: "Stock", orders: "Dalabyada" }[tab]}
+          {{ categories: "Qaybaha", products: "Alaabta", stock: "Stock", orders: "Dalabyada", settings: "Payment & Support" }[tab]}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {
@@ -173,6 +175,7 @@ export default function ShopAdmin({
               products: `${query.data?.products.length || 0} alaab oo dukaanka yaalla`,
               stock: "La soco tirada alaabta",
               orders: "La soco dalabyada macaamiisha",
+              settings: "Lambarada lacag-bixinta, WhatsApp iyo Call",
             }[tab]
           }
         </p>
@@ -214,6 +217,7 @@ export default function ShopAdmin({
         </p>
       )}
       {query.isLoading && <p>Sug...</p>}
+      {tab === "settings" && <ShopCheckoutSettings />}
       {tab === "categories" && (
         <>
           <details ref={categoryForm}>
@@ -701,7 +705,7 @@ export default function ShopAdmin({
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            100-ka dalab ee ugu dambeeyay · Lacag-bixinta: marka la keeno
+            100-ka dalab ee ugu dambeeyay · Lacag-bixin: manual transfer ama marka la keeno
           </p>
           <label className="block">
             Xaaladda dalabka
@@ -737,6 +741,11 @@ export default function ShopAdmin({
                   {o.customer_name} · {o.phone}
                 </p>
                 <p>{o.address}</p>
+                <p className="text-xs text-muted-foreground">
+                  {o.payment_method === "manual_transfer"
+                    ? `Lacag-bixin: ${o.payment_provider || "Mobile Money"} — ${o.payment_number || ""} (hubin ayaa loo baahan yahay)`
+                    : "Lacag-bixin: marka la keeno"}
+                </p>
                 <p>{new Date(o.created_at).toLocaleString()}</p>
                 {o.items.map((i: any) => (
                   <p key={i.product_id}>

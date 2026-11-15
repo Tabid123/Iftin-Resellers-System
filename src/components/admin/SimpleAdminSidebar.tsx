@@ -41,6 +41,7 @@ const menuGroups: MenuItem[] = [
       { label: 'Packages / Products', labelSo: 'Packages / Alaabta', icon: Package, path: '/dashboard/ecommerce-packages' },
       { label: 'Stock', labelSo: 'Stock', icon: Layers, path: '/dashboard/ecommerce-stock' },
       { label: 'Orders', labelSo: 'Dalabyada', icon: ListOrdered, path: '/dashboard/ecommerce-orders' },
+      { label: 'Payment & Support', labelSo: 'Lacag & Support', icon: CreditCard, path: '/dashboard/ecommerce-settings' },
     ],
   },
   { label: 'Dashboard', labelSo: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
