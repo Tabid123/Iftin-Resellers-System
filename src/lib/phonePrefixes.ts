@@ -5,7 +5,7 @@ const NETWORK_PREFIXES: Array<{ match: string[]; prefixes: string[] }> = [
   { match: ['hormuud', 'evc', 'evcplus', 'evc plus'], prefixes: ['61', '77'] },
   { match: ['somtel', 'edahab', 'e-dahab', 'e dahab'], prefixes: ['62'] },
   { match: ['somnet', 'jeeb'], prefixes: ['68'] },
-  { match: ['somlink'], prefixes: ['63', '65'] },
+  { match: ['somlink'], prefixes: ['64'] },
   { match: ['amtel'], prefixes: ['71'] },
   { match: ['telesom', 'zaad'], prefixes: ['63'] },
   { match: ['golis', 'sahal'], prefixes: ['90', '85'] },
@@ -14,6 +14,10 @@ const NETWORK_PREFIXES: Array<{ match: string[]; prefixes: string[] }> = [
 
 /** Prefix-yada la aqbalayo ee magaca la bixiyay. Madhan = lama garanayo. */
 export function getAllowedPrefixes(name?: string | null, dbPrefix?: string | null): string[] {
+  // Somlink receiver numbers start with 64 for every tenant. A stale tenant
+  // prefix setting must not re-enable 63/65 when validating Somlink.
+  if (String(name ?? '').toLowerCase().includes('somlink')) return ['64'];
+
   // 1) Prefix-ka admin-ka dejiyay (waxa laga yaabaa inuu badan yahay: "61,77")
   const fromDb = String(dbPrefix ?? '')
     .split(/[^0-9]+/)
