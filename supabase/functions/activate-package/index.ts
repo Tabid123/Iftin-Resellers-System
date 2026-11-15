@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 import { deliveryOutcome, needsLateEvidence, isFinalOrder } from './deliverySafety.ts';
+import { isSomtelConfirmedGiftReceipt } from './somtelReceipt.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -1315,7 +1316,10 @@ serve(async (req) => {
 
       const providerIndicatesFailure =
         !androidMmiOnly && text.length > 0 && (providerAlreadyHasService || failureKeywords.some(k => text.includes(k)));
-      const providerIndicatesSuccess = !androidMmiOnly && text.length > 0 && successKeywords.some(k => text.includes(k));
+      const confirmedSomtelGift = String(existingQueue.provider_name || '').toLowerCase() === 'somtel' &&
+        isSomtelConfirmedGiftReceipt(providerResponse, existingQueue.receiver_phone);
+      const providerIndicatesSuccess = !androidMmiOnly && text.length > 0 &&
+        (successKeywords.some(k => text.includes(k)) || confirmedSomtelGift);
 
       // STALE CALLBACK GUARD:
       // Some carriers can surface a very late success dialog from the previous USSD session
