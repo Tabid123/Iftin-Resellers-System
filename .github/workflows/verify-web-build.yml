@@ -43,5 +43,8 @@ jobs:
       - name: Verify compatibility of OTA with existing Android tenant APKs
         run: node --test tests/nativeOta.test.mjs
 
+      - name: Verify no cross-tenant Najax icons remain
+        run: node --test tests/brandingIsolation.test.mjs
+
       - name: Build
         run: bun run build
