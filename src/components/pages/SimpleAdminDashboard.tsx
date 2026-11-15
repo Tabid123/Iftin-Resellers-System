@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
 import { useNavigate } from "@/lib/router-compat";
-import { supabase, getTenantId, setTenantHeader } from '@/integrations/supabase/client';
+import { supabase, setTenantHeader } from '@/integrations/supabase/client';
 import { decideWorkspace, fetchMemberships, rememberedWorkspace } from '@/lib/workspaceMembership';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { SimpleAdminSidebar } from '@/components/admin/SimpleAdminSidebar';
