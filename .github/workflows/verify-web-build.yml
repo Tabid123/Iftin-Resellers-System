@@ -40,6 +40,9 @@ jobs:
       - name: Test tenant admin skeleton and access gating
         run: bun run test -- tests/adminLoadingStates.test.ts
 
+      - name: Verify Manual Order category/package filtering
+        run: bun run test -- tests/manualDeliveryCategoryPackages.test.ts
+
       - name: Verify System Codes category/package filtering
         run: bun run test -- tests/systemCodeCategoryPackages.test.ts
 
