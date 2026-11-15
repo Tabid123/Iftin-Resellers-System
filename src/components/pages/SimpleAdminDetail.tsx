@@ -12,7 +12,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { useTenantCapabilities } from '@/hooks/useTenantCapabilities';
 import { ArrowLeft, Menu, Globe, Moon, Sun, Loader2 } from 'lucide-react';
-import najaxLogo from '@/assets/najax-logo.jpeg';
+import TenantBrandMark from '@/components/TenantBrandMark';
 import { prefetchAdminViews } from '@/lib/prefetchAdminViews';
 
 const ShopAdmin = lazy(() => import('@/components/shop/ShopAdmin'));
@@ -278,7 +278,7 @@ const SimpleAdminDetail = () => {
                 <ArrowLeft className="h-5 w-5" />
               </button>
               <div className="flex items-center gap-2">
-                <img src={tenant?.logo_url || najaxLogo} alt="Logo" className="w-7 h-7 rounded-lg object-contain bg-white" onError={(e) => { (e.currentTarget as HTMLImageElement).src = najaxLogo; }} />
+                <TenantBrandMark logoUrl={tenant?.logo_url} name={tenant?.name} className="w-7 h-7 rounded-lg object-contain bg-white" />
                 <h1 className="text-lg font-bold">{title}</h1>
               </div>
               <SidebarTrigger className="text-white hover:bg-white/20 p-1.5 rounded-full -mr-2">

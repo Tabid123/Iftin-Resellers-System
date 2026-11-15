@@ -13,7 +13,7 @@
       background: #f4f6fb; color: #0f172a; text-align: center; padding: 24px;
     }
     .card { max-width: 340px; }
-    img { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; margin-bottom: 20px; }
+    .offline-mark { width: 80px; height: 80px; margin: 0 auto 20px; display: grid; place-items: center; border-radius: 20px; background: #dbeafe; color: #1e3a8a; font-size: 48px; font-weight: 700; }
     h1 { font-size: 20px; margin: 0 0 8px; }
     p { font-size: 15px; line-height: 1.5; color: #475569; margin: 0 0 20px; }
     button {
@@ -24,7 +24,7 @@
 </head>
 <body>
   <div class="card">
-    <img src="/icon-192.png" alt="">
+    <div class="offline-mark" aria-hidden="true">⌁</div>
     <h1>Internet ma jiro</h1>
     <p>App-ku wuu furan yahay, laakiin xogta cusub lama soo dejin karo. Fadlan hubi internetkaaga kadibna isku day mar kale.</p>
     <button onclick="location.replace('/')">Isku day mar kale</button>
