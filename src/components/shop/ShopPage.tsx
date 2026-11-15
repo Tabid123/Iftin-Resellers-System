@@ -16,12 +16,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useShop, shopDb, money, orderStatuses } from "./useShop";
 
+import { ProductGallery } from "./ShopImages";
 type Product = {
   id: string;
   category_id: string;
   name: string;
   description: string;
   image_url: string;
+  image_urls?: string[];
   price: number;
   stock: number;
 };
@@ -410,7 +412,11 @@ function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: s
         {view === "product" &&
           (selected ? (
             <>
-              <ProductImage url={selected.image_url} name={selected.name} />
+              {selected.image_url || selected.image_urls?.length ? (
+                <ProductGallery key={selected.id} product={selected} />
+              ) : (
+                <ProductImage url={selected.image_url} name={selected.name} />
+              )}
               <h2 className="text-2xl font-bold">{selected.name}</h2>
               <p className="text-2xl font-bold text-primary">{money(selected.price)}</p>
               <p className="whitespace-pre-wrap">{selected.description}</p>
