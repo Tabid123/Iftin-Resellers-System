@@ -433,6 +433,8 @@ const SimpleAdminDashboard = () => {
           <div className="px-4 py-2 text-sm text-gray-500 flex items-center gap-1">🏠 Home &gt; Dashboard</div>
 
           <main className="flex-1 px-3 pb-6 space-y-4">
+            <AdminPwaInstall tenantSlug={tenant?.slug} tenantName={tenant?.name} isSo={isSo} />
+
             <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-1">
               {([
                 { key: 'today' as const, label: 'Maanta' },
@@ -558,8 +560,6 @@ const SimpleAdminDashboard = () => {
 
               </>
             )}
-
-            <AdminPwaInstall tenantSlug={tenant?.slug} tenantName={tenant?.name} isSo={isSo} />
 
             <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg p-3 mt-2">
               <div className="flex items-center justify-between gap-2">
