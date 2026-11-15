@@ -35,6 +35,9 @@ jobs:
           grep -Fq 'defaultPendingMs: 60_000' src/router.tsx
           grep -Fq 'WEB_SPLASH_MS = 1500' src/components/TenantGate.tsx
 
+      - name: Verify Somtel carrier receipt and safe manual resends
+        run: bun run test -- tests/somtelCarrierReceipt.test.ts tests/resendOrder.test.ts
+
       - name: Test Somlink wallet identifiers
         run: bun run test -- tests/somlinkWallet.test.ts tests/phonePrefixes.test.ts
       - name: Test tenant admin skeleton and access gating
