@@ -18,6 +18,8 @@ import { Input } from "@/components/ui/input";
 import { useShop, shopDb, money, orderStatuses } from "./useShop";
 
 import { ProductGallery } from "./ShopImages";
+import ShopPaymentInstructions from "./ShopPaymentInstructions";
+import ShopSupportFab from "./ShopSupportFab";
 type Product = {
   id: string;
   category_id: string;
@@ -58,9 +60,9 @@ export default function ShopPage() {
         </Link>
       </div>
     );
-  return <ShopContent key={tenant.id} tenantId={tenant.id} tenantName={tenant.name} />;
+  return <ShopContent key={tenant.id} tenantId={tenant.id} tenantName={tenant.name} tenantSupportPhone={tenant.support_phone ?? ""} />;
 }
-function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: string }) {
+function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: string; tenantName: string; tenantSupportPhone: string }) {
   const location = useLocation();
   const navigate = useNavigate();
   const params = new URLSearchParams(location.search);
@@ -152,6 +154,25 @@ function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: s
     },
     staleTime: 0,
   });
+  const checkoutSettings = useQuery({
+    queryKey: ["shop-checkout-settings", tenantId],
+    queryFn: async () => {
+      const { data, error } = await shopDb
+        .from("shop_checkout_settings")
+        .select("payment_provider,payment_number,support_whatsapp,support_call")
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (error) throw error;
+      return data as {
+        payment_provider: string;
+        payment_number: string;
+        support_whatsapp: string;
+        support_call: string;
+      } | null;
+    },
+    staleTime: 10_000,
+    refetchOnWindowFocus: true,
+  });
   const orders = useQuery({
     queryKey: ["shop-orders", tenantId, tokens],
     enabled: view === "orders" || view === "success",
@@ -165,6 +186,10 @@ function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: s
       return data || [];
     },
   });
+  const paymentNumber = checkoutSettings.data?.payment_number ?? "";
+  const paymentProvider = checkoutSettings.data?.payment_provider || "Mobile Money";
+  const supportWhatsApp = checkoutSettings.data?.support_whatsapp || tenantSupportPhone;
+  const supportCall = checkoutSettings.data?.support_call || tenantSupportPhone;
   const products = catalog.data?.products || [];
   const categories = catalog.data?.categories || [];
   const selected = products.find((p) => p.id === productId);
@@ -189,7 +214,7 @@ function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: s
   };
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (busy || !cartItems.length || unavailable) return;
+    if (busy || !cartItems.length || unavailable || checkoutSettings.isLoading || checkoutSettings.isError) return;
     setBusy(true);
     setMessage("");
     try {
@@ -573,8 +598,10 @@ function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: s
                 {money(total)}
               </p>
               <p className="mt-2 text-sm text-muted-foreground">
-                Gaarsiinta dukaanka ayaa kula xaqiijinaya. Lacagta waxaa la bixinayaa marka la
-                keeno.
+                Gaarsiinta dukaanka ayaa kula xaqiijinaya.{" "}
+                {checkoutSettings.isLoading ? "Lacag-bixinta waa la soo akhrinayaa..." :
+                  paymentNumber ? "Lacagta waxaad u diri doontaa lambarka dukaanka." :
+                    "Lacagta waxaa la bixinayaa marka la keeno."}
               </p>
             </div>
             {view === "cart" && (
@@ -618,8 +645,17 @@ function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: s
                     onChange={(e) => setAddress(e.target.value)}
                   />
                 </label>
-                <p>Lacag-bixinta: Marka la keeno</p>
-                <Button className="w-full" disabled={busy || !count || unavailable}>
+                {checkoutSettings.isLoading && <p className="text-sm">Xogta lacag-bixinta waa la soo akhrinayaa...</p>}
+                {checkoutSettings.isError && (
+                  <div role="alert" className="space-y-2 rounded-xl border border-destructive/30 p-3 text-sm">
+                    <p>Lambarka lacag-bixinta lama soo akhrin karo. Dib u tijaabi ka hor dalabka.</p>
+                    <Button type="button" variant="outline" onClick={() => void checkoutSettings.refetch()}>Isku day mar kale</Button>
+                  </div>
+                )}
+                {!checkoutSettings.isLoading && !checkoutSettings.isError && (
+                  <ShopPaymentInstructions provider={paymentProvider} number={paymentNumber} />
+                )}
+                <Button className="w-full" disabled={busy || !count || unavailable || checkoutSettings.isLoading || checkoutSettings.isError}>
                   {busy ? "Waa la dirayaa..." : "Xaqiiji dalabka"}
                 </Button>
               </form>
@@ -630,7 +666,14 @@ function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: s
           <div className="space-y-4 rounded-2xl border p-6 text-center">
             <Package className="mx-auto h-14 w-14 text-primary" />
             <h2 className="text-2xl font-bold">Dalabka waa la helay</h2>
-            <p>Lacagta weli lama bixin. Dukaanka ayaa kula soo xiriiraya.</p>
+            <p>Dalabka waa la diiwaangeliyay. Dukaanka ayaa kula soo xiriiraya.</p>
+            {checkoutSettings.isError ? (
+              <p role="alert" className="text-sm text-destructive">Xogta lacag-bixinta lama soo akhrin karo. La xiriir dukaanka.</p>
+            ) : checkoutSettings.isLoading ? (
+              <p className="text-sm">Xogta lacag-bixinta waa la soo akhrinayaa...</p>
+            ) : (
+              <ShopPaymentInstructions provider={paymentProvider} number={paymentNumber} />
+            )}
             <Button onClick={() => go("orders")}>La soco dalabka</Button>
           </div>
         )}
@@ -657,13 +700,20 @@ function ShopContent({ tenantId, tenantName }: { tenantId: string; tenantName: s
                     {i.name} × {i.quantity}
                   </p>
                 ))}
-                <p className="text-sm">Lacag-bixinta: Marka la keeno</p>
+                <div className="text-sm">
+                  {o.payment_method === "manual_transfer" ? (
+                    <ShopPaymentInstructions provider={o.payment_provider || "Mobile Money"} number={o.payment_number || ""} />
+                  ) : (
+                    <p>Lacag-bixinta: Marka la keeno</p>
+                  )}
+                </div>
               </article>
             ))}
             {orders.data?.length === 0 && <p>Weli dalab ma lihid.</p>}
           </>
         )}
       </main>
+      <ShopSupportFab whatsapp={supportWhatsApp} call={supportCall} />
       {view !== "checkout" && view !== "product" && (
         <nav
           aria-label="Dukaanka"
