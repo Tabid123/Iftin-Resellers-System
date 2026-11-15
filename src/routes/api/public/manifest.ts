@@ -2,6 +2,7 @@
 // without credentials during install ("Add to Home Screen").
 import { createFileRoute } from '@tanstack/react-router';
 import { fetchTenantBranding } from '@/lib/tenantBranding.server';
+import { adminManifestIdentity } from '@/lib/tenantPwaManifest';
 
 const DEFAULT_THEME = '#1E3A8A';
 
@@ -15,6 +16,7 @@ export const Route = createFileRoute('/api/public/manifest')({
       GET: async ({ request }) => {
         const url = new URL(request.url);
         const slug = (url.searchParams.get('tenant') || '').trim().toLowerCase();
+        const isAdminApp = url.searchParams.get('app') === 'admin';
 
         let name = 'Iftin Agents';
         let shortName = 'Iftin';
@@ -42,13 +44,16 @@ export const Route = createFileRoute('/api/public/manifest')({
           }
         }
 
+        const adminIdentity = adminManifestIdentity(tenant?.slug ?? slug);
         const manifest = {
-          name,
-          short_name: shortName,
-          description: `${name} — iibso xirmooyinka internet-ka iyo airtime-ka.`,
-          start_url: scope,
-          scope,
-          id: scope,
+          name: isAdminApp ? `${name} Admin` : name,
+          short_name: isAdminApp ? `${shortName} Admin` : shortName,
+          description: isAdminApp
+            ? `${name} — maamulka dalabyada, lacagaha iyo shaqaalaha.`
+            : `${name} — iibso xirmooyinka internet-ka iyo airtime-ka.`,
+          start_url: isAdminApp ? adminIdentity.start_url : scope,
+          scope: isAdminApp ? adminIdentity.scope : scope,
+          id: isAdminApp ? adminIdentity.id : scope,
           display: 'standalone',
           orientation: 'portrait',
           background_color: '#ffffff',
