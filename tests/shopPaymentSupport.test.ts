@@ -30,7 +30,7 @@ describe("eCommerce payment and support", () => {
   });
 
   it("snapshots manual transfer payment per order with scoped RLS", () => {
-    const sql = file("supabase/migrations/20261115101700_shop_checkout_payment_support.sql");
+    const sql = file("supabase/migrations/20261115102908_shop_checkout_payment_support.sql");
     expect(sql).toContain("enable row level security");
     expect(sql).toContain("private.shop_owner(tenant_id)");
     expect(sql).toContain("shop_order_payment_snapshot");
