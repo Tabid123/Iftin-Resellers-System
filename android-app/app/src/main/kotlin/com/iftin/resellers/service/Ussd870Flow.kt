@@ -557,8 +557,12 @@ object Ussd870Flow {
         ) return false
         val hasSend = lower.contains("send") || lower.contains("dir") || lower.contains("ok")
         val hasCancel = lower.contains("cancel") || lower.contains("jooji")
+        val flattenedSomtelGiftMenu = lower.contains("ugu shub qof kale") &&
+            lower.contains("ku shubo") &&
+            Regex("""(?<!\S)\d{1,2}[.)\-:]\s+""").findAll(dialogText).count() >= 2
         val hasMenuRow = countNumberedRows(dialogText) >= 1 ||
-            Regex("""(?:^|\n)\s*\d+\s*[\.)\-:]\s*\S""").containsMatchIn(dialogText)
+            Regex("""(?:^|\n)\s*\d+\s*[\.)\-:]\s*\S""").containsMatchIn(dialogText) ||
+            flattenedSomtelGiftMenu
         val looksLikePrompt = lower.contains("ussd") || lower.contains("pin") ||
             lower.contains("furaha") || lower.contains("gali")
         return hasSend && hasCancel && (hasMenuRow || looksLikePrompt)
@@ -797,7 +801,7 @@ object Ussd870Flow {
         // numbered live options BEFORE generic receiver/PIN heuristics.
         // If Menu 3 has not been selected, never send the receiver phone as
         // a menu number or guess a different row.
-        if (somtel101 && hasThirdMenu && 2 in done && 7 !in done) {
+        if (somtel101 && hasThirdMenu && 7 !in done) {
             // Live Samsung screenshot: [-Xulmo-Social Bundle-] / Dooro:
             // 1. Ku Shubo / 2. Ugu Shub Qof Kale / 0. Back
             // The header contains "Bundle" and would otherwise cause the
@@ -807,8 +811,10 @@ object Ussd870Flow {
             if (looksLikeGiftMenu) {
                 val choice = somtelMenu3Choice(activePath, dialogText)
                 if (choice != null) {
-                    // The gift menu confirms that the Daily package was chosen,
-                    // even if Samsung skipped the click-completed callback.
+                    // A verified gift menu can only appear AFTER the chosen
+                    // package. Recover missed click-complete callbacks from
+                    // Samsung, which may not mark steps 2/3 even after Send.
+                    if (2 !in done) markStepCompleted(context, 2)
                     if (3 !in done) markStepCompleted(context, 3)
                     Log.d(TAG, "Somtel *101# gift menu verified: selecting row $choice")
                     return STEPS.firstOrNull { it.name == "menu_extra" }
@@ -816,7 +822,7 @@ object Ussd870Flow {
                 Log.w(TAG, "Somtel *101# gift menu: exact configured option unavailable; not guessing")
                 return null
             }
-            if (3 in done) {
+            if (2 in done && 3 in done) {
                 // Await the expected third menu: never send a phone number
                 // or guess a new package row while this step is outstanding.
                 return null
