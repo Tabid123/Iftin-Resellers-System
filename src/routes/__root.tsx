@@ -159,11 +159,31 @@ var L=parseFloat(p.split(' ')[2]);st.setProperty('--primary-foreground',L>58?'22
 if(a){st.setProperty('--accent',a);st.setProperty('--brand-accent','hsl('+a+')');}
 }catch(e){}})();`;
 
+
+// The dashboard must advertise its own manifest on the first HTML load.
+// If this runs only after React hydration, Chromium can capture the storefront
+// manifest first and install a shortcut that launches the customer app.
+const earlyAdminManifestScript = \`(function(){try{
+var p=location.pathname;
+var m=p.match(/^\\/t\\/([a-z0-9-]{1,60})\\/dashboard(?:\\/|$)/);
+if(!m && !/^\\/dashboard(?:\\/|$)/.test(p))return;
+var slug=m?m[1]:null;
+if(!slug){
+  var parts=location.hostname.split('.');
+  var candidate=parts.length>2?parts[0]:'';
+  if(/^[a-z0-9-]{1,60}$/.test(candidate) &&
+    ['www','admin','api','app','mail','status'].indexOf(candidate)===-1)slug=candidate;
+}
+var link=document.querySelector('link[rel="manifest"]');
+if(link)link.setAttribute('href','/api/public/manifest?app=admin'+(slug?'&tenant='+encodeURIComponent(slug):''));
+}catch(e){}})();\`;
+
 function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <head>
         <HeadContent />
+        <script dangerouslySetInnerHTML={{ __html: earlyAdminManifestScript }} />
         <script dangerouslySetInnerHTML={{ __html: earlyTenantBrandScript }} />
         <script dangerouslySetInnerHTML={{ __html: chunkRecoveryScript }} />
       </head>
