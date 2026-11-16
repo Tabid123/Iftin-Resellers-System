@@ -45,6 +45,12 @@ describe('Somlink virtual device and safe manual send', () => {
     expect(sql).toContain("v_ref := 'somlink-manual:' || p_request_id::text");
     expect(sql).toContain('INSERT INTO public.orders');
     expect(sql).toContain('INSERT INTO public.delivery_queue');
+    // API bundles need no USSD code; guard the manual order against the
+    // generic order trigger's config_missing classification.
+    expect(sql).toContain("delivery_status = 'config_missing'");
+    expect(sql).toContain("SET delivery_status = 'processing'");
+    expect(sql).toContain("AND payment_source = 'manual'");
+
     expect(sql).toContain("'API:SOMLINK:' || v_package.somlink_bundle_id");
     expect(sql).not.toContain('net.http_post(');
     expect(card).toContain('requestRef.current');
