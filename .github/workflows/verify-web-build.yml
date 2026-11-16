@@ -82,5 +82,8 @@ jobs:
       - name: Verify APK Call and WhatsApp FAB sync with tenant Settings
         run: bun run test -- tests/apkFabSupportSync.test.ts tests/tenantFabSettings.test.ts
 
+      - name: Verify Somlink virtual device and secure manual dispatch
+        run: bun run test -- tests/somlinkManualDevice.test.ts
+
       - name: Build
         run: bun run build
