@@ -135,6 +135,17 @@ BEGIN
     'API:SOMLINK:' || v_package.somlink_bundle_id, 'pending', 'somlink-api'
   );
 
+  -- Somlink packages correctly have no USSD code: the generic orders
+  -- BEFORE INSERT delivery-configuration trigger may label them as
+  -- config_missing. The API queue above is the valid delivery method.
+  -- Fix ONLY this newly-created manual order's delivery status, leaving
+  -- existing customer orders and all other provider rules untouched.
+  UPDATE public.orders
+     SET delivery_status = 'processing',
+         delivery_notes = 'Manual Somlink API dispatch — awaiting provider confirmation'
+   WHERE id = v_order_id AND tenant_id = p_tenant_id
+     AND payment_source = 'manual' AND delivery_status = 'config_missing';
+
   RETURN v_order_id;
 END;
 $function$;
