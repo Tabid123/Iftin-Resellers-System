@@ -137,7 +137,12 @@ export function SomlinkApiDeviceCard({ isSo }: { isSo: boolean }) {
       toast.success(isSo
         ? 'Dalab Somlink ah ayaa la gudbiyey (ID ' + String(data).slice(0, 8) + '). Guusha ka hubi Dalabyada.'
         : 'Somlink delivery queued (ID ' + String(data).slice(0, 8) + '). Check Orders for success.');
-      closeDialog(false);
+      // Close after the server accepts the queue request; the success state is
+      // not a delivery confirmation (that arrives asynchronously in Orders).
+      setOpen(false);
+      setRecipient('');
+      setPackageId('');
+      requestRef.current = null;
       void status.refetch();
     } catch (error: any) {
       // Retain the SAME idempotency key on timeout/retry: never charge twice.
