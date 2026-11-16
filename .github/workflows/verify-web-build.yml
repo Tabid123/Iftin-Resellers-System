@@ -79,5 +79,8 @@ jobs:
       - name: Verify professional Somlink API order receipts
         run: bun run test -- tests/somlinkReceiptCard.test.ts
 
+      - name: Verify APK Call and WhatsApp FAB sync with tenant Settings
+        run: bun run test -- tests/apkFabSupportSync.test.ts tests/tenantFabSettings.test.ts
+
       - name: Build
         run: bun run build
