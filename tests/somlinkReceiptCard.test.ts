@@ -1,59 +1,48 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { parseSomlinkReceipt, somlinkMoney, somlinkReceiptState } from '../src/lib/somlinkReceipt';
+import {
+  formatSomlinkResponse, parseSomlinkReceipt, somlinkReceiptState,
+} from '../src/lib/somlinkReceipt';
 
-describe('Somlink merchant-friendly API receipt', () => {
+describe('Simple Somlink result in the original SMS response box', () => {
   const example = '{"code":200,"message":"DATA_PAID_SUCCESSFULLY","paid_amount":0.25,"data_phone":"252640000045","balance":77.25,"payment_ref":"1080946"}';
 
-  it('extracts the actual confirmed Somlink API fields without losing decimals', () => {
-    const receipt = parseSomlinkReceipt(example);
-    expect(receipt).toEqual({
-      code: 200,
-      message: 'DATA_PAID_SUCCESSFULLY',
-      dataPhone: '252640000045',
-      paidAmount: 0.25,
-      balance: 77.25,
-      paymentRef: '1080946',
-    });
-    expect(somlinkMoney(receipt!.paidAmount!)).toBe('$0.25');
-    expect(somlinkMoney(receipt!.balance!)).toBe('$77.25');
+  it('converts the real successful API response into a short, readable Somali message', () => {
+    expect(formatSomlinkResponse(example, 'completed', '64-000-0045', true, true)).toBe(
+      'Xirmada si guul leh ayaa loogu diray 64-000-0045. Somlink waxay jartay $0.25. Haraaga: $77.25. Tixraaca: 1080946.',
+    );
   });
 
-  it('does not pretend that malformed, unrelated, or absent raw text is a parsed API receipt', () => {
-    expect(parseSomlinkReceipt(null)).toBeNull();
-    expect(parseSomlinkReceipt('')).toBeNull();
-    expect(parseSomlinkReceipt('Mustaf, qiimaha aad gelisay ma jiro')).toBeNull();
-    expect(parseSomlinkReceipt('{"hello":"world"}')).toBeNull();
-    expect(parseSomlinkReceipt('[{"code":200}]')).toBeNull();
-    expect(parseSomlinkReceipt('{"paid_amount":"", "balance":"not a number"}')).toMatchObject({
-      paidAmount: null,
-      balance: null,
-    });
+  it('does not expose wallet balance or charges to an admin without financial permission', () => {
+    const result = formatSomlinkResponse(example, 'completed', '64-000-0045', false, true);
+    expect(result).toBe('Xirmada si guul leh ayaa loogu diray 64-000-0045. Tixraaca: 1080946.');
+    expect(result).not.toContain('77.25');
+    expect(result).not.toContain('0.25');
   });
 
-  it('always respects recorded queue status; HTTP code 200 does not independently mean delivered', () => {
-    const receipt = parseSomlinkReceipt(example)!;
-    expect(somlinkReceiptState('completed', receipt)).toBe('success');
-    expect(somlinkReceiptState('processing', receipt)).toBe('pending');
-    expect(somlinkReceiptState('pending', receipt)).toBe('pending');
-    expect(somlinkReceiptState('failed', receipt)).toBe('failed');
-    expect(somlinkReceiptState('timeout', receipt)).toBe('failed');
-    expect(somlinkReceiptState('completed', parseSomlinkReceipt('{"code":400,"message":"INVALID_AMOUNT"}')!)).toBe('inconsistent');
+  it('preserves clear failed and pending messages and never labels them a success', () => {
+    const failed = formatSomlinkResponse('{"code":400,"message":"INVALID_AMOUNT"}', 'failed', '64-000-0045', true, true);
+    expect(failed).toBe('Dirista xirmada way fashilantay. INVALID AMOUNT');
+    expect(formatSomlinkResponse(example, 'processing', '64-000-0045', true, true)).toContain('wali ma xaqiijin');
+    expect(formatSomlinkResponse('{"code":400,"message":"INVALID_AMOUNT"}', 'completed', '64-000-0045', true, true))
+      .toContain('isma waafaqaan');
+    expect(somlinkReceiptState('failed', parseSomlinkReceipt(example)!)).toBe('failed');
   });
 
-  it('uses a clean receipt for Somlink while preserving raw responses from other networks', () => {
+  it('handles empty or malformed API content without showing raw JSON', () => {
+    expect(formatSomlinkResponse(null, 'processing', '64-000-0045', true, true)).toContain('lama helin');
+    expect(formatSomlinkResponse('not json', 'failed', '64-000-0045', true, true)).toContain('way fashilantay');
+    expect(formatSomlinkResponse('{"hello":"world"}', 'completed', '64-000-0045', true, true)).not.toContain('hello');
+  });
+
+  it('keeps the exact old result box, USSD header and status badge without the receipt cards', () => {
     const view = readFileSync(new URL('../src/components/admin/simple/OrdersView.tsx', import.meta.url), 'utf8');
-    const card = readFileSync(new URL('../src/components/admin/simple/SomlinkReceiptCard.tsx', import.meta.url), 'utf8');
-    expect(view).toContain("dq.ussd_code?.startsWith('API:SOMLINK:')");
-    expect(view).toContain('<SomlinkReceiptCard');
-    expect(view).toContain('canViewFinancial={can(\'view_profit\')}');
-    expect(view).toContain('dq.provider_response ? ('); // non-Somlink SMSs unchanged
-    expect(card).toContain('receipt?.paymentRef');
-    expect(card).toContain('receipt?.dataPhone');
-    expect(card).toContain('receipt?.paidAmount');
-    expect(card).toContain('receipt?.balance');
-    expect(card).toContain('priceDifference');
-    expect(card).toContain('<details');
-    expect(card).toContain('canViewFinancial ? (');
+    expect(view).toContain('📩 SMS ({order.deliveries.length})');
+    expect(view).toContain('USSD: {dq.ussd_code}');
+    expect(view).toContain('formatSomlinkResponse(');
+    expect(view).toContain('dq.ussd_code?.startsWith(\'API:SOMLINK:\')');
+    expect(view).toContain('dq.provider_response ? ('); // other providers unchanged
+    expect(view).not.toContain('SomlinkReceiptCard');
+    expect(view).not.toContain('Natiijooyinka dirista');
   });
 });
