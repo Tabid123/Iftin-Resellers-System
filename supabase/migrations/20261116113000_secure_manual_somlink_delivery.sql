@@ -143,3 +143,73 @@ REVOKE ALL ON FUNCTION public.create_manual_somlink_delivery(uuid,uuid,text,uuid
   FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.create_manual_somlink_delivery(uuid,uuid,text,uuid)
   TO authenticated;
+
+-- Read-only tenant-admin status for the SIM-like Somlink API card.
+-- Only authenticated members may see their own integration; never return Vault
+-- credentials, wallet phone, tokens, raw API payloads or another tenant's data.
+CREATE OR REPLACE FUNCTION public.somlink_manual_device_status(p_tenant_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = public, private, pg_temp
+AS $status$
+DECLARE
+  v_role text;
+  v_configured boolean := false;
+  v_connected boolean := false;
+  v_enabled boolean := false;
+  v_balance numeric;
+  v_at timestamptz;
+  v_financial boolean := false;
+BEGIN
+  IF auth.uid() IS NULL OR p_tenant_id IS NULL
+    OR p_tenant_id IS DISTINCT FROM public.current_request_tenant_id()
+    OR p_tenant_id IS DISTINCT FROM public.effective_tenant_id()
+  THEN
+    RAISE EXCEPTION 'not_authorized_for_tenant' USING ERRCODE='42501';
+  END IF;
+
+  SELECT m.role INTO v_role FROM public.tenant_members m
+   WHERE m.user_id = auth.uid() AND m.tenant_id = p_tenant_id
+   ORDER BY CASE WHEN m.role='owner' THEN 0 ELSE 1 END LIMIT 1;
+  IF v_role NOT IN ('owner','admin') OR v_role IS NULL THEN
+    RAISE EXCEPTION 'tenant_admin_required' USING ERRCODE='42501';
+  END IF;
+
+  SELECT true, s.connection_status='connected', s.is_active
+    INTO v_configured, v_connected, v_enabled
+    FROM private.tenant_somlink_integrations s
+   WHERE s.tenant_id=p_tenant_id LIMIT 1;
+
+  IF v_role='owner' OR NOT EXISTS(
+    SELECT 1 FROM public.admin_permissions
+     WHERE tenant_id=p_tenant_id AND user_id=auth.uid()
+  ) OR EXISTS(
+    SELECT 1 FROM public.admin_permissions
+     WHERE tenant_id=p_tenant_id AND user_id=auth.uid() AND permission_key='view_profit'
+  ) THEN
+    v_financial := true;
+  END IF;
+
+  IF v_financial THEN
+    SELECT (q.somlink_response->>'balance')::numeric, q.completed_at
+      INTO v_balance, v_at
+      FROM public.delivery_queue q
+     WHERE q.tenant_id = p_tenant_id
+       AND q.provider_name = 'somlink' AND q.status='completed'
+       AND q.somlink_response IS NOT NULL
+       AND jsonb_typeof(q.somlink_response->'balance')='number'
+     ORDER BY q.completed_at DESC NULLS LAST LIMIT 1;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'configured', coalesce(v_configured,false),
+    'ready', (coalesce(v_configured,false) AND coalesce(v_connected,false)
+              AND coalesce(v_enabled,false) AND public.somlink_tenant_ready()),
+    'balance', v_balance,
+    'balance_at', v_at
+  );
+END;
+$status$;
+
+REVOKE ALL ON FUNCTION public.somlink_manual_device_status(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.somlink_manual_device_status(uuid) TO authenticated;
