@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { CheckCircle2, ChevronDown, Clock3, Loader2, Send, Server, Wallet } from 'lucide-react';
+import { ChevronDown, Clock3, Loader2, Plus, Send, Server, Wallet } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import CachedImage from '@/components/CachedImage';
 
 type Package = { id: string; package_name: string; data_amount: string; selling_price: number; cost_price: number };
 type Status = { configured: boolean; ready: boolean; balance: number | null; balanceAt: string | null };
@@ -39,7 +40,7 @@ function friendlyError(value: string) {
 }
 
 /** A virtual API balance/SIM-like card; never pretends to be a physical Android SIM. */
-export function SomlinkApiDeviceCard({ isSo }: { isSo: boolean }) {
+export function SomlinkApiDeviceCard({ isSo, display = 'devices' }: { isSo: boolean; display?: 'devices' | 'dashboard' }) {
   const { tenant } = useTenant();
   const tenantId = tenant?.id || null;
   const { can, loadingPermissions } = useAdminPermissions();
@@ -139,8 +140,68 @@ export function SomlinkApiDeviceCard({ isSo }: { isSo: boolean }) {
   }
 
   if (!tenantId || (status.isSuccess && !status.data.configured)) return null;
+  // Do not briefly show an unconfigured API as an offline device on Dashboard.
+  if (display === 'dashboard' && status.isLoading) return null;
   return (
     <>
+      {display === 'dashboard' ? (
+        <section aria-label="Somlink API virtual device" className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 overflow-hidden text-[11px]">
+          {/* Match the Dashboard physical-device header exactly in size/spacing. */}
+          <div className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-gray-700 dark:to-gray-750 px-2 py-1.5 border-b border-gray-200 dark:border-gray-600">
+            <div className="flex items-center gap-1.5">
+              <div className="w-7 h-7 bg-blue-500 rounded flex items-center justify-center flex-shrink-0">
+                <Server className="w-4 h-4 text-white" aria-hidden="true" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1 flex-wrap">
+                  <span className="font-bold text-gray-900 dark:text-white text-xs truncate">Somlink API</span>
+                  <span className={'inline-flex items-center gap-0.5 px-1 py-px rounded-full text-[8px] font-semibold ' + (ready ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')}>
+                    <span className={'w-1 h-1 rounded-full ' + (ready ? 'bg-green-500' : 'bg-red-500')} />
+                    {status.isError ? '?' : ready ? 'Live' : 'Off'}
+                  </span>
+                </div>
+                <div className="text-[8px] text-gray-400 truncate">{status.isError ? (isSo ? 'Status lama hubin' : 'Status unavailable') : 'Virtual API · ' + (ready ? 'Connected' : 'Inactive')}</div>
+              </div>
+            </div>
+          </div>
+          <div className="p-2 space-y-2">
+            <div className="rounded-lg border border-purple-300 shadow-sm overflow-hidden">
+              {/* Same header, provider logo and round + action as a physical SIM. */}
+              <div className="bg-purple-600 px-2 py-1 flex items-center justify-between">
+                <div className="flex items-center gap-1 min-w-0">
+                  <CachedImage src={null} alt="Somlink" bundledName="somlink" className="w-4 h-4 rounded-full object-contain bg-white flex-shrink-0" />
+                  <span className="font-semibold text-[10px] text-white truncate">SIM: Somlink</span>
+                </div>
+                <button type="button" aria-label={isSo ? 'Dir dalab Somlink manual ah' : 'Send manual Somlink delivery'}
+                  title={isSo ? 'Dalab Manual' : 'Manual Send'}
+                  disabled={!ready || !canManual || status.isLoading || status.isError}
+                  onClick={() => setOpen(true)}
+                  className={'w-5 h-5 rounded-full bg-white/30 text-white flex items-center justify-center flex-shrink-0 ' + (!ready || !canManual || status.isLoading || status.isError ? 'opacity-30 cursor-not-allowed' : '')}>
+                  <Plus className="w-3 h-3" />
+                </button>
+              </div>
+              <div className="bg-white dark:bg-gray-800 px-2 py-1.5">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[9px] text-gray-400">API · VIRTUAL</span>
+                </div>
+                <div className="flex items-center justify-between text-[10px] gap-1">
+                  <span className="text-gray-500">Balance:</span>
+                  <span className="font-bold text-gray-900 dark:text-white tabular-nums">
+                    {can('view_profit')
+                      ? (status.data?.balance == null ? '—' : '$' + status.data.balance.toFixed(2))
+                      : (isSo ? 'Xaddidan' : 'Restricted')}
+                    {can('view_profit') && status.data?.balance != null && <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 align-middle ml-1" />}
+                  </span>
+                </div>
+                <div className="text-[8px] text-gray-400 mt-0.5 truncate">
+                  {isSo ? 'Haraagii ugu dambeeyay' : 'Last reported'}: {status.data?.balanceAt ? formatTimeAgo(status.data.balanceAt) : '—'} · {isSo ? 'Ma aha live' : 'Not live'}
+                </div>
+                {status.isError && <p role="alert" className="text-[9px] text-red-600 mt-1">{isSo ? 'Somlink lama hubin' : 'Somlink status unavailable'}</p>}
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : (
       <section aria-label="Somlink API virtual device"
         className={'overflow-hidden rounded-xl text-white shadow-sm ' + (ready ? 'bg-emerald-600 dark:bg-emerald-700' : 'bg-slate-600 dark:bg-slate-700')}>
         <button type="button" onClick={() => setExpanded((v) => !v)}
@@ -187,6 +248,7 @@ export function SomlinkApiDeviceCard({ isSo }: { isSo: boolean }) {
           </div>
         )}
       </section>
+      )}
 
       <Dialog open={open} onOpenChange={closeDialog}>
         <DialogContent className="w-[calc(100vw-2rem)] max-w-md">

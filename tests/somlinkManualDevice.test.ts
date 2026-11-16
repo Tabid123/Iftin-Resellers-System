@@ -6,7 +6,28 @@ const read = (path: string) => readFileSync(new URL('../' + path, import.meta.ur
 describe('Somlink virtual device and safe manual send', () => {
   const card = read('src/components/admin/SomlinkApiDeviceCard.tsx');
   const devices = read('src/components/admin/simple/CustomerViews.tsx');
+  const dashboard = read('src/components/pages/SimpleAdminDashboard.tsx');
   const sql = read('supabase/migrations/20261116113000_secure_manual_somlink_delivery.sql');
+
+  it('renders Somlink with the exact compact Dashboard device/SIM layout and the same + button', () => {
+    expect(dashboard).toContain('Devices & SIM Balances');
+    expect(dashboard).toContain('grid grid-cols-2 gap-2');
+    expect(dashboard).toContain('<SomlinkApiDeviceCard isSo={isSo} display="dashboard" />');
+    expect(card).toContain("display?: 'devices' | 'dashboard'");
+    expect(card).toContain("display === 'dashboard'");
+    expect(card).toContain('bg-gradient-to-r from-blue-50 to-blue-100');
+    expect(card).toContain('bg-purple-600 px-2 py-1 flex items-center justify-between');
+    expect(card).toContain('w-5 h-5 rounded-full bg-white/30 text-white flex items-center justify-center');
+    expect(card).toContain('<Plus className="w-3 h-3" />');
+    expect(card).toContain('onClick={() => setOpen(true)}');
+    expect(card).toContain('disabled={!ready || !canManual');
+    expect(card).toContain("status.data?.balance == null ? '—'");
+    expect(card).toContain("can('view_profit')");
+    expect(card).toContain('API · VIRTUAL');
+    expect(card).toContain('Last reported');
+    expect(card).toContain('Not live');
+    expect(card).toContain("if (display === 'dashboard' && status.isLoading) return null");
+  });
 
   it('shows Somlink API in Devices like a SIM but labels the source accurately', () => {
     expect(devices).toContain('<SomlinkApiDeviceCard isSo={isSo} />');
