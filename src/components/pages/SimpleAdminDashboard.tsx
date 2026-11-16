@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { AddManualDeliveryDialog } from '@/components/admin/AddManualDeliveryDialog';
+import { SomlinkApiDeviceCard } from '@/components/admin/SomlinkApiDeviceCard';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import TenantBrandMark from '@/components/TenantBrandMark';
 import { useTenant } from '@/contexts/TenantContext';
@@ -514,7 +515,7 @@ const SimpleAdminDashboard = () => {
             {!isPartner && can('manage_devices') && (
             <div className="space-y-3">
               <div className="flex items-center gap-3"><div className="flex-1 h-px bg-gray-300 dark:bg-gray-700" /><span className="text-gray-500 dark:text-gray-400 text-sm font-medium">Devices & SIM Balances</span><div className="flex-1 h-px bg-gray-300 dark:bg-gray-700" /></div>
-              {deviceCards.length === 0 && !loading && <p className="text-center text-gray-400 text-sm py-4">Wax device ah lama helin</p>}
+              {deviceCards.length === 0 && !loading && <p className="text-center text-gray-400 text-sm py-1">Wax Android device ah lama helin</p>}
               <div className="grid grid-cols-2 gap-2">
                 {deviceCards.map((device, di) => (
                   <div key={di} className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 overflow-hidden text-[11px]">
@@ -542,6 +543,7 @@ const SimpleAdminDashboard = () => {
                     </div>
                   </div>
                 ))}
+                <SomlinkApiDeviceCard isSo={isSo} display="dashboard" />
               </div>
 
               {deviceCards.length > 0 && (() => {
