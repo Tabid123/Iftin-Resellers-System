@@ -76,5 +76,8 @@ jobs:
       - name: Verify Orders date picker and day-scoped totals
         run: bun run test -- tests/ordersDateFilter.test.ts
 
+      - name: Verify professional Somlink API order receipts
+        run: bun run test -- tests/somlinkReceiptCard.test.ts
+
       - name: Build
         run: bun run build
