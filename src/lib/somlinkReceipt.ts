@@ -92,7 +92,7 @@ export function formatSomlinkResponse(
   const friendlyReason = receipt.message
     ? receipt.message
         .replaceAll('_', ' ')
-        .replace(/\\s+/g, ' ')
+        .replace(/\s+/g, ' ')
         .trim()
     : null;
 
