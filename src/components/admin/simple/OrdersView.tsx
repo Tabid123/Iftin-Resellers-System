@@ -2,13 +2,18 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase, getTenantId } from '@/integrations/supabase/client';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { LazyFallback, EmptyState, SearchInput, formatPhone, formatDate, formatTime } from './shared';
-import { CheckCircle, XCircle, RotateCcw, Clock, ChevronDown } from 'lucide-react';
+import { CheckCircle, XCircle, RotateCcw, Clock, ChevronDown, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 import { ResendOrderPrompt } from './ResendOrderPrompt';
 import { CompleteOrderPrompt } from './CompleteOrderPrompt';
 import { calculateOrderProfit, effectiveOrderCost, isDirectFlowCode } from '@/lib/iftinProfit';
 import { AdminPagination, ADMIN_PAGE_SIZE } from './AdminPagination';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { format, isSameDay, startOfDay, subDays } from 'date-fns';
+import { orderDayBounds } from '@/lib/orderDayBounds';
 
 interface DeliveryQueueItem {
   id: string;
@@ -70,6 +75,8 @@ export const OrdersView = ({ isSo }: { isSo: boolean }) => {
   const [orders, setOrders] = useState<OrderDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [selectedDate, setSelectedDate] = useState<Date>(() => startOfDay(new Date()));
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [filter, setFilter] = useState<'all' | 'pending' | 'delivered' | 'failed'>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [resendItem, setResendItem] = useState<any | null>(null);
@@ -81,9 +88,9 @@ export const OrdersView = ({ isSo }: { isSo: boolean }) => {
   const loadOrders = useCallback(async () => {
     setLoading(true);
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayIso = today.toISOString();
+      // Match the selected local day, not just today's orders.
+      // Use these exact bounds for the page and all four summary cards.
+      const { from: dayStartIso, toExclusive: dayEndIso } = orderDayBounds(selectedDate);
       const tid = getTenantId();
       const scoped = (q: any) => (tid ? q.eq('tenant_id', tid) : q);
       const from = page * ADMIN_PAGE_SIZE;
@@ -94,7 +101,7 @@ export const OrdersView = ({ isSo }: { isSo: boolean }) => {
           'id,sender_phone,receiver_phone,customer_phone,package_name,data_amount,selling_price,cost_price,status,delivery_status,delivery_notes,created_at,delivered_at,provider_id,package_id,tenant_id',
           { count: 'exact' },
         )
-      ).gte('created_at', todayIso)
+      ).gte('created_at', dayStartIso).lt('created_at', dayEndIso)
        .order('created_at', { ascending: false })
        .range(from, to);
 
@@ -116,10 +123,10 @@ export const OrdersView = ({ isSo }: { isSo: boolean }) => {
         scoped(supabase.from('data_packages_config').select('id, selling_price, cost_price, provider_id, category_id, ussd_code, is_discovery_root')),
         scoped(supabase.from('delivery_instructions').select('package_id, category_id, provider_id, code_template')),
         scoped(supabase.from('package_delivery_rules').select('source_package_id, target_package_id, delivery_count, is_active').eq('is_active', true)),
-        scoped(supabase.from('orders').select('id', { count: 'exact', head: true }).gte('created_at', todayIso)),
-        scoped(supabase.from('orders').select('id', { count: 'exact', head: true }).gte('created_at', todayIso).in('delivery_status', ['pending', 'processing', 'awaiting_sms', 'verification_required'])),
-        scoped(supabase.from('orders').select('id', { count: 'exact', head: true }).gte('created_at', todayIso).eq('delivery_status', 'delivered')),
-        scoped(supabase.from('orders').select('id', { count: 'exact', head: true }).gte('created_at', todayIso).in('delivery_status', ['failed', 'timeout'])),
+        scoped(supabase.from('orders').select('id', { count: 'exact', head: true }).gte('created_at', dayStartIso).lt('created_at', dayEndIso)),
+        scoped(supabase.from('orders').select('id', { count: 'exact', head: true }).gte('created_at', dayStartIso).lt('created_at', dayEndIso).in('delivery_status', ['pending', 'processing', 'awaiting_sms', 'verification_required'])),
+        scoped(supabase.from('orders').select('id', { count: 'exact', head: true }).gte('created_at', dayStartIso).lt('created_at', dayEndIso).eq('delivery_status', 'delivered')),
+        scoped(supabase.from('orders').select('id', { count: 'exact', head: true }).gte('created_at', dayStartIso).lt('created_at', dayEndIso).in('delivery_status', ['failed', 'timeout'])),
       ]);
 
       if (ordersRes.error) throw ordersRes.error;
@@ -198,12 +205,12 @@ export const OrdersView = ({ isSo }: { isSo: boolean }) => {
     } finally {
       setLoading(false);
     }
-  }, [filter, page, search]);
+  }, [filter, page, search, selectedDate]);
   useEffect(() => { loadOrders(); }, [loadOrders]);
   useRealtimeRefresh(['orders', 'delivery_queue'], loadOrders, 800, { notify: true, lang: isSo ? 'so' : 'en' });
 
   const filtered = orders;
-  useEffect(() => { setPage(0); }, [filter, search]);
+  useEffect(() => { setPage(0); setExpandedId(null); }, [filter, search, selectedDate]);
 
   const markDelivered = async (id: string) => {
     await supabase.from('orders').update({ delivery_status: 'delivered', delivered_at: new Date().toISOString(), delivery_notes: 'Manually verified - OrdersView' }).eq('id', id);
@@ -246,6 +253,64 @@ export const OrdersView = ({ isSo }: { isSo: boolean }) => {
       </div>
 
       <SearchInput value={search} onChange={setSearch} placeholder={isSo ? 'Raadi lambarka...' : 'Search phone...'} />
+
+      {/* Date picker filters both results and counts; defaults to today's orders. */}
+      <div className="flex items-center gap-2 flex-wrap" role="group" aria-label={isSo ? 'Taariikhda dalabyada' : 'Order date filter'}>
+        <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 gap-2 rounded-lg bg-white dark:bg-gray-800 text-xs font-medium"
+              aria-label={isSo ? 'Dooro taariikhda dalabyada' : 'Choose order date'}
+            >
+              <CalendarDays className="h-4 w-4 text-blue-500" />
+              {format(selectedDate, 'dd MMM yyyy')}
+              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="start"
+            side="bottom"
+            className="z-[60] w-auto max-w-[calc(100vw-2rem)] p-2 bg-background"
+          >
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(date) => {
+                if (date) {
+                  setSelectedDate(startOfDay(date));
+                  setPage(0);
+                  setExpandedId(null);
+                  setCalendarOpen(false);
+                }
+              }}
+              disabled={{ after: new Date() }}
+              initialFocus
+              className="pointer-events-auto"
+            />
+          </PopoverContent>
+        </Popover>
+        <Button
+          type="button"
+          variant={isSameDay(selectedDate, new Date()) ? 'default' : 'outline'}
+          size="sm"
+          className="h-9 rounded-lg px-3 text-xs"
+          onClick={() => { setSelectedDate(startOfDay(new Date())); setPage(0); setExpandedId(null); }}
+        >
+          {isSo ? 'Maanta' : 'Today'}
+        </Button>
+        <Button
+          type="button"
+          variant={isSameDay(selectedDate, subDays(new Date(), 1)) ? 'default' : 'outline'}
+          size="sm"
+          className="h-9 rounded-lg px-3 text-xs"
+          onClick={() => { setSelectedDate(startOfDay(subDays(new Date(), 1))); setPage(0); setExpandedId(null); }}
+        >
+          {isSo ? 'Shalay' : 'Yesterday'}
+        </Button>
+      </div>
 
       {loading ? <LazyFallback /> : filtered.length === 0 ? <EmptyState message={isSo ? 'Wax dalab ah lama helin' : 'No orders found'} /> : (
         <div className="space-y-3">
