@@ -12,15 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from 'sonner';
 
 type Package = { id: string; package_name: string; data_amount: string; selling_price: number; cost_price: number };
-type Status = { ready: boolean; balance: number | null; balanceAt: string | null };
-
-function lastKnownBalance(payload: unknown): number | null {
-  if (!payload || Array.isArray(payload) || typeof payload !== 'object') return null;
-  const value = (payload as { balance?: unknown }).balance;
-  if (value === '' || value === undefined || value === null) return null;
-  const amount = Number(value);
-  return Number.isFinite(amount) && amount >= 0 ? amount : null;
-}
+type Status = { configured: boolean; ready: boolean; balance: number | null; balanceAt: string | null };
 function localSomlinkPhone(value: string) {
   const digits = value.replace(/\D/g, '');
   return digits.startsWith('252') ? digits.slice(3) : digits;
@@ -62,19 +54,15 @@ export function SomlinkApiDeviceCard({ isSo }: { isSo: boolean }) {
     queryKey: ['somlink-api-device', tenantId],
     enabled: Boolean(tenantId),
     queryFn: async (): Promise<Status> => {
-      const [connection, latest] = await Promise.all([
-        (supabase as any).rpc('somlink_tenant_ready'),
-        supabase.from('delivery_queue').select('somlink_response,completed_at')
-          .eq('tenant_id', tenantId!).eq('provider_name', 'somlink')
-          .eq('status', 'completed').not('somlink_response', 'is', null)
-          .order('completed_at', { ascending: false }).limit(1).maybeSingle(),
-      ]);
-      if (connection.error) throw connection.error;
-      if (latest.error) throw latest.error;
+      const { data, error } = await (supabase as any).rpc('somlink_manual_device_status', {
+        p_tenant_id: tenantId,
+      });
+      if (error) throw error;
       return {
-        ready: connection.data === true,
-        balance: lastKnownBalance(latest.data?.somlink_response),
-        balanceAt: latest.data?.completed_at ?? null,
+        configured: data?.configured === true,
+        ready: data?.ready === true,
+        balance: typeof data?.balance === 'number' && Number.isFinite(data.balance) ? data.balance : null,
+        balanceAt: data?.balance_at || null,
       };
     },
     staleTime: 15_000, refetchInterval: 30_000,
@@ -150,7 +138,7 @@ export function SomlinkApiDeviceCard({ isSo }: { isSo: boolean }) {
     } finally { setSending(false); }
   }
 
-  if (!tenantId) return null;
+  if (!tenantId || (status.isSuccess && !status.data.configured)) return null;
   return (
     <>
       <section aria-label="Somlink API virtual device"
