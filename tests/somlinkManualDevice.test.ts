@@ -21,7 +21,7 @@ describe('Somlink virtual device and safe manual send', () => {
   it('allows manual delivery only for an authorized admin of an active API tenant', () => {
     expect(card).toContain("can('manual_transactions')");
     expect(card).toContain("!ready || !canManual");
-    expect(sql).toContain("m.role IN ('owner'");
+    expect(sql).toContain("v_membership_role NOT IN ('owner', 'admin')");
     expect(sql).toContain("permission_key = 'manual_transactions'");
     expect(sql).toContain('public.somlink_tenant_ready()');
     expect(sql).toContain('public.is_demo_tenant(p_tenant_id)');
