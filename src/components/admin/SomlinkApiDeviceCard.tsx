@@ -12,7 +12,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from 'sonner';
 import CachedImage from '@/components/CachedImage';
 
-type Package = { id: string; package_name: string; data_amount: string; selling_price: number; cost_price: number };
+type Package = { id: string; category_id: string | null; package_name: string; data_amount: string; selling_price: number; cost_price: number };
+type Category = { id: string; category_name: string };
+type ManualCatalog = { categories: Category[]; packages: Package[] };
 type Status = { configured: boolean; ready: boolean; balance: number | null; balanceAt: string | null };
 function localSomlinkPhone(value: string) {
   const digits = value.replace(/\D/g, '');
@@ -47,6 +49,7 @@ export function SomlinkApiDeviceCard({ isSo, display = 'devices' }: { isSo: bool
   const [expanded, setExpanded] = useState(true);
   const [open, setOpen] = useState(false);
   const [recipient, setRecipient] = useState('');
+  const [categoryId, setCategoryId] = useState('');
   const [packageId, setPackageId] = useState('');
   const [sending, setSending] = useState(false);
   const requestRef = useRef<string | null>(null);
@@ -73,36 +76,67 @@ export function SomlinkApiDeviceCard({ isSo, display = 'devices' }: { isSo: bool
   const packages = useQuery({
     queryKey: ['somlink-api-manual-packages', tenantId],
     enabled: Boolean(tenantId && open),
-    queryFn: async (): Promise<Package[]> => {
+    queryFn: async (): Promise<ManualCatalog> => {
       const { data: providers, error: pError } = await supabase.from('providers_config')
         .select('id,provider_name').eq('tenant_id', tenantId!);
       if (pError) throw pError;
       const ids = (providers || []).filter((p) => p.provider_name.trim().toLowerCase() === 'somlink').map((p) => p.id);
-      if (!ids.length) return [];
-      const { data, error } = await supabase.from('data_packages_config')
-        .select('id,package_name,data_amount,cost_price,selling_price')
-        .eq('tenant_id', tenantId!).in('provider_id', ids)
-        .eq('is_active', true).eq('is_discovery_root', false)
-        .not('somlink_bundle_id', 'is', null)
-        .gt('cost_price', 0).gt('selling_price', 0.01)
-        .order('display_order', { ascending: true }).limit(500);
-      if (error) throw error;
-      return (data || []).map((p) => ({
+      if (!ids.length) return { categories: [], packages: [] };
+
+      // Load categories and eligible packages together. Every category shown
+      // must belong to this tenant's Somlink provider and have a sellable
+      // mapped bundle. Keep existing manual-order eligibility rules.
+      const [packageResult, categoryResult] = await Promise.all([
+        supabase.from('data_packages_config')
+          .select('id,category_id,package_name,data_amount,cost_price,selling_price')
+          .eq('tenant_id', tenantId!).in('provider_id', ids)
+          .eq('is_active', true).eq('is_discovery_root', false)
+          .not('somlink_bundle_id', 'is', null)
+          .gt('cost_price', 0).gt('selling_price', 0.01)
+          .order('display_order', { ascending: true }).limit(500),
+        supabase.from('package_categories')
+          .select('id,category_name').eq('tenant_id', tenantId!)
+          .in('provider_id', ids)
+          .order('display_order', { ascending: true }).limit(500),
+      ]);
+      if (packageResult.error) throw packageResult.error;
+      if (categoryResult.error) throw categoryResult.error;
+
+      const eligiblePackages = (packageResult.data || []).map((p) => ({
         ...p, selling_price: Number(p.selling_price), cost_price: Number(p.cost_price),
       }));
+      const linkedCategoryIds = new Set(eligiblePackages.map((p) => p.category_id).filter(Boolean));
+      const categories: Category[] = (categoryResult.data || [])
+        .filter((category) => linkedCategoryIds.has(category.id));
+
+      // Keep previously eligible packages available even when their
+      // category was removed/hidden; never silently hide a manual bundle.
+      const foundCategoryIds = new Set(categories.map((category) => category.id));
+      for (const id of linkedCategoryIds) {
+        if (id && !foundCategoryIds.has(id)) {
+          categories.push({ id, category_name: 'Category' });
+        }
+      }
+      if (eligiblePackages.some((p) => p.category_id == null)) {
+        categories.push({ id: '__no_category__', category_name: 'Other packages' });
+      }
+      return { categories, packages: eligiblePackages };
     },
   });
 
   const phone = localSomlinkPhone(recipient);
   const validPhone = /^64\d{7}$/.test(phone);
-  const chosen = packages.data?.find((p) => p.id === packageId);
+  const categoryPackages = packages.data?.packages.filter((p) =>
+    categoryId === '__no_category__' ? p.category_id == null : p.category_id === categoryId
+  ) || [];
+  const chosen = categoryPackages.find((p) => p.id === packageId);
   const canManual = !loadingPermissions && can('manual_transactions');
   const ready = status.data?.ready === true;
 
   function closeDialog(next: boolean) {
     if (sending) return;
     setOpen(next);
-    if (!next) { setRecipient(''); setPackageId(''); requestRef.current = null; }
+    if (!next) { setRecipient(''); setCategoryId(''); setPackageId(''); requestRef.current = null; }
   }
 
   async function sendManual(event: React.FormEvent) {
@@ -130,6 +164,7 @@ export function SomlinkApiDeviceCard({ isSo, display = 'devices' }: { isSo: bool
       // not a delivery confirmation (that arrives asynchronously in Orders).
       setOpen(false);
       setRecipient('');
+      setCategoryId('');
       setPackageId('');
       requestRef.current = null;
       void status.refetch();
@@ -255,8 +290,8 @@ export function SomlinkApiDeviceCard({ isSo, display = 'devices' }: { isSo: bool
           <DialogHeader>
             <DialogTitle>{isSo ? 'Somlink — Dalab Manual' : 'Somlink — Manual Send'}</DialogTitle>
             <DialogDescription>
-              {isSo ? 'Xulo xirmo iyo lambar 64XXXXXXX; Somlink wallet-ka ayaa laga jarayaa cost price-ka.'
-                : 'Choose a bundle and recipient 64XXXXXXX; charges your Somlink wallet.'}
+              {isSo ? 'Marka hore dooro category, kadib xirmada iyo lambar 64XXXXXXX. Somlink wallet-ka waxaa laga jarayaa cost price-ka.'
+                : 'Choose a category, then a bundle and recipient 64XXXXXXX; charges your Somlink wallet.'}
             </DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={sendManual}>
@@ -268,20 +303,62 @@ export function SomlinkApiDeviceCard({ isSo, display = 'devices' }: { isSo: bool
               {recipient && !validPhone && <p className="text-xs text-destructive">Somlink: 64XXXXXXX (9 digits).</p>}
             </div>
             <div className="space-y-1.5">
+              <Label htmlFor="somlink-category">{isSo ? 'Category' : 'Category'}</Label>
+              <select id="somlink-category" value={categoryId}
+                onChange={(e) => { setCategoryId(e.target.value); setPackageId(''); requestRef.current = null; }}
+                disabled={packages.isLoading || packages.isError}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                <option value="">{packages.isLoading ? 'Loading...' : (isSo ? 'Dooro category' : 'Select category')}</option>
+                {(packages.data?.categories || []).map((category) => (
+                  <option key={category.id} value={category.id}>{category.category_name}</option>
+                ))}
+              </select>
+              {packages.isError && <p role="alert" className="text-xs text-destructive">{isSo ? 'Categories-ka lama soo qaadi karo.' : 'Unable to load categories.'}</p>}
+              {!packages.isLoading && !packages.isError && packages.data?.categories.length === 0 && (
+                <p className="text-xs text-muted-foreground">{isSo ? 'Category leh xirmooyin Somlink ah lama helin.' : 'No categories with eligible Somlink bundles.'}</p>
+              )}
+            </div>
+            <div className="space-y-1.5">
               <Label htmlFor="somlink-package">{isSo ? 'Xirmada' : 'Bundle'}</Label>
               <select id="somlink-package" value={packageId}
                 onChange={(e) => { setPackageId(e.target.value); requestRef.current = null; }}
-                disabled={packages.isLoading || packages.isError}
+                disabled={!categoryId || packages.isLoading || packages.isError}
                 className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                <option value="">{packages.isLoading ? 'Loading...' : (isSo ? 'Dooro xirmada' : 'Choose bundle')}</option>
-                {(packages.data || []).map((p) => (
+                <option value="">{!categoryId ? (isSo ? 'Marka hore dooro category' : 'Select a category first') : (isSo ? 'Dooro xirmada' : 'Choose bundle')}</option>
+                {categoryPackages.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.package_name + ' (' + p.data_amount + ') — $' + p.cost_price.toFixed(2)}
+                    {p.package_name + ' (' + p.data_amount + ') — 
+            {chosen && (
+              <div className="rounded-lg border bg-muted/50 p-3 text-sm">
+                <div className="flex justify-between">
+                  <span>{isSo ? 'Somlink ka jaraya' : 'Somlink charge'}</span>
+                  <strong>{'$' + chosen.cost_price.toFixed(2)}</strong>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {isSo ? 'Lacag-bixinta macaamiilka laguma xaqiijinayo.' : 'Customer payment is not confirmed.'}
+                </p>
+              </div>
+            )}
+            <DialogFooter>
+              <Button type="button" variant="outline" disabled={sending} onClick={() => closeDialog(false)}>{isSo ? 'Jooji' : 'Cancel'}</Button>
+              <Button type="submit" disabled={!ready || !validPhone || !chosen || sending}>
+                {sending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Send className="mr-1.5 h-4 w-4" />}
+                {isSo ? 'U Dir Somlink' : 'Send'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+ + p.cost_price.toFixed(2)}
                   </option>
                 ))}
               </select>
-              {packages.isError && <p role="alert" className="text-xs text-destructive">Xirmooyinka lama soo qaadi karo.</p>}
-              {!packages.isLoading && packages.data?.length === 0 && <p className="text-xs text-muted-foreground">Xirmo Active ah lama helin.</p>}
+              {Boolean(categoryId) && !packages.isLoading && categoryPackages.length === 0 && (
+                <p className="text-xs text-muted-foreground">{isSo ? 'Category-gan xirmo diyaar ah kuma jirto.' : 'No available bundles in this category.'}</p>
+              )}
             </div>
             {chosen && (
               <div className="rounded-lg border bg-muted/50 p-3 text-sm">
