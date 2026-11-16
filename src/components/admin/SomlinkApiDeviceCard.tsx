@@ -327,32 +327,7 @@ export function SomlinkApiDeviceCard({ isSo, display = 'devices' }: { isSo: bool
                 <option value="">{!categoryId ? (isSo ? 'Marka hore dooro category' : 'Select a category first') : (isSo ? 'Dooro xirmada' : 'Choose bundle')}</option>
                 {categoryPackages.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.package_name + ' (' + p.data_amount + ') — 
-            {chosen && (
-              <div className="rounded-lg border bg-muted/50 p-3 text-sm">
-                <div className="flex justify-between">
-                  <span>{isSo ? 'Somlink ka jaraya' : 'Somlink charge'}</span>
-                  <strong>{'$' + chosen.cost_price.toFixed(2)}</strong>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {isSo ? 'Lacag-bixinta macaamiilka laguma xaqiijinayo.' : 'Customer payment is not confirmed.'}
-                </p>
-              </div>
-            )}
-            <DialogFooter>
-              <Button type="button" variant="outline" disabled={sending} onClick={() => closeDialog(false)}>{isSo ? 'Jooji' : 'Cancel'}</Button>
-              <Button type="submit" disabled={!ready || !validPhone || !chosen || sending}>
-                {sending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Send className="mr-1.5 h-4 w-4" />}
-                {isSo ? 'U Dir Somlink' : 'Send'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
- + p.cost_price.toFixed(2)}
+                    {p.package_name + ' (' + p.data_amount + ') — $' + p.cost_price.toFixed(2)}
                   </option>
                 ))}
               </select>
