@@ -73,5 +73,8 @@ jobs:
       - name: Verify tenant Settings WhatsApp and Call FAB controls
         run: bun run test -- tests/tenantFabSettings.test.ts tests/shopPaymentSupport.test.ts
 
+      - name: Verify Orders date picker and day-scoped totals
+        run: bun run test -- tests/ordersDateFilter.test.ts
+
       - name: Build
         run: bun run build
