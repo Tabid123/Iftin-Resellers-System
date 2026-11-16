@@ -39,6 +39,23 @@ describe('Somlink virtual device and safe manual send', () => {
     expect(card).toContain("'somlink_manual_device_status'");
   });
 
+  it('requires category selection before showing only its Somlink bundles', () => {
+    expect(card).toContain("from('package_categories')");
+    expect(card).toContain("select('id,category_name')");
+    expect(card).toContain("select('id,category_id,package_name,data_amount,cost_price,selling_price')");
+    expect(card).toContain(".eq('tenant_id', tenantId!).in('provider_id', ids)");
+    expect(card).toContain("linkedCategoryIds.has(category.id)");
+    expect(card).toContain("p.category_id === categoryId");
+    expect(card).toContain('const chosen = categoryPackages.find((p) => p.id === packageId)');
+    expect(card).toContain('disabled={!categoryId || packages.isLoading || packages.isError}');
+    expect(card).toContain("setCategoryId(e.target.value); setPackageId(''); requestRef.current = null");
+    expect(card).toContain("setRecipient(''); setCategoryId(''); setPackageId(''); requestRef.current = null");
+    expect(card.indexOf('id="somlink-category"')).toBeLessThan(card.indexOf('id="somlink-package"'));
+    expect(card).toContain('categoryPackages.map((p) => (');
+    expect(card).toContain('Select a category first');
+    expect(card).toContain('Dooro category');
+  });
+
   it('allows manual delivery only for an authorized admin of an active API tenant', () => {
     expect(card).toContain("can('manual_transactions')");
     expect(card).toContain("!ready || !canManual");
