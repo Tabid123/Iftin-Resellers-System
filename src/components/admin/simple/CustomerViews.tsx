@@ -14,6 +14,7 @@ import { deleteTenantOfflineRegistration, saveTenantOfflineRegistration } from '
 import { EditDeviceDialog } from '../EditDeviceDialog';
 import { DeleteDeviceDialog } from '../DeleteDeviceDialog';
 import { AdminPagination, ADMIN_PAGE_SIZE } from './AdminPagination';
+import { SomlinkApiDeviceCard } from '../SomlinkApiDeviceCard';
 
 // ========== CUSTOMERS ==========
 export const CustomersCustomView = ({ isSo }: { isSo: boolean }) => {
@@ -506,6 +507,8 @@ export const DevicesCustomView = ({ isSo }: { isSo: boolean }) => {
         { label: 'Online', value: onlineDevices.length, icon: CheckCircle, color: 'bg-green-500' },
         { label: 'Offline', value: offlineDevices.length, icon: XCircle, color: 'bg-red-500' },
       ]} />
+      {/* Somlink API is a virtual delivery device, not a physical Android SIM. */}
+      <SomlinkApiDeviceCard isSo={isSo} />
       {loading ? <LazyFallback /> : devices.length === 0 ? <EmptyState message={isSo ? 'Wax aalad ah lama helin' : 'No devices found'} /> : (
         <div className="space-y-2">
           {devices.map((item) => {
