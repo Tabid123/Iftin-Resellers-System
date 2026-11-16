@@ -105,7 +105,7 @@ BEGIN
      AND p.cost_price > 0 AND p.selling_price > 0.01
    LIMIT 1;
 
-  IF v_package.id IS NULL THEN
+  IF NOT FOUND THEN
     RAISE EXCEPTION 'somlink_package_unavailable_or_invalid';
   END IF;
 
