@@ -64,3 +64,67 @@ export function somlinkReceiptState(
 export function somlinkMoney(value: number): string {
   return `$${value.toFixed(2)}`;
 }
+
+/**
+ * A plain-language version of the Somlink reply for the EXISTING delivery
+ * message box. Keep sale prices, accounting and retry behavior unchanged.
+ */
+export function formatSomlinkResponse(
+  rawResponse: string | null | undefined,
+  queueStatus: string,
+  receiverPhone: string,
+  canViewFinancial: boolean,
+  isSo: boolean,
+): string {
+  const receipt = parseSomlinkReceipt(rawResponse);
+  if (!receipt) {
+    return isSo
+      ? (queueStatus === 'failed' ? 'Dirista xirmada way fashilantay. Jawaabta Somlink lama akhrin karo.' : 'Jawaab faahfaahsan oo Somlink ah lama helin.')
+      : (queueStatus === 'failed' ? 'Bundle delivery failed. Somlink reply could not be read.' : 'No detailed Somlink response available.');
+  }
+
+  const state = somlinkReceiptState(queueStatus, receipt);
+  if (state === 'pending') {
+    return isSo ? 'Dalabka weli waa la sugayaa. Somlink wali ma xaqiijin dirista.'
+      : 'Order pending. Somlink has not confirmed delivery yet.';
+  }
+
+  const friendlyReason = receipt.message
+    ? receipt.message
+        .replaceAll('_', ' ')
+        .replace(/\\s+/g, ' ')
+        .trim()
+    : null;
+
+  if (state !== 'success') {
+    const intro = isSo
+      ? (state === 'inconsistent' ? 'Jawaabta Somlink iyo xaaladda dalabku isma waafaqaan.' : 'Dirista xirmada way fashilantay.')
+      : (state === 'inconsistent' ? 'Somlink response and order status do not match.' : 'Bundle delivery failed.');
+    return friendlyReason ? `${intro} ${friendlyReason}` : intro;
+  }
+
+  const phone = receipt.dataPhone
+    ? receipt.dataPhone.replace(/^252/, '')
+    : receiverPhone;
+  const intro = isSo
+    ? `Xirmada si guul leh ayaa loogu diray ${phone}.`
+    : `Bundle successfully delivered to ${phone}.`;
+  const details: string[] = [intro];
+
+  if (canViewFinancial && receipt.paidAmount !== null) {
+    details.push(isSo
+      ? `Somlink waxay jartay ${somlinkMoney(receipt.paidAmount)}.`
+      : `Somlink charged ${somlinkMoney(receipt.paidAmount)}.`);
+  }
+  if (canViewFinancial && receipt.balance !== null) {
+    details.push(isSo
+      ? `Haraaga: ${somlinkMoney(receipt.balance)}.`
+      : `Remaining balance: ${somlinkMoney(receipt.balance)}.`);
+  }
+  if (receipt.paymentRef) {
+    details.push(isSo
+      ? `Tixraaca: ${receipt.paymentRef}.`
+      : `Reference: ${receipt.paymentRef}.`);
+  }
+  return details.join(' ');
+}
