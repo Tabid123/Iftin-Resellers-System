@@ -9,6 +9,7 @@ import { CompleteOrderPrompt } from './CompleteOrderPrompt';
 import { calculateOrderProfit, effectiveOrderCost, isDirectFlowCode } from '@/lib/iftinProfit';
 import { AdminPagination, ADMIN_PAGE_SIZE } from './AdminPagination';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
+import { SomlinkReceiptCard } from './SomlinkReceiptCard';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -367,10 +368,23 @@ export const OrdersView = ({ isSo }: { isSo: boolean }) => {
                       {order.deliveries.length > 0 && (
                         <div className="py-2 border-b border-gray-100 dark:border-gray-700">
                           <span className="text-[11px] font-bold text-gray-600 dark:text-gray-400">
-                            📩 SMS ({order.deliveries.length})
+                            {order.deliveries.some((dq) => dq.ussd_code?.startsWith('API:SOMLINK:'))
+                              ? (isSo ? '📡 Natiijooyinka dirista' : '📡 Delivery responses')
+                              : '📩 SMS'} ({order.deliveries.length})
                           </span>
                           <div className="space-y-1.5 mt-1">
-                            {order.deliveries.map((dq, i) => (
+                            {order.deliveries.map((dq) => dq.ussd_code?.startsWith('API:SOMLINK:') ? (
+                              <SomlinkReceiptCard
+                                key={dq.id}
+                                rawResponse={dq.provider_response}
+                                ussdCode={dq.ussd_code}
+                                status={dq.status}
+                                receiverPhone={order.receiver_phone}
+                                sellingPrice={Number(order.selling_price)}
+                                canViewFinancial={can('view_profit')}
+                                isSo={isSo}
+                              />
+                            ) : (
                               <div key={dq.id} className={`p-2 rounded border text-[10px] whitespace-pre-wrap ${
                                 dq.status === 'completed' ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-gray-700 dark:text-gray-300' :
                                 dq.status === 'failed' || dq.status === 'timeout' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-gray-700 dark:text-gray-300' :
