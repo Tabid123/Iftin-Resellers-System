@@ -103,9 +103,11 @@ export function formatSomlinkResponse(
     return friendlyReason ? `${intro} ${friendlyReason}` : intro;
   }
 
-  const phone = receipt.dataPhone
-    ? receipt.dataPhone.replace(/^252/, '')
-    : receiverPhone;
+  // Format the real API recipient just like the order's existing phone display.
+  const digits = receipt.dataPhone?.replace(/\D/g, '').replace(/^252/, '') || '';
+  const phone = /^\d{9}$/.test(digits)
+    ? `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`
+    : (receipt.dataPhone || receiverPhone);
   const intro = isSo
     ? `Xirmada si guul leh ayaa loogu diray ${phone}.`
     : `Bundle successfully delivered to ${phone}.`;
