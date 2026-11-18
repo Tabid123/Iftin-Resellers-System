@@ -190,7 +190,7 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
     staleTime: 10_000,
     refetchOnWindowFocus: true,
     refetchOnMount: 'always',
-    refetchInterval: 15_000,
+    refetchInterval: 30_000,
   });
   const orders = useQuery({
     queryKey: ["shop-orders", tenantId, tokens],
@@ -736,12 +736,7 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
           </>
         )}
       </main>
-      <ShopSupportFab
-        whatsapp={supportWhatsApp}
-        call={supportCall}
-        onOpen={() => { void fabContacts.refetch(); }}
-        isRefreshing={fabContacts.isFetching}
-      />
+      <ShopSupportFab whatsapp={supportWhatsApp} call={supportCall} />
       {view !== "checkout" && view !== "product" && (
         <nav
           aria-label="Dukaanka"
