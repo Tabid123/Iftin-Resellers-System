@@ -29,11 +29,10 @@ describe('Tenant FAB Support in general Settings', () => {
     expect(page).toContain('.eq("tenant_id", tenantId)');
     expect(page).toContain('fabContacts.data.support_whatsapp');
     expect(page).toContain('fabContacts.data.support_call');
-    expect(page).toContain('<ShopSupportFab');
-    expect(page).toContain('whatsapp={supportWhatsApp}');
-    expect(page).toContain('call={supportCall}');
-    expect(page).toContain('onOpen={() => { void fabContacts.refetch(); }}');
-    expect(page).toContain('isRefreshing={fabContacts.isFetching}');
+    expect(page).toContain('<ShopSupportFab whatsapp={supportWhatsApp} call={supportCall} />');
+    expect(page).toContain('refetchInterval: 30_000');
+    expect(page).not.toContain('onOpen={() => { void fabContacts.refetch(); }}');
+    expect(page).not.toContain('isRefreshing={fabContacts.isFetching}');
   });
 
   it('preserves old shop payment and support settings without duplicate FAB inputs', () => {
