@@ -38,16 +38,18 @@ describe('APK FAB supports tenant-managed independent WhatsApp and Call numbers'
     expect(hook).toContain('workspaceStorage.setJson(FAB_CACHE_KEY, resolved, tenantId)');
     expect(hook).toContain("refetchOnWindowFocus: 'always'");
     expect(hook).toContain("refetchOnReconnect: 'always'");
-    expect(hook).toContain('refetchInterval: 15_000');
-    expect(hook).toContain('refresh: () => contacts.refetch()');
-    expect(hook).toContain('isRefreshing: contacts.isFetching');
+    expect(hook).toContain('refetchInterval: 30_000');
+    expect(hook).toContain('refetchIntervalInBackground: false');
+    expect(hook).toContain('return resolveSupportContacts(contacts.data, fallback)');
+    expect(hook).not.toContain('refresh: () => contacts.refetch()');
     expect(hook).toContain("App.addListener('appStateChange'");
   });
 
   it('wires the real installed APK FAB and support screens to the shared hook', () => {
     const providers = source('src/components/pages/ProviderSelection.tsx');
-    expect(providers).toContain('void support.refresh()');
-    expect(providers).toContain('support.isRefreshing');
+    expect(providers).toContain('setShowContactSheet((open) => !open)');
+    expect(providers).not.toContain('support.refresh()');
+    expect(providers).not.toContain('support.isRefreshing');
     const categories = source('src/components/pages/CategorySelection.tsx');
     const profile = source('src/components/pages/Profile.tsx');
     const chat = source('src/components/StorefrontAIChat.tsx');
