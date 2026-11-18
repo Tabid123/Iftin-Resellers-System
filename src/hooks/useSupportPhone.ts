@@ -109,19 +109,16 @@ export function useSupportPhone() {
     refetchOnMount: 'always',
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
-    refetchInterval: 15_000,
+    refetchInterval: 30_000,
     refetchIntervalInBackground: false,
     retry: 1,
   });
 
   const fallback = state.tenant?.support_phone ?? null;
-  return {
-    ...resolveSupportContacts(contacts.data, fallback),
-    // Force a network read before exposing a FAB link. The 15-second poll
-    // remains a background fallback, not the only path to fresh contacts.
-    refresh: () => contacts.refetch(),
-    isRefreshing: contacts.isFetching,
-  };
+  // Render the last known contacts immediately. React Query refreshes them
+  // silently in the background on mount, reconnect, resume and every 30 seconds.
+  // Opening the FAB must never initiate a network request or block its buttons.
+  return resolveSupportContacts(contacts.data, fallback);
 }
 
 export { DEFAULT_SUPPORT_PHONE };
