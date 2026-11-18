@@ -15,9 +15,13 @@ export function supportPhoneE164(value: string) {
 export default function ShopSupportFab({
   whatsapp,
   call,
+  onOpen,
+  isRefreshing = false,
 }: {
   whatsapp: string;
   call: string;
+  onOpen?: () => void;
+  isRefreshing?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const wa = supportPhoneE164(whatsapp);
@@ -28,7 +32,8 @@ export default function ShopSupportFab({
     <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-4 z-[60] flex flex-col items-end gap-3">
       {expanded && (
         <div id="shop-support-actions" className="flex flex-col items-end gap-2">
-          {wa && (
+          {isRefreshing && <span role="status" className="rounded-lg bg-card px-3 py-2 text-xs shadow">Lambarrada cusub waa la hubinayaa...</span>}
+          {!isRefreshing && wa && (
             <a
               href={"https://wa.me/" + wa.slice(1)}
               target="_blank"
@@ -40,7 +45,7 @@ export default function ShopSupportFab({
               <MessageCircle className="h-5 w-5" /> WhatsApp
             </a>
           )}
-          {tel && (
+          {!isRefreshing && tel && (
             <a
               href={"tel:" + tel}
               aria-label="Call support"
@@ -54,7 +59,7 @@ export default function ShopSupportFab({
       )}
       <button
         type="button"
-        onClick={() => setExpanded(open => !open)}
+        onClick={() => { if (!expanded) onOpen?.(); setExpanded(open => !open); }}
         aria-label={expanded ? "Xir support" : "Fur support"}
         aria-expanded={expanded}
         aria-controls="shop-support-actions"

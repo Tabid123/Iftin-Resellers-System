@@ -115,7 +115,13 @@ export function useSupportPhone() {
   });
 
   const fallback = state.tenant?.support_phone ?? null;
-  return resolveSupportContacts(contacts.data, fallback);
+  return {
+    ...resolveSupportContacts(contacts.data, fallback),
+    // Force a network read before exposing a FAB link. The 15-second poll
+    // remains a background fallback, not the only path to fresh contacts.
+    refresh: () => contacts.refetch(),
+    isRefreshing: contacts.isFetching,
+  };
 }
 
 export { DEFAULT_SUPPORT_PHONE };

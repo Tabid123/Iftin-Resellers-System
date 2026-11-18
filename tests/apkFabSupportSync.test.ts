@@ -39,11 +39,15 @@ describe('APK FAB supports tenant-managed independent WhatsApp and Call numbers'
     expect(hook).toContain("refetchOnWindowFocus: 'always'");
     expect(hook).toContain("refetchOnReconnect: 'always'");
     expect(hook).toContain('refetchInterval: 15_000');
+    expect(hook).toContain('refresh: () => contacts.refetch()');
+    expect(hook).toContain('isRefreshing: contacts.isFetching');
     expect(hook).toContain("App.addListener('appStateChange'");
   });
 
   it('wires the real installed APK FAB and support screens to the shared hook', () => {
     const providers = source('src/components/pages/ProviderSelection.tsx');
+    expect(providers).toContain('void support.refresh()');
+    expect(providers).toContain('support.isRefreshing');
     const categories = source('src/components/pages/CategorySelection.tsx');
     const profile = source('src/components/pages/Profile.tsx');
     const chat = source('src/components/StorefrontAIChat.tsx');
@@ -52,6 +56,12 @@ describe('APK FAB supports tenant-managed independent WhatsApp and Call numbers'
       expect(file).toContain('support.telHref');
       expect(file).toContain('support.whatsappHref');
     }
+  });
+
+  it('prevents stale Service Worker FAB values from replacing live tenant numbers', () => {
+    const sw = source('public/sw.js');
+    expect(sw).toContain("url.pathname === '/rest/v1/tenant_fab_contacts'");
+    expect(sw).toContain("fetch(request, { cache: 'no-store' })");
   });
 
   it('invalidates the same contacts query when tenant admin saves new numbers', () => {

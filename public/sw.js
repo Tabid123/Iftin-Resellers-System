@@ -118,6 +118,19 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // FAB phone numbers change at runtime without an APK update. Never serve a
+  // stale Service Worker response for this mutable tenant-owned endpoint.
+  // The React hook retains a tenant-scoped offline snapshot instead.
+  if (url.hostname.includes('supabase') && url.pathname === '/rest/v1/tenant_fab_contacts') {
+    event.respondWith(fetch(request, { cache: 'no-store' }).catch(() =>
+      new Response(
+        JSON.stringify({ error: 'Offline', message: 'FAB numbers could not be refreshed.' }),
+        { status: 503, headers: { 'Content-Type': 'application/json' } }
+      )
+    ));
+    return;
+  }
+
   // Network-first for Supabase API calls
   if (url.hostname.includes('supabase') && !url.pathname.includes('/storage/')) {
     event.respondWith(

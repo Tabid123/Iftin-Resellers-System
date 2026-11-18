@@ -306,7 +306,10 @@ const ProviderSelection = () => {
       {/* Support FAB */}
       <button
         type="button"
-        onClick={() => setShowContactSheet((open) => !open)}
+        onClick={() => {
+          if (!showContactSheet && isReallyOnline !== false) void support.refresh();
+          setShowContactSheet((open) => !open);
+        }}
         aria-label="Support"
         className={`fixed bottom-24 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform duration-200 hover:scale-105 active:scale-95 ${
           showContactSheet ? 'bg-destructive' : ''
@@ -327,6 +330,10 @@ const ProviderSelection = () => {
 
       {showContactSheet && (
         <div className="fixed bottom-40 right-4 z-40 flex flex-col items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-150">
+          {support.isRefreshing && isReallyOnline !== false ? (
+            <div role="status" className="rounded-xl bg-card px-3 py-2 text-xs font-medium text-foreground shadow-lg">Lambarrada cusub waa la hubinayaa...</div>
+          ) : (
+            <>
           <a
             href={support.telHref}
             onClick={() => setShowContactSheet(false)}
@@ -346,6 +353,8 @@ const ProviderSelection = () => {
           >
             <MessageCircle className="h-7 w-7 text-white" />
           </a>
+            </>
+          )}
         </div>
       )}
 
