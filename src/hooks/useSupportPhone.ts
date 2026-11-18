@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { useTenant } from '@/contexts/TenantContext';
 import { supabase } from '@/integrations/supabase/client';
 import { workspaceStorage } from '@/lib/workspaceKeys';
@@ -53,6 +54,32 @@ export function resolveSupportContacts(
 export function useSupportPhone() {
   const state = useTenant();
   const tenantId = state.tenant?.id ?? null;
+  const queryClient = useQueryClient();
+
+  // Android WebViews do not reliably emit browser focus when returning from
+  // the dialer, WhatsApp, or the Android app switcher. Refresh on native resume.
+  useEffect(() => {
+    if (!tenantId) return;
+    const refresh = () => {
+      if (document.visibilityState === 'visible') {
+        void queryClient.invalidateQueries({ queryKey: ['tenant-fab-contacts', tenantId] });
+      }
+    };
+    const onFocus = () => refresh();
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', onFocus);
+    let removeNativeListener: (() => void) | undefined;
+    void import('@capacitor/app').then(({ App }) =>
+      App.addListener('appStateChange', ({ isActive }) => {
+        if (isActive) void queryClient.invalidateQueries({ queryKey: ['tenant-fab-contacts', tenantId] });
+      }),
+    ).then(listener => { removeNativeListener = () => { void listener.remove(); }; }).catch(() => {});
+    return () => {
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', onFocus);
+      removeNativeListener?.();
+    };
+  }, [tenantId, queryClient]);
 
   const contacts = useQuery({
     queryKey: ['tenant-fab-contacts', tenantId],
@@ -82,7 +109,7 @@ export function useSupportPhone() {
     refetchOnMount: 'always',
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
-    refetchInterval: 30_000,
+    refetchInterval: 15_000,
     refetchIntervalInBackground: false,
     retry: 1,
   });

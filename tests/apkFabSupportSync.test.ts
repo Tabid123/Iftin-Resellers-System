@@ -38,7 +38,8 @@ describe('APK FAB supports tenant-managed independent WhatsApp and Call numbers'
     expect(hook).toContain('workspaceStorage.setJson(FAB_CACHE_KEY, resolved, tenantId)');
     expect(hook).toContain("refetchOnWindowFocus: 'always'");
     expect(hook).toContain("refetchOnReconnect: 'always'");
-    expect(hook).toContain('refetchInterval: 30_000');
+    expect(hook).toContain('refetchInterval: 15_000');
+    expect(hook).toContain("App.addListener('appStateChange'");
   });
 
   it('wires the real installed APK FAB and support screens to the shared hook', () => {
