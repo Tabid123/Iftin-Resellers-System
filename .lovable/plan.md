@@ -1,15 +1,20 @@
-# Qorshe: hal furitaan nadiif ah iyo meelaha qoraalka oo keyboard-ka ka sarreeya
+# Hagaajinta Supabase (database-ka oo gaabis/xiran)
 
-## Waxa muuqaalka laga arkay
-- Marka APK-ga Marwaan Data la furo, waxaa is daba jooga astaanta bilowga Android, shaashad buluug ah oo astaan/spinner leh, shaashad kale oo astaanta tenant-ka leh, ka dibna bogga lambarka. Xitaa waxaa dhex muuqda madow/cirro kooban.
-- Marka la taabto lambarka ama koodka, keyboard-ku wuxuu daboolaa qayb ka mid ah meesha wax lagu qorayo; boggu kor uma dhaqaaqo si ku filan.
+## Waxa la helay (xogta tooska ah, 6 saac ee u dambeeyay)
+- Codsiyo badan oo database-ka ah waxay soo celinayaan **522 (timeout)**: `get_tenant_by_slug`, `get_active_providers`, `get_active_categories`, `get_tenant_app_settings`, `get_tenant_delivery_instructions`, `tenant_shop_features` — markaa app-ku ma soo dejin karo xogta tenant-ka (shaashad madhan / splash).
+- `android_devices` ayaa la weydiinayaa **ilbiriqsiyo kasta** (polling aad u badan) — kaligiis ayuu inta badan 522-yada sameeyay.
+- Xiriirro database ah oo ku xayiran **"idle in transaction" ~1 daqiiqo** — xiriirradu way dhammaanayaan.
+- Shaqo joogto ah `reconcile_iftin_somtel_sms(45 min, 1000)` oo 1 daqiiqo+ socota.
+- Edge functions: `process-payment-receipt` iyo `activate-package/pending` → 546 (xusuus/waqti dhaafay), `update-sim-balance` iyo `activate-package/log-sms` → 500.
+- App: khalad hydration ah oo ka yimaada `TenantSplash` (server iyo browser way kala duwan yihiin).
 
-## Waxa la qabanayo
-1. **Laba shaashadood oo furitaan oo keliya.** Hayso astaanta native-ka ee APK-ga iyo hal shaashad web ah oo leh astaanta tenant-ka. Ka saar dib-u-bilaabista muuqaalka web-ka ee ka dhalata in APK-gu marka hore furo bogga gudaha, kadibna u wareego bogga internetka. Wareejintaas ha sii taageerto cusboonaysiinta tooska ah iyo isticmaalka offline-ka, laakiin ha dib u shidin splash-ka; bogga dhexdiisa ha uusan muuqan shaashad madhan/madow. Hubi in isbeddelka astaanta ama xogta tenant-ku aanu dib u bilaabin waqtiga splash-ka. Ha saameyn bogga xiritaanka tenant-ka ama degelka caadiga ah.
-2. **Keyboard-ka.** Marka lambarka ama mid ka mid ah afarta sanduuq ee koodka la taabto, meelaha qoraalka iyo qiimaha la gelinayo si degdeg ah kor ugu qaad meel ka sarreysa keyboard-ka. Isku waafaji dhererka muuqda ee WebView-ga, dhererka keyboard-ka iyo qaybta bogga ee la rogi karo; ha ku darin bannaan keyboard laba jeer marka Android horay u yareeyo shaashadda. Ku celi hubinta marka keyboard-ku cabbir beddelo ama OTP-ga sanduuqa xiga u wareego; marka la xiro dib u celi muuqaalka, adigoon navigation-ka hoose boodboodsiin. Sidoo kale xaqiiji labada lambar ee bogga offline-mode.
-3. **Tijaabo.** Ku tijaabi socodka bilowga APK tenant ah marka internet jiro iyo marka uusan jirin; tirso labada splash oo keliya. Ku tijaabi gelinta 9-ka tiro iyo OTP-ga 4-ta tiro (oo ay ku jirto sanduuqa ugu dambeeya), furitaanka/xiritaanka keyboard-ka, iyo bogga labada lambar; sawirro iyo cabbir muuqda ku xaqiiji inaan field ama qoraal la gelinayo la daboolin. Hubi sidoo kale in web-ka telefoonka uusan jabin.
+## Qorshaha
+1. **Yaree polling-ka `android_devices`**: hal query la wadaago, interval 30–60s, jooji marka tab-ku qarsoon yahay; realtime halkii polling.
+2. **Dib u qor `reconcile_iftin_somtel_sms`**: batch yar (tusaale 200), indexes ku dar tiirarka la raadiyo, `statement_timeout` u gaar ah, ha ku dhex jirin isku transaction dheer.
+3. **Ilaalinta xiriirrada**: `idle_in_transaction_session_timeout` (tusaale 15s) iyo `statement_timeout` doorarka `authenticator/anon/authenticated`.
+4. **Edge functions 546/500**: log-yada akhri, yaree xogta xusuusta lagu shubo (pagination), khaladaadka si cad u soo celi.
+5. **Hubi RPC-yada tenant-ka** (`get_tenant_by_slug` iwm.) `EXPLAIN` + index haddii loo baahdo.
+6. **Hydration**: `TenantSplash` ha ku tiirsanaan xaalad browser-ka keliya ah inta lagu jiro SSR.
+7. **Xaqiijin**: dib u eeg edge logs — 522 waa inay eber ku dhowaadaan; bogga tenant-ka fur.
 
-## Faahfaahin farsamo
-- Baadh oo isku dubbarid `android/app` splash theme/assets, `capacitor.config.json`, `src/lib/liveNativeUpdates.ts`, iyo `src/components/TenantGate.tsx`: hal owner oo web splash ah, hal mar oo launch ah, iyo handoff gudaha→live oo aan sababin splash kale; sii hay packaged bundle offline.
-- Dib u eeg `src/hooks/useKeyboardInsets.ts`, `src/mobile-stability.css`, `src/components/pages/Index.tsx`, `src/components/PhoneInput.tsx`, iyo dejinta Android `adjustResize`/Capacitor Keyboard. Ku salay dhaqaaqista field-ka visible viewport-ka dhabta ah iyo scroll container-ka saxda ah, halkii laga isku dari lahaa root height go'an iyo inset labo jeer ah.
-- Cusboonaysii xaqiijinta workflow-ga tenant APK haddii habka splash/keyboard-ka la beddelo, si APK-yada cusub dhammaantood isla saxitaanka u qaataan. Wixii ku jira binary-ga native-ka ee APK-yadii hore waxay u baahan karaan dib-u-dhis; qaybta web-ka ee la daabaco waxay gaari kartaa APK-yadii hore ee online-ka ah.
+Haddii kuwan kadib weli culays jiro, waxaa loo baahan karaa in cabbirka instance-ka Cloud la kordhiyo (Settings → Cloud → Advanced).
