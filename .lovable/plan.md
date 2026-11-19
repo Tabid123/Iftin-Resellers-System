@@ -6,6 +6,7 @@
 - Xiriirro database ah oo ku xayiran **"idle in transaction" ~1 daqiiqo** — xiriirradu way dhammaanayaan.
 - Shaqo joogto ah `reconcile_iftin_somtel_sms(45 min, 1000)` oo 1 daqiiqo+ socota.
 - Edge functions: `process-payment-receipt` iyo `activate-package/pending` → 546 (xusuus/waqti dhaafay), `update-sim-balance` iyo `activate-package/log-sms` → 500.
+- Sawiradaada waxay xaqiijiyeen: **"Timed out acquiring connection from connection pool"** (xiriirrada database-ka way dhammaadeen), **statement timeout** badan, `android_devices` lookup 504, cron `expire_delivery_processing` oo ilbiriqsiyo kasta socda ("job startup timeout"), iyo **"permission denied for table bulk_sms_queue"**.
 - App: khalad hydration ah oo ka yimaada `TenantSplash` (server iyo browser way kala duwan yihiin).
 
 ## Qorshaha
@@ -14,7 +15,10 @@
 3. **Ilaalinta xiriirrada**: `idle_in_transaction_session_timeout` (tusaale 15s) iyo `statement_timeout` doorarka `authenticator/anon/authenticated`.
 4. **Edge functions 546/500**: log-yada akhri, yaree xogta xusuusta lagu shubo (pagination), khaladaadka si cad u soo celi.
 5. **Hubi RPC-yada tenant-ka** (`get_tenant_by_slug` iwm.) `EXPLAIN` + index haddii loo baahdo.
-6. **Hydration**: `TenantSplash` ha ku tiirsanaan xaalad browser-ka keliya ah inta lagu jiro SSR.
-7. **Xaqiijin**: dib u eeg edge logs — 522 waa inay eber ku dhowaadaan; bogga tenant-ka fur.
+6. **bulk_sms_queue**: sii oggolaanshaha (GRANT) saxda ah doorka isticmaalaya si khaladka permission-ka uu u baxo.
+7. **Cron `expire_delivery_processing`**: ka dhig 1 daqiiqo halkii ilbiriqsiyo, si aysan xiriirro u qabsan.
+8. **Edge function `activate-package`**: device lookup-ka kaydi (cache) daqiiqad, APK-yaduna ha sugaan (backoff) marka 522/504 yimaado halkii ay isla markiiba ku celin lahaayeen.
+9. **Hydration**: `TenantSplash` ha ku tiirsanaan xaalad browser-ka keliya ah inta lagu jiro SSR.
+10. **Xaqiijin**: dib u eeg edge logs — 522 waa inay eber ku dhowaadaan; bogga tenant-ka fur.
 
 Haddii kuwan kadib weli culays jiro, waxaa loo baahan karaa in cabbirka instance-ka Cloud la kordhiyo (Settings → Cloud → Advanced).
