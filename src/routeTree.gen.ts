@@ -22,6 +22,7 @@ import { Route as ProvidersRouteImport } from './routes/providers'
 import { Route as ShopRouteImport } from './routes/shop'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminAppsRouteImport } from './routes/admin.apps'
+import { Route as AdminFeaturesRouteImport } from './routes/admin.features'
 import { Route as AdminPlansRouteImport } from './routes/admin.plans'
 import { Route as CategoriesProviderRouteImport } from './routes/categories.$provider'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard.index'
@@ -35,6 +36,7 @@ import { Route as AdminResellersNewRouteImport } from './routes/admin.resellers.
 import { Route as ApiPublicAudioPromptRouteImport } from './routes/api/public/audio-prompt'
 import { Route as ApiPublicManifestRouteImport } from './routes/api/public/manifest'
 import { Route as ApiPublicOfflineRegisterRouteImport } from './routes/api/public/offline-register'
+import { Route as ApiPublicPlatformIconRouteImport } from './routes/api/public/platform-icon'
 import { Route as ApiPublicTenantIconRouteImport } from './routes/api/public/tenant-icon'
 import { Route as TSlugIndexRouteImport } from './routes/t.$slug.index'
 import { Route as TSlugHistoryRouteImport } from './routes/t.$slug.history'
@@ -45,6 +47,7 @@ import { Route as TSlugPrivacyRouteImport } from './routes/t.$slug.privacy'
 import { Route as TSlugPrivacyPolicyRouteImport } from './routes/t.$slug.privacy-policy'
 import { Route as TSlugProfileRouteImport } from './routes/t.$slug.profile'
 import { Route as TSlugProvidersRouteImport } from './routes/t.$slug.providers'
+import { Route as TSlugShopRouteImport } from './routes/t.$slug.shop'
 import { Route as TSlugCategoriesProviderRouteImport } from './routes/t.$slug.categories.$provider'
 import { Route as TSlugDashboardIndexRouteImport } from './routes/t.$slug.dashboard.index'
 import { Route as TSlugDashboardTypeRouteImport } from './routes/t.$slug.dashboard.$type'
@@ -117,6 +120,11 @@ const AdminAppsRoute = AdminAppsRouteImport.update({
   path: '/apps',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminFeaturesRoute = AdminFeaturesRouteImport.update({
+  id: '/features',
+  path: '/features',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminPlansRoute = AdminPlansRouteImport.update({
   id: '/plans',
   path: '/plans',
@@ -183,6 +191,11 @@ const ApiPublicOfflineRegisterRoute =
     path: '/api/public/offline-register',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicPlatformIconRoute = ApiPublicPlatformIconRouteImport.update({
+  id: '/api/public/platform-icon',
+  path: '/api/public/platform-icon',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicTenantIconRoute = ApiPublicTenantIconRouteImport.update({
   id: '/api/public/tenant-icon',
   path: '/api/public/tenant-icon',
@@ -233,6 +246,11 @@ const TSlugProvidersRoute = TSlugProvidersRouteImport.update({
   path: '/t/$slug/providers',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TSlugShopRoute = TSlugShopRouteImport.update({
+  id: '/t/$slug/shop',
+  path: '/t/$slug/shop',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TSlugCategoriesProviderRoute = TSlugCategoriesProviderRouteImport.update({
   id: '/t/$slug/categories/$provider',
   path: '/t/$slug/categories/$provider',
@@ -277,6 +295,7 @@ export interface FileRoutesByFullPath {
   '/providers': typeof ProvidersRoute
   '/shop': typeof ShopRoute
   '/admin/apps': typeof AdminAppsRoute
+  '/admin/features': typeof AdminFeaturesRoute
   '/admin/plans': typeof AdminPlansRoute
   '/categories/$provider': typeof CategoriesProviderRoute
   '/dashboard/$type': typeof DashboardTypeRoute
@@ -290,6 +309,7 @@ export interface FileRoutesByFullPath {
   '/api/public/audio-prompt': typeof ApiPublicAudioPromptRoute
   '/api/public/manifest': typeof ApiPublicManifestRoute
   '/api/public/offline-register': typeof ApiPublicOfflineRegisterRoute
+  '/api/public/platform-icon': typeof ApiPublicPlatformIconRoute
   '/api/public/tenant-icon': typeof ApiPublicTenantIconRoute
   '/t/$slug/history': typeof TSlugHistoryRoute
   '/t/$slug/notifications': typeof TSlugNotificationsRoute
@@ -299,6 +319,7 @@ export interface FileRoutesByFullPath {
   '/t/$slug/privacy-policy': typeof TSlugPrivacyPolicyRoute
   '/t/$slug/profile': typeof TSlugProfileRoute
   '/t/$slug/providers': typeof TSlugProvidersRoute
+  '/t/$slug/shop': typeof TSlugShopRoute
   '/admin/resellers/': typeof AdminResellersIndexRoute
   '/t/$slug/': typeof TSlugIndexRoute
   '/t/$slug/categories/$provider': typeof TSlugCategoriesProviderRoute
@@ -320,6 +341,7 @@ export interface FileRoutesByTo {
   '/providers': typeof ProvidersRoute
   '/shop': typeof ShopRoute
   '/admin/apps': typeof AdminAppsRoute
+  '/admin/features': typeof AdminFeaturesRoute
   '/admin/plans': typeof AdminPlansRoute
   '/categories/$provider': typeof CategoriesProviderRoute
   '/dashboard/$type': typeof DashboardTypeRoute
@@ -333,6 +355,7 @@ export interface FileRoutesByTo {
   '/api/public/audio-prompt': typeof ApiPublicAudioPromptRoute
   '/api/public/manifest': typeof ApiPublicManifestRoute
   '/api/public/offline-register': typeof ApiPublicOfflineRegisterRoute
+  '/api/public/platform-icon': typeof ApiPublicPlatformIconRoute
   '/api/public/tenant-icon': typeof ApiPublicTenantIconRoute
   '/t/$slug/history': typeof TSlugHistoryRoute
   '/t/$slug/notifications': typeof TSlugNotificationsRoute
@@ -342,6 +365,7 @@ export interface FileRoutesByTo {
   '/t/$slug/privacy-policy': typeof TSlugPrivacyPolicyRoute
   '/t/$slug/profile': typeof TSlugProfileRoute
   '/t/$slug/providers': typeof TSlugProvidersRoute
+  '/t/$slug/shop': typeof TSlugShopRoute
   '/admin/resellers': typeof AdminResellersIndexRoute
   '/t/$slug': typeof TSlugIndexRoute
   '/t/$slug/categories/$provider': typeof TSlugCategoriesProviderRoute
@@ -365,6 +389,7 @@ export interface FileRoutesById {
   '/providers': typeof ProvidersRoute
   '/shop': typeof ShopRoute
   '/admin/apps': typeof AdminAppsRoute
+  '/admin/features': typeof AdminFeaturesRoute
   '/admin/plans': typeof AdminPlansRoute
   '/categories/$provider': typeof CategoriesProviderRoute
   '/dashboard/$type': typeof DashboardTypeRoute
@@ -378,6 +403,7 @@ export interface FileRoutesById {
   '/api/public/audio-prompt': typeof ApiPublicAudioPromptRoute
   '/api/public/manifest': typeof ApiPublicManifestRoute
   '/api/public/offline-register': typeof ApiPublicOfflineRegisterRoute
+  '/api/public/platform-icon': typeof ApiPublicPlatformIconRoute
   '/api/public/tenant-icon': typeof ApiPublicTenantIconRoute
   '/t/$slug/history': typeof TSlugHistoryRoute
   '/t/$slug/notifications': typeof TSlugNotificationsRoute
@@ -387,6 +413,7 @@ export interface FileRoutesById {
   '/t/$slug/privacy-policy': typeof TSlugPrivacyPolicyRoute
   '/t/$slug/profile': typeof TSlugProfileRoute
   '/t/$slug/providers': typeof TSlugProvidersRoute
+  '/t/$slug/shop': typeof TSlugShopRoute
   '/admin/resellers/': typeof AdminResellersIndexRoute
   '/t/$slug/': typeof TSlugIndexRoute
   '/t/$slug/categories/$provider': typeof TSlugCategoriesProviderRoute
@@ -411,6 +438,7 @@ export interface FileRouteTypes {
     | '/providers'
     | '/shop'
     | '/admin/apps'
+    | '/admin/features'
     | '/admin/plans'
     | '/categories/$provider'
     | '/dashboard/$type'
@@ -424,6 +452,7 @@ export interface FileRouteTypes {
     | '/api/public/audio-prompt'
     | '/api/public/manifest'
     | '/api/public/offline-register'
+    | '/api/public/platform-icon'
     | '/api/public/tenant-icon'
     | '/t/$slug/history'
     | '/t/$slug/notifications'
@@ -433,6 +462,7 @@ export interface FileRouteTypes {
     | '/t/$slug/privacy-policy'
     | '/t/$slug/profile'
     | '/t/$slug/providers'
+    | '/t/$slug/shop'
     | '/admin/resellers/'
     | '/t/$slug/'
     | '/t/$slug/categories/$provider'
@@ -454,6 +484,7 @@ export interface FileRouteTypes {
     | '/providers'
     | '/shop'
     | '/admin/apps'
+    | '/admin/features'
     | '/admin/plans'
     | '/categories/$provider'
     | '/dashboard/$type'
@@ -467,6 +498,7 @@ export interface FileRouteTypes {
     | '/api/public/audio-prompt'
     | '/api/public/manifest'
     | '/api/public/offline-register'
+    | '/api/public/platform-icon'
     | '/api/public/tenant-icon'
     | '/t/$slug/history'
     | '/t/$slug/notifications'
@@ -476,6 +508,7 @@ export interface FileRouteTypes {
     | '/t/$slug/privacy-policy'
     | '/t/$slug/profile'
     | '/t/$slug/providers'
+    | '/t/$slug/shop'
     | '/admin/resellers'
     | '/t/$slug'
     | '/t/$slug/categories/$provider'
@@ -498,6 +531,7 @@ export interface FileRouteTypes {
     | '/providers'
     | '/shop'
     | '/admin/apps'
+    | '/admin/features'
     | '/admin/plans'
     | '/categories/$provider'
     | '/dashboard/$type'
@@ -511,6 +545,7 @@ export interface FileRouteTypes {
     | '/api/public/audio-prompt'
     | '/api/public/manifest'
     | '/api/public/offline-register'
+    | '/api/public/platform-icon'
     | '/api/public/tenant-icon'
     | '/t/$slug/history'
     | '/t/$slug/notifications'
@@ -520,6 +555,7 @@ export interface FileRouteTypes {
     | '/t/$slug/privacy-policy'
     | '/t/$slug/profile'
     | '/t/$slug/providers'
+    | '/t/$slug/shop'
     | '/admin/resellers/'
     | '/t/$slug/'
     | '/t/$slug/categories/$provider'
@@ -551,6 +587,7 @@ export interface RootRouteChildren {
   ApiPublicAudioPromptRoute: typeof ApiPublicAudioPromptRoute
   ApiPublicManifestRoute: typeof ApiPublicManifestRoute
   ApiPublicOfflineRegisterRoute: typeof ApiPublicOfflineRegisterRoute
+  ApiPublicPlatformIconRoute: typeof ApiPublicPlatformIconRoute
   ApiPublicTenantIconRoute: typeof ApiPublicTenantIconRoute
   TSlugHistoryRoute: typeof TSlugHistoryRoute
   TSlugNotificationsRoute: typeof TSlugNotificationsRoute
@@ -560,6 +597,7 @@ export interface RootRouteChildren {
   TSlugPrivacyPolicyRoute: typeof TSlugPrivacyPolicyRoute
   TSlugProfileRoute: typeof TSlugProfileRoute
   TSlugProvidersRoute: typeof TSlugProvidersRoute
+  TSlugShopRoute: typeof TSlugShopRoute
   TSlugIndexRoute: typeof TSlugIndexRoute
   TSlugCategoriesProviderRoute: typeof TSlugCategoriesProviderRoute
   TSlugDashboardTypeRoute: typeof TSlugDashboardTypeRoute
@@ -662,6 +700,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAppsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/features': {
+      id: '/admin/features'
+      path: '/features'
+      fullPath: '/admin/features'
+      preLoaderRoute: typeof AdminFeaturesRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/plans': {
       id: '/admin/plans'
       path: '/plans'
@@ -753,6 +798,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicOfflineRegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/platform-icon': {
+      id: '/api/public/platform-icon'
+      path: '/api/public/platform-icon'
+      fullPath: '/api/public/platform-icon'
+      preLoaderRoute: typeof ApiPublicPlatformIconRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/tenant-icon': {
       id: '/api/public/tenant-icon'
       path: '/api/public/tenant-icon'
@@ -823,6 +875,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TSlugProvidersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/t/$slug/shop': {
+      id: '/t/$slug/shop'
+      path: '/t/$slug/shop'
+      fullPath: '/t/$slug/shop'
+      preLoaderRoute: typeof TSlugShopRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/t/$slug/categories/$provider': {
       id: '/t/$slug/categories/$provider'
       path: '/t/$slug/categories/$provider'
@@ -870,6 +929,7 @@ declare module '@tanstack/react-router' {
 
 interface AdminRouteChildren {
   AdminAppsRoute: typeof AdminAppsRoute
+  AdminFeaturesRoute: typeof AdminFeaturesRoute
   AdminPlansRoute: typeof AdminPlansRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminResellersIdRoute: typeof AdminResellersIdRoute
@@ -879,6 +939,7 @@ interface AdminRouteChildren {
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAppsRoute: AdminAppsRoute,
+  AdminFeaturesRoute: AdminFeaturesRoute,
   AdminPlansRoute: AdminPlansRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminResellersIdRoute: AdminResellersIdRoute,
@@ -909,6 +970,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAudioPromptRoute: ApiPublicAudioPromptRoute,
   ApiPublicManifestRoute: ApiPublicManifestRoute,
   ApiPublicOfflineRegisterRoute: ApiPublicOfflineRegisterRoute,
+  ApiPublicPlatformIconRoute: ApiPublicPlatformIconRoute,
   ApiPublicTenantIconRoute: ApiPublicTenantIconRoute,
   TSlugHistoryRoute: TSlugHistoryRoute,
   TSlugNotificationsRoute: TSlugNotificationsRoute,
@@ -918,6 +980,7 @@ const rootRouteChildren: RootRouteChildren = {
   TSlugPrivacyPolicyRoute: TSlugPrivacyPolicyRoute,
   TSlugProfileRoute: TSlugProfileRoute,
   TSlugProvidersRoute: TSlugProvidersRoute,
+  TSlugShopRoute: TSlugShopRoute,
   TSlugIndexRoute: TSlugIndexRoute,
   TSlugCategoriesProviderRoute: TSlugCategoriesProviderRoute,
   TSlugDashboardTypeRoute: TSlugDashboardTypeRoute,
