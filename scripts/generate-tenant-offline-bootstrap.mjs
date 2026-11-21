@@ -181,7 +181,7 @@ for (const [object, field] of fields) {
   // Storefront records may contain either absolute artwork URLs or same-origin
   // paths such as /storage/banners/.... Resolve relative paths against the live
   // tenant host before downloading them into the APK's offline asset bundle.
-  const fetchUrl = /^https?:\/\//i.test(url)
+  const fetchUrl = /^(https?:\/\/|data:image\/)/i.test(url)
     ? url
     : new URL(url.startsWith('/') ? url : '/' + url, 'https://iftinagents.com').toString();
 
