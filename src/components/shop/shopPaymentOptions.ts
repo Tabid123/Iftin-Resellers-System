@@ -5,6 +5,7 @@ export type ShopPaymentOption = {
   id: string;
   provider: string;
   number: string;
+  logo_url?: string;
   /** Only merchant-enabled payment companies appear to buyers. */
   enabled?: boolean;
 };
@@ -25,6 +26,10 @@ export function shopPaymentOptions(config: {
         typeof item.provider === "string" &&
         item.provider.trim().length > 0 &&
         item.enabled !== false &&
+        (item.logo_url === undefined || (
+          typeof item.logo_url === "string" &&
+          (item.logo_url === "" || /^https:\/\/[^\s]+$/i.test(item.logo_url))
+        )) &&
         typeof item.number === "string" &&
         /^\+?[0-9]{7,15}$/.test(item.number))
       .slice(0, 8);
