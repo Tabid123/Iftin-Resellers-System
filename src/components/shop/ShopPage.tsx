@@ -11,6 +11,7 @@ import {
   Minus,
   CheckCircle2,
   Truck,
+  MessageCircle,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "@/lib/router-compat";
 import { Button } from "@/components/ui/button";
@@ -843,26 +844,37 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
           </>
         )}
         {view === "success" && (
-          <div className="space-y-4 rounded-2xl border p-6 text-center">
+          <div className="space-y-4 rounded-2xl border bg-card p-6 text-center shadow-sm">
             <Package className="mx-auto h-14 w-14 text-primary" />
-            <h2 className="text-2xl font-bold">Dalabka waa la helay</h2>
-            <p>Dalabka waa la diiwaangeliyay. Dukaanka ayaa kula soo xiriiraya.</p>
-            {orders.isLoading ? (
-              <p className="text-sm">Xogta dalabka iyo lacag-bixinta waa la soo akhrinayaa...</p>
-            ) : orders.isError ? (
-              <p role="alert" className="text-sm text-destructive">Faahfaahinta lacag-bixinta lama soo akhrin karo. Ka eeg Dalabyadayda.</p>
-            ) : lastOrder?.payment_method === "manual_transfer" ? (
-              <ShopPaymentInstructions
-                provider={lastOrder.payment_provider || "Mobile Money"}
-                number={lastOrder.payment_number || ""}
-                amount={Number(lastOrder.total)}
-              />
-            ) : lastOrder ? (
-              <p className="text-sm text-muted-foreground">Lacagta waxaa la bixinayaa marka la keeno.</p>
-            ) : (
-              <p className="text-sm text-muted-foreground">Faahfaahinta lacag-bixinta ka eeg Dalabyadayda.</p>
+            <h2 className="text-xl font-extrabold">Dalabka waa la diiwaangeliyay</h2>
+            <p className="text-sm text-muted-foreground">Lacagta weli lama xaqiijin. Dukaanka ayaa hubinaya.</p>
+            {lastOrder && <p className="text-2xl font-extrabold text-primary">{money(lastOrder.total)}</p>}
+            {lastOrder?.payment_method === "manual_transfer" && (
+              <p className="text-sm text-muted-foreground">
+                {lastOrder.payment_provider || "Mobile Money"} · {lastOrder.payment_number || ""}
+              </p>
             )}
-            <Button onClick={() => go("orders")}>La soco dalabka</Button>
+            {orders.isError && (
+              <p role="alert" className="text-sm text-destructive">
+                Faahfaahinta dalabka lama soo akhrin karo. Ka eeg Dalabyadayda.
+              </p>
+            )}
+            {whatsappContact && (
+              <a
+                href={`https://wa.me/${whatsappContact.slice(1)}?text=${encodeURIComponent(
+                  `Salaan, waxaan rabaa inaan wax ka weydiiyo dalabka #${String(lastOrder?.id || lastOrderId).slice(0, 8)}.`,
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 font-bold text-white"
+              >
+                <MessageCircle className="h-5 w-5" />
+                La xiriir lambarkan · {whatsappContact}
+              </a>
+            )}
+            <Button onClick={() => go("orders")} variant="outline" className="w-full">
+              La soco dalabka
+            </Button>
           </div>
         )}
         {view === "orders" && (
