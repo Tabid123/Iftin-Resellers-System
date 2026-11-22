@@ -201,7 +201,7 @@ export function ProductGallery({
       <img
         src={selected}
         alt={product.name}
-        className="h-[min(66vw,320px)] w-full rounded-2xl bg-white object-contain p-3"
+        className="shop-gallery-primary aspect-square w-full rounded-2xl bg-white object-cover object-center"
       />
       {urls.length > 1 && (
         <div className="flex justify-center gap-1">
