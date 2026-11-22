@@ -5,6 +5,8 @@ export type ShopPaymentOption = {
   id: string;
   provider: string;
   number: string;
+  /** Only merchant-enabled payment companies appear to buyers. */
+  enabled?: boolean;
 };
 
 export function shopPaymentOptions(config: {
@@ -22,6 +24,7 @@ export function shopPaymentOptions(config: {
         /^[a-zA-Z0-9_-]{1,72}$/.test(item.id) &&
         typeof item.provider === "string" &&
         item.provider.trim().length > 0 &&
+        item.enabled !== false &&
         typeof item.number === "string" &&
         /^\+?[0-9]{7,15}$/.test(item.number))
       .slice(0, 8);
@@ -48,11 +51,9 @@ export function shopMethodDialHref(provider: string, payee: string, amount: numb
   const evcCode = evcPlusDialCode(provider, payee, amount);
   if (evcCode) return evcPlusDialHref(evcCode);
 
-  // Somtel's *101# opens the eDahab menu. Unlike EVC, this does not
-  // prefill a recipient or amount. The customer must enter both manually.
-  if (/e[\s-]*dahab|somtel/i.test(provider) && /^\+?[0-9]{7,15}$/.test(payee)) {
-    return "tel:*101%23";
-  }
+  // Do not guess an eDahab (or other provider) USSD transfer command.
+  // The admin may enable a provider for manual transfer without enabling
+  // an unrelated dial shortcut.
   // Unknown provider USSD formats must not be fabricated.
   return null;
 }
