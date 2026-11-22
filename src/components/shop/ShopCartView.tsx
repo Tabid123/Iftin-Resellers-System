@@ -392,7 +392,9 @@ export default function ShopCartView({
           <DialogHeader>
             <DialogTitle>Geli lambarkaaga {selected?.provider || "lacag-bixinta"}</DialogTitle>
             <DialogDescription>
-              Wuxuu noqonayaa lambarka laga raadinayo lacag-bixinta. PIN-ka ha gelin halkan.
+              Lambarkan wuxuu u adeegayaa xiriirka dalabka. Lacagtu waxay ka baxaysaa
+              SIM-ka aad ku doorato dialer-ka, ma aha lambar kasta oo halkan lagu qoro.
+              PIN-ka ha gelin halkan.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -412,7 +414,11 @@ export default function ShopCartView({
                 autoComplete="tel"
                 inputMode="tel"
                 autoFocus
-                placeholder="61xxxxxxx ama +25261xxxxxxx"
+                placeholder={/e[\s-]*dahab|somtel/i.test(selected?.provider || "")
+                  ? "62xxxxxxx ama +25262xxxxxxx"
+                  : /evc|hormuud/i.test(selected?.provider || "")
+                    ? "61xxxxxxx ama 77xxxxxxx"
+                    : "Geli lambarkaaga"}
                 value={payerNumber}
                 onChange={e => setPayerNumber(e.target.value)}
                 maxLength={20}
