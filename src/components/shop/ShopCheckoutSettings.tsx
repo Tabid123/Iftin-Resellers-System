@@ -4,23 +4,41 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useShop, shopDb } from "./useShop";
 import { toast } from "@/hooks/use-toast";
-import { CreditCard, Headset, Save } from "lucide-react";
+import { CreditCard, Headset, Plus, Save, Trash2 } from "lucide-react";
 import { Link } from "@/lib/router-compat";
+
+export type ShopPaymentMethod = {
+  id: string;
+  provider: string;
+  number: string;
+};
 
 type CheckoutConfig = {
   payment_provider: string;
   payment_number: string;
+  payment_methods: ShopPaymentMethod[];
   support_whatsapp: string;
   support_call: string;
 };
+
 const empty: CheckoutConfig = {
   payment_provider: "EVC Plus",
   payment_number: "",
+  payment_methods: [],
   support_whatsapp: "",
   support_call: "",
 };
 const normalizedPhone = (phone: string) => phone.trim().replace(/[\s()-]/g, "");
 const validPhone = (phone: string) => !phone || /^\+?[0-9]{7,15}$/.test(phone);
+
+function configuredMethods(settings: CheckoutConfig): ShopPaymentMethod[] {
+  if (Array.isArray(settings.payment_methods) && settings.payment_methods.length) {
+    return settings.payment_methods;
+  }
+  return settings.payment_number
+    ? [{ id: "legacy", provider: settings.payment_provider || "EVC Plus", number: settings.payment_number }]
+    : [];
+}
 
 export default function ShopCheckoutSettings() {
   const { tenant, enabled } = useShop();
@@ -34,7 +52,7 @@ export default function ShopCheckoutSettings() {
     queryFn: async () => {
       const { data, error } = await shopDb
         .from("shop_checkout_settings")
-        .select("payment_provider,payment_number,support_whatsapp,support_call")
+        .select("payment_provider,payment_number,payment_methods,support_whatsapp,support_call")
         .eq("tenant_id", tenant!.id)
         .maybeSingle();
       if (error) throw error;
@@ -44,28 +62,49 @@ export default function ShopCheckoutSettings() {
   });
 
   useEffect(() => {
-    if (query.isSuccess) setForm(query.data ?? empty);
+    if (!query.isSuccess) return;
+    const current = query.data ?? empty;
+    setForm({ ...current, payment_methods: configuredMethods(current) });
   }, [query.isSuccess, query.data, tenant?.id]);
 
-  const update = (key: keyof CheckoutConfig, value: string) =>
-    setForm(previous => ({ ...previous, [key]: value }));
+  function updateMethod(id: string, key: "provider" | "number", value: string) {
+    setForm(old => ({
+      ...old,
+      payment_methods: old.payment_methods.map(m => m.id === id ? { ...m, [key]: value } : m),
+    }));
+  }
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
     if (!tenant || busy) return;
+    const methods = form.payment_methods.map(m => ({
+      id: m.id,
+      provider: m.provider.trim(),
+      number: normalizedPhone(m.number),
+    }));
     const next: CheckoutConfig = {
-      payment_provider: form.payment_provider.trim(),
-      payment_number: normalizedPhone(form.payment_number),
+      ...form,
+      payment_provider: methods[0]?.provider || "EVC Plus",
+      payment_number: methods[0]?.number || "",
+      payment_methods: methods,
       support_whatsapp: normalizedPhone(form.support_whatsapp),
       support_call: normalizedPhone(form.support_call),
     };
-    if (!next.payment_provider || next.payment_provider.length > 60 ||
-      !validPhone(next.payment_number) ||
-      !validPhone(next.support_whatsapp) ||
-      !validPhone(next.support_call)) {
-      toast({ title: "Hubi xogta", description: "Magaca adeegga iyo lambarada (7–15 digits) sax.", variant: "destructive" });
+
+    if (methods.length > 8 ||
+      new Set(methods.map(m => m.id)).size !== methods.length ||
+      methods.some(m => !/^[a-zA-Z0-9_-]{1,72}$/.test(m.id) ||
+        !m.provider || m.provider.length > 60 ||
+        !validPhone(m.number) || !m.number) ||
+      !validPhone(next.support_whatsapp) || !validPhone(next.support_call)) {
+      toast({
+        title: "Hubi hababka lacag-bixinta",
+        description: "Magacyada iyo lambarada sax; adeeg kasta waa inuu leeyahay lambar (7–15 digits).",
+        variant: "destructive",
+      });
       return;
     }
+
     setBusy(true);
     try {
       const { error } = await shopDb.from("shop_checkout_settings")
@@ -73,7 +112,7 @@ export default function ShopCheckoutSettings() {
       if (error) throw error;
       setForm(next);
       await qc.invalidateQueries({ queryKey: ["shop-checkout-settings", tenant.id] });
-      toast({ title: "Lacag-bixinta iyo Support waa la kaydiyay" });
+      toast({ title: "Hababka lacag-bixinta waa la kaydiyay" });
     } catch (error: any) {
       toast({ title: "Lama kaydin", description: error.message, variant: "destructive" });
     } finally {
@@ -94,39 +133,109 @@ export default function ShopCheckoutSettings() {
   return (
     <form onSubmit={save} className="space-y-4">
       <section className="admin-card space-y-4">
-        <h2 className="flex items-center gap-2 text-lg font-bold"><CreditCard className="h-5 w-5" /> Lacag-bixinta</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="flex items-center gap-2 text-lg font-bold">
+            <CreditCard className="h-5 w-5" /> Shirkadaha lacag-bixinta
+          </h2>
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-2"
+            disabled={busy || form.payment_methods.length >= 8}
+            onClick={() => setForm(old => ({
+              ...old,
+              payment_methods: [...old.payment_methods, { id: crypto.randomUUID(), provider: "", number: "" }],
+            }))}
+          >
+            <Plus className="h-4 w-4" /> Ku dar shirkad
+          </Button>
+        </div>
+
         <p className="text-sm text-muted-foreground">
-          Ku qor lambarka macaamiishu lacagta ugu dirayaan dukaanka. Lambarku wuxuu ka muuqanayaa Checkout-ka.
+          Hababkan kaliya ayaa ka muuqanaya popup-ka macaamilka ee dambiisha.
+          Adeeg kasta u geli magaca iyo lambarka saxda ah ee lacagta lagu dirayo.
         </p>
-        <label className="block space-y-1">
-          Adeegga lacag-bixinta
-          <Input maxLength={60} required placeholder="Tusaale: EVC Plus, eDahab, Premier Wallet"
-            value={form.payment_provider} onChange={e => update("payment_provider", e.target.value)} />
-        </label>
-        <label className="block space-y-1">
-          Lambarka lacagta lagu dirayo
-          <Input type="tel" inputMode="tel" maxLength={25} placeholder="61xxxxxxx ama +25261xxxxxxx"
-            value={form.payment_number} onChange={e => update("payment_number", e.target.value)} />
-        </label>
+
+        <datalist id="shop-payment-providers">
+          <option value="EVC Plus" />
+          <option value="eDahab" />
+          <option value="Premier Wallet" />
+          <option value="Sahal" />
+          <option value="ZAAD" />
+        </datalist>
+
+        {form.payment_methods.map((method, index) => (
+          <div key={method.id} className="space-y-3 rounded-2xl border bg-background p-4">
+            <div className="flex items-center justify-between gap-3">
+              <strong>Shirkadda {index + 1}</strong>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-1 text-destructive"
+                aria-label={`Ka saar shirkadda ${index + 1}`}
+                onClick={() => setForm(old => ({
+                  ...old,
+                  payment_methods: old.payment_methods.filter(m => m.id !== method.id),
+                }))}
+              >
+                <Trash2 className="h-4 w-4" /> Ka saar
+              </Button>
+            </div>
+            <label className="block space-y-1 text-sm">
+              Shirkadda / Payment method
+              <Input
+                list="shop-payment-providers"
+                maxLength={60}
+                required
+                placeholder="EVC Plus, eDahab, Premier Wallet..."
+                value={method.provider}
+                onChange={e => updateMethod(method.id, "provider", e.target.value)}
+              />
+            </label>
+            <label className="block space-y-1 text-sm">
+              Lambarka lacagta lagu dirayo
+              <Input
+                type="tel"
+                inputMode="tel"
+                maxLength={25}
+                required
+                placeholder="61xxxxxxx ama +25261xxxxxxx"
+                value={method.number}
+                onChange={e => updateMethod(method.id, "number", e.target.value)}
+              />
+            </label>
+          </div>
+        ))}
+
+        {form.payment_methods.length === 0 && (
+          <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+            Weli shirkad lacag-bixin ah kuma darin. Ku dar shirkad si macaamiishu u dooran karaan.
+          </p>
+        )}
         <p className="rounded-lg bg-muted p-3 text-xs text-muted-foreground">
-          Haddii lambar la geliyo, macaamilku wuxuu arkaa tilmaamaha lacag-dirista.
-          Lacag-bixinta si automatic ah looma xaqiijinayo. Haddii lambarku madhan yahay,
-          dalabku wuxuu ahaanayaa "Lacagta marka la keeno".
+          EVC Plus (61/77): badhanka lacag-bixinta wuxuu furi karaa koodhka USSD.
+          eDahab: menu-ga *101# ayaa furmaya. Adeegyada kale waxay muujiyaan
+          lambarka iyo tilmaamaha bixinta ilaa shortcode-kooda si rasmi ah loo dejiyo.
+          Furitaanka dialer-ka ma aha xaqiijin lacag-bixin.
         </p>
       </section>
 
       <section className="admin-card space-y-2">
-        <h2 className="flex items-center gap-2 text-lg font-bold"><Headset className="h-5 w-5" /> Support — FAB</h2>
+        <h2 className="flex items-center gap-2 text-lg font-bold">
+          <Headset className="h-5 w-5" /> Support — FAB
+        </h2>
         <p className="text-sm text-muted-foreground">
-          Lambarada WhatsApp iyo Call ee floating support button-ka hadda waxaa laga maamulaa
-          Settings → App Settings. Lambarradii hore waa la ilaaliyey.
+          Lambarada WhatsApp iyo Call ee floating support button-ka waxaa laga maamulaa
+          Settings → App Settings.
         </p>
         <Link to="/dashboard/app-settings" className="inline-flex text-sm font-semibold text-primary underline">
           Tag FAB WhatsApp & Call Settings
         </Link>
       </section>
+
       <Button type="submit" className="w-full gap-2" disabled={busy}>
-        <Save className="h-4 w-4" /> {busy ? "Waa la kaydinayaa..." : "Kaydi Payment & Support"}
+        <Save className="h-4 w-4" /> {busy ? "Waa la kaydinayaa..." : "Kaydi hababka lacag-bixinta"}
       </Button>
     </form>
   );
