@@ -103,6 +103,14 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
   });
   const [search, setSearch] = useState("");
   const [quantity, setQuantity] = useState(1);
+  // Keep the order ID so the payment screen uses the server-saved amount and payee.
+  const [lastOrderId, setLastOrderId] = useState(() => {
+    try {
+      return sessionStorage.getItem(storageKey + ":last-order-id") || "";
+    } catch {
+      return "";
+    }
+  });
   useEffect(() => {
     setQuantity(1);
   }, [productId]);
@@ -205,6 +213,7 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
       return data || [];
     },
   });
+  const lastOrder = orders.data?.find((o: any) => o.id === lastOrderId);
   const paymentNumber = checkoutSettings.data?.payment_number ?? "";
   const paymentProvider = checkoutSettings.data?.payment_provider || "Mobile Money";
   const supportWhatsApp = fabContacts.data
@@ -250,6 +259,12 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
         p_items: Object.entries(cart).map(([product_id, quantity]) => ({ product_id, quantity })),
       });
       if (error) throw error;
+      setLastOrderId(String(data.id));
+      try {
+        sessionStorage.setItem(storageKey + ":last-order-id", String(data.id));
+      } catch {
+        // Checkout must still succeed when session storage is unavailable.
+      }
       const next = [...new Set([...tokens, data.token])].slice(-50);
       // Persist the private receipt before clearing the cart or showing success.
       localStorage.setItem(storageKey + ":orders", JSON.stringify(next));
@@ -683,7 +698,7 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
                   <ShopPaymentInstructions provider={paymentProvider} number={paymentNumber} />
                 )}
                 <Button className="w-full" disabled={busy || !count || unavailable || checkoutSettings.isLoading || checkoutSettings.isError}>
-                  {busy ? "Waa la dirayaa..." : "Xaqiiji dalabka"}
+                  {busy ? "Waa la dirayaa..." : "Diiwaangeli dalabka"}
                 </Button>
               </form>
             )}
@@ -694,12 +709,20 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
             <Package className="mx-auto h-14 w-14 text-primary" />
             <h2 className="text-2xl font-bold">Dalabka waa la helay</h2>
             <p>Dalabka waa la diiwaangeliyay. Dukaanka ayaa kula soo xiriiraya.</p>
-            {checkoutSettings.isError ? (
-              <p role="alert" className="text-sm text-destructive">Xogta lacag-bixinta lama soo akhrin karo. La xiriir dukaanka.</p>
-            ) : checkoutSettings.isLoading ? (
-              <p className="text-sm">Xogta lacag-bixinta waa la soo akhrinayaa...</p>
+            {orders.isLoading ? (
+              <p className="text-sm">Xogta dalabka iyo lacag-bixinta waa la soo akhrinayaa...</p>
+            ) : orders.isError ? (
+              <p role="alert" className="text-sm text-destructive">Faahfaahinta lacag-bixinta lama soo akhrin karo. Ka eeg Dalabyadayda.</p>
+            ) : lastOrder?.payment_method === "manual_transfer" ? (
+              <ShopPaymentInstructions
+                provider={lastOrder.payment_provider || "Mobile Money"}
+                number={lastOrder.payment_number || ""}
+                amount={Number(lastOrder.total)}
+              />
+            ) : lastOrder ? (
+              <p className="text-sm text-muted-foreground">Lacagta waxaa la bixinayaa marka la keeno.</p>
             ) : (
-              <ShopPaymentInstructions provider={paymentProvider} number={paymentNumber} />
+              <p className="text-sm text-muted-foreground">Faahfaahinta lacag-bixinta ka eeg Dalabyadayda.</p>
             )}
             <Button onClick={() => go("orders")}>La soco dalabka</Button>
           </div>
@@ -729,7 +752,11 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
                 ))}
                 <div className="text-sm">
                   {o.payment_method === "manual_transfer" ? (
-                    <ShopPaymentInstructions provider={o.payment_provider || "Mobile Money"} number={o.payment_number || ""} />
+                    <ShopPaymentInstructions
+                      provider={o.payment_provider || "Mobile Money"}
+                      number={o.payment_number || ""}
+                      amount={["received", "preparing", "dispatched"].includes(o.status) ? Number(o.total) : undefined}
+                    />
                   ) : (
                     <p>Lacag-bixinta: Marka la keeno</p>
                   )}
