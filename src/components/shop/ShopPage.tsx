@@ -19,7 +19,8 @@ import { useShop, shopDb, money, orderStatuses } from "./useShop";
 
 import { ProductGallery } from "./ShopImages";
 import ShopPaymentInstructions from "./ShopPaymentInstructions";
-import ShopSupportFab from "./ShopSupportFab";
+import ShopSupportFab, { supportPhoneE164 } from "./ShopSupportFab";
+import ShopSkeleton from "./ShopSkeleton";
 import { evcPlusDialCode } from "./evcPlusDial";
 import ShopCartView, { ShopOrderPaymentReceipt } from "./ShopCartView";
 import { shopPaymentOptions } from "./shopPaymentOptions";
@@ -42,7 +43,7 @@ function ProductImage({ url, name }: { url: string; name: string }) {
       src={url}
       alt={name}
       loading="lazy"
-      className="aspect-square w-full rounded-xl bg-white object-contain p-2"
+      className="aspect-square w-full rounded-xl bg-white object-cover object-center"
     />
   ) : (
     <div className="flex aspect-square items-center justify-center rounded-xl bg-primary/5">
@@ -52,7 +53,7 @@ function ProductImage({ url, name }: { url: string; name: string }) {
 }
 export default function ShopPage() {
   const { tenant, enabled, loading, error } = useShop();
-  if (loading) return <p className="p-8 text-center">Dukaanka waa la hubinayaa...</p>;
+  if (loading) return <ShopSkeleton />;
   if (!enabled || !tenant)
     return (
       <div className="p-8 text-center">
@@ -145,6 +146,25 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
   }, [cart, storageKey]);
   const catalog = useQuery({
     queryKey: ["shop-catalog", tenantId],
+    initialData: () => {
+      try {
+        const saved = JSON.parse(localStorage.getItem(`${storageKey}:catalog`) || "null");
+        if (saved?.tenantId === tenantId && typeof saved.savedAt === "number" &&
+            Date.now() - saved.savedAt < 12 * 60 * 60 * 1000 &&
+            Array.isArray(saved.categories) && Array.isArray(saved.products)) {
+          return { categories: saved.categories as Category[], products: saved.products as Product[] };
+        }
+      } catch {
+        // Storage can be unavailable in private mode.
+      }
+      return undefined;
+    },
+    initialDataUpdatedAt: () => {
+      try {
+        const saved = JSON.parse(localStorage.getItem(`${storageKey}:catalog`) || "null");
+        return saved?.tenantId === tenantId && typeof saved.savedAt === "number" ? saved.savedAt : 0;
+      } catch { return 0; }
+    },
     queryFn: async () => {
       const [c, p] = await Promise.all([
         shopDb
@@ -163,8 +183,19 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
       if (c.error || p.error) throw c.error || p.error;
       return { categories: c.data as Category[], products: p.data as Product[] };
     },
-    staleTime: 0,
+    staleTime: 30_000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
+  useEffect(() => {
+    if (!catalog.data || catalog.isFetching || catalog.isError) return;
+    try {
+      localStorage.setItem(`${storageKey}:catalog`, JSON.stringify({
+        tenantId, savedAt: Date.now(),
+        categories: catalog.data.categories, products: catalog.data.products,
+      }));
+    } catch {}
+  }, [catalog.data, catalog.isFetching, catalog.isError, storageKey, tenantId]);
   const checkoutSettings = useQuery({
     queryKey: ["shop-checkout-settings", tenantId],
     queryFn: async () => {
@@ -334,12 +365,14 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
     };
   }
 
+  const whatsappContact = supportPhoneE164(supportWhatsApp);
   const nav = [
     { view: "home", label: "Dukaan", Icon: Store },
     { view: "search", label: "Raadi", Icon: Search },
     { view: "cart", label: "Dambiil", Icon: ShoppingCart },
     { view: "orders", label: "Dalabyadayda", Icon: Package },
   ];
+  if (catalog.isLoading && !catalog.data) return <ShopSkeleton />;
   return (
     <div
       className={`shop-screen ${view === "product" ? "shop-detail" : ""} min-h-screen bg-background pb-28 ${view === "home" || view === "search" ? "shop-catalog-screen" : ""}`}
@@ -348,7 +381,7 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
         .shop-detail > header { padding: 10px 12px !important; }
         .shop-detail > main { max-width: 480px; padding: 14px 20px 104px; }
         .shop-detail > main > .detail-gallery { margin-top: 0; }
-        .shop-detail .detail-gallery img { max-height: 260px; }
+        .shop-detail .detail-gallery .shop-gallery-primary { max-height: none; }
         .shop-detail .detail-footer > div { max-width: 440px; gap: 14px; }
         .shop-detail .detail-gallery { margin-bottom: 10px; }
         .shop-detail .detail-name { font-size: 23px; line-height: 28px; font-weight: 800; letter-spacing: -.5px; }
@@ -374,7 +407,8 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
         .shop-catalog-screen section[aria-labelledby="shop-categories"] button > span:last-child { min-height: 0; font-size: 12px; line-height: 16px; }
         .shop-catalog-screen section[aria-labelledby="shop-products"] > div { margin-top: 12px; gap: 10px; }
         .shop-catalog-screen article { padding: 12px; border-radius: 11px; }
-        .shop-catalog-screen article img, .shop-catalog-screen article button > div { height: 112px; aspect-ratio: auto; padding: 0; border-radius: 8px; }
+        .shop-catalog-screen article img, .shop-catalog-screen article button > div { width: 100%; height: auto; aspect-ratio: 1 / 1; padding: 0; border-radius: 8px; }
+        .shop-catalog-screen article img { object-fit: cover; object-position: center; }
         .shop-catalog-screen article h3 { font-size: 15px; line-height: 18px; font-weight: 700; margin-top: 8px; }
         .shop-catalog-screen article p { font-size: 11px; line-height: 15px; margin-top: 3px; gap: 4px; }
         .shop-catalog-screen article p svg { width: 12px; height: 12px; }
@@ -384,7 +418,7 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
         .shop-catalog-screen article > div > button svg { width: 20px; height: 20px; }
         .shop-screen > nav button { font-size: 12px; line-height: 16px; padding: 10px 2px; gap: 5px; border-radius: 12px 12px 0 0; }
         .shop-screen > nav svg { width: 25px; height: 25px; }
-        @media (min-width: 480px) { .shop-catalog-screen article img, .shop-catalog-screen article button > div { height: 170px; } }
+
       `}</style>
       <header className={view === "cart"
         ? "border-b bg-background px-4 py-4 text-foreground"
@@ -452,7 +486,7 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
             {message}
           </p>
         )}
-        {catalog.isLoading && <p>Waa la soo dejinayaa...</p>}
+
         {catalog.isError && (
           <div role="alert">
             Alaabta lama soo akhrin karin.{" "}
@@ -662,6 +696,7 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
             items={cartItems.map(product => ({ product, quantity: cart[product.id] }))}
             unavailable={unavailable}
             methods={paymentMethods}
+            supportWhatsApp={supportWhatsApp}
             loadingMethods={checkoutSettings.isLoading}
             methodsError={checkoutSettings.isError}
             onRetryMethods={() => void checkoutSettings.refetch()}
