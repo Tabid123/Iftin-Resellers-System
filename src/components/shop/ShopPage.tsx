@@ -184,6 +184,8 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
     },
     staleTime: 10_000,
     refetchOnWindowFocus: true,
+    refetchOnMount: "always",
+    refetchInterval: 30_000,
   });
   // One shared source for the tenant's FAB support numbers, managed in
   // Settings -> App Settings. Legacy eCommerce support values remain a fallback
@@ -304,6 +306,12 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
     if (error) throw error;
 
     const token = String(data.token);
+    // Preserve the private receipt even when the next network request fails.
+    const next = [...new Set([...tokens, token])].slice(-50);
+    localStorage.setItem(storageKey + ":orders", JSON.stringify(next));
+    setTokens(next);
+    setLastOrderId(String(data.id));
+    try { sessionStorage.setItem(storageKey + ":last-order-id", String(data.id)); } catch {}
     // Read the server-snapshotted destination before allowing a money-transfer dial.
     const { data: orderHistory, error: historyError } = await shopDb.rpc("shop_order_history", {
       p_tokens: [token],
@@ -316,11 +324,6 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
       throw new Error("Dalabka waa la diiwaangeliyay, balse xogta lacag-bixinta lama xaqiijin. Ka eeg Dalabyadayda.");
     }
 
-    const next = [...new Set([...tokens, token])].slice(-50);
-    localStorage.setItem(storageKey + ":orders", JSON.stringify(next));
-    setTokens(next);
-    setLastOrderId(String(data.id));
-    try { sessionStorage.setItem(storageKey + ":last-order-id", String(data.id)); } catch {}
     setCart({});
     setRequestId(crypto.randomUUID());
     return {
@@ -438,7 +441,7 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
         )}
       </header>
       <main className="mx-auto max-w-xl space-y-7 p-4">
-        {view !== "home" && view !== "product" && (
+        {view !== "home" && view !== "product" && view !== "cart" && (
           <button className="flex items-center gap-2 text-primary" onClick={() => go("home")}>
             <ArrowLeft className="h-4 w-4" />
             Dukaanka
