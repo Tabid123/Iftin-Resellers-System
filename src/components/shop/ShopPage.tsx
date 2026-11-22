@@ -285,7 +285,6 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
         .shop-detail .detail-footer { padding: 12px 20px calc(12px + env(safe-area-inset-bottom)); }
         .shop-screen { font-family: Arial, Helvetica, sans-serif; -webkit-text-size-adjust: 100%; }
         .shop-screen > header { padding: 10px 13px 14px; }
-        .shop-screen > header > div > a { font-size: 13px; line-height: 18px; margin-bottom: 10px; gap: 8px; }
         .shop-screen > header h1 { font-size: 22px; line-height: 26px; font-weight: 800; letter-spacing: -.5px; }
         .shop-screen > header button { align-items: center; font-size: 14px; gap: 4px; }
         .shop-screen > header button svg { width: 25px; height: 25px; }
@@ -296,7 +295,7 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
         .shop-catalog-screen section:first-of-type input { height: 40px; padding-left: 43px; border-radius: 12px; font-size: 15px; }
         .shop-catalog-screen section:first-of-type svg { left: 16px; width: 19px; height: 19px; }
         .shop-catalog-screen section[aria-labelledby="shop-categories"] { margin-top: -10px; }
-        .shop-catalog-screen section[aria-labelledby="shop-categories"] > div { margin: 18px -13px 0; padding: 8px 13px 4px; gap: 12px; }
+        .shop-catalog-screen section[aria-labelledby="shop-categories"] > div { margin: 18px -13px 0; padding: 8px 23px 4px; gap: 12px; }
         .shop-catalog-screen section[aria-labelledby="shop-categories"] button { width: 76px; gap: 6px; }
         .shop-catalog-screen section[aria-labelledby="shop-categories"] button > span:first-child { width: 76px; height: 76px; padding: 3px; flex-shrink: 0; transform: scale(1); transition: transform 220ms cubic-bezier(.2,.8,.2,1), border-color 220ms ease, box-shadow 220ms ease; }
         .shop-catalog-screen section[aria-labelledby="shop-categories"] button[aria-pressed="true"] > span:first-child { transform: scale(1.06); }
@@ -336,12 +335,17 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
           </div>
         ) : (
           <div className="mx-auto max-w-xl">
-            <Link to="/providers" className="mb-2 flex items-center gap-2 text-sm">
-              <ArrowLeft className="h-4 w-4" />
-              {tenantName}
-            </Link>
-            <div className="flex items-center justify-between">
-              <h1 className="text-[28px] font-extrabold tracking-tight">Dukaanka</h1>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <Link
+                  to="/providers"
+                  aria-label="Ku noqo app-ka"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Link>
+                <h1 className="text-[28px] font-extrabold tracking-tight">Dukaanka</h1>
+              </div>
               <button aria-label="Fur dambiisha" onClick={() => go("cart")} className="flex gap-1">
                 <ShoppingCart />
                 {count}
