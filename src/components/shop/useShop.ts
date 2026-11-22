@@ -6,7 +6,8 @@ import { useTenant } from "@/contexts/TenantContext";
 // New schema is deployed by the accompanying migration before enabling any shop.
 export const shopDb = supabase as any;
 export function useShop() {
-  const { tenant } = useTenant();
+  const tenantState = useTenant();
+  const { tenant } = tenantState;
   const query = useQuery({
     queryKey: ["shop-enabled", tenant?.id],
     enabled: !!tenant?.id,
@@ -53,7 +54,7 @@ export function useShop() {
   return {
     tenant,
     enabled: query.data === true && !query.isError,
-    loading: query.isLoading,
+    loading: tenantState.status === "loading" || query.isLoading,
     error: query.error,
   };
 }
