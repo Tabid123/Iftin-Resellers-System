@@ -21,6 +21,8 @@ import { ProductGallery } from "./ShopImages";
 import ShopPaymentInstructions from "./ShopPaymentInstructions";
 import ShopSupportFab from "./ShopSupportFab";
 import { evcPlusDialCode } from "./evcPlusDial";
+import ShopCartView, { ShopOrderPaymentReceipt } from "./ShopCartView";
+import { shopPaymentOptions } from "./shopPaymentOptions";
 type Product = {
   id: string;
   category_id: string;
@@ -168,13 +170,14 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
     queryFn: async () => {
       const { data, error } = await shopDb
         .from("shop_checkout_settings")
-        .select("payment_provider,payment_number,support_whatsapp,support_call")
+        .select("payment_provider,payment_number,payment_methods,support_whatsapp,support_call")
         .eq("tenant_id", tenantId)
         .maybeSingle();
       if (error) throw error;
       return data as {
         payment_provider: string;
         payment_number: string;
+        payment_methods: unknown;
         support_whatsapp: string;
         support_call: string;
       } | null;
@@ -215,6 +218,7 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
     },
   });
   const lastOrder = orders.data?.find((o: any) => o.id === lastOrderId);
+  const paymentMethods = shopPaymentOptions(checkoutSettings.data);
   const paymentNumber = checkoutSettings.data?.payment_number ?? "";
   const paymentProvider = checkoutSettings.data?.payment_provider || "Mobile Money";
   const supportWhatsApp = fabContacts.data
@@ -279,6 +283,54 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
       setBusy(false);
     }
   }
+  async function placeCartOrder(details: {
+    methodKey: string;
+    name: string;
+    phone: string;
+    address: string;
+  }): Promise<ShopOrderPaymentReceipt> {
+    if (!cartItems.length || unavailable || checkoutSettings.isLoading || checkoutSettings.isError) {
+      throw new Error("Hubi dambiisha iyo hababka lacag-bixinta.");
+    }
+    const { data, error } = await shopDb.rpc("shop_place_order_with_method", {
+      p_token: requestId,
+      p_expected_total: Number(total.toFixed(2)),
+      p_name: details.name,
+      p_phone: details.phone,
+      p_address: details.address,
+      p_items: Object.entries(cart).map(([product_id, quantity]) => ({ product_id, quantity })),
+      p_method_key: details.methodKey,
+    });
+    if (error) throw error;
+
+    const token = String(data.token);
+    // Read the server-snapshotted destination before allowing a money-transfer dial.
+    const { data: orderHistory, error: historyError } = await shopDb.rpc("shop_order_history", {
+      p_tokens: [token],
+    });
+    if (historyError) throw historyError;
+    const stored = Array.isArray(orderHistory)
+      ? orderHistory.find((order: any) => order.id === data.id)
+      : null;
+    if (!stored || stored.payment_method !== "manual_transfer" || !stored.payment_number) {
+      throw new Error("Dalabka waa la diiwaangeliyay, balse xogta lacag-bixinta lama xaqiijin. Ka eeg Dalabyadayda.");
+    }
+
+    const next = [...new Set([...tokens, token])].slice(-50);
+    localStorage.setItem(storageKey + ":orders", JSON.stringify(next));
+    setTokens(next);
+    setLastOrderId(String(data.id));
+    try { sessionStorage.setItem(storageKey + ":last-order-id", String(data.id)); } catch {}
+    setCart({});
+    setRequestId(crypto.randomUUID());
+    return {
+      id: String(data.id),
+      provider: String(stored.payment_provider || ""),
+      number: String(stored.payment_number),
+      total: Number(stored.total),
+    };
+  }
+
   const nav = [
     { view: "home", label: "Dukaan", Icon: Store },
     { view: "search", label: "Raadi", Icon: Search },
@@ -331,7 +383,9 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
         .shop-screen > nav svg { width: 25px; height: 25px; }
         @media (min-width: 480px) { .shop-catalog-screen article img, .shop-catalog-screen article button > div { height: 170px; } }
       `}</style>
-      <header className="bg-primary px-4 py-5 text-primary-foreground">
+      <header className={view === "cart"
+        ? "border-b bg-background px-4 py-4 text-foreground"
+        : "bg-primary px-4 py-5 text-primary-foreground"}>
         {view === "product" ? (
           <div className="mx-auto flex max-w-xl items-center justify-between gap-3">
             <button aria-label="Ku noqo dukaanka" onClick={() => go("home")}>
@@ -348,6 +402,19 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
                 {count}
               </span>
             </button>
+          </div>
+        ) : view === "cart" ? (
+          <div className="mx-auto flex max-w-xl items-center justify-between gap-3">
+            <button
+              type="button"
+              aria-label="Ku noqo dukaanka"
+              onClick={() => go("home")}
+              className="flex items-center gap-2 text-sm font-semibold"
+            >
+              <ArrowLeft className="h-5 w-5" />
+              Dukaanka
+            </button>
+            <span className="truncate text-sm font-semibold text-primary">{tenantName}</span>
           </div>
         ) : (
           <div className="mx-auto max-w-xl">
@@ -587,7 +654,33 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
           ) : (
             !catalog.isLoading && <p>Alaabtan hadda lama heli karo.</p>
           ))}
-        {(view === "cart" || view === "checkout") && (
+        {view === "cart" && (
+          <ShopCartView
+            items={cartItems.map(product => ({ product, quantity: cart[product.id] }))}
+            unavailable={unavailable}
+            methods={paymentMethods}
+            loadingMethods={checkoutSettings.isLoading}
+            methodsError={checkoutSettings.isError}
+            onRetryMethods={() => void checkoutSettings.refetch()}
+            onQuantity={(product, delta) => {
+              const full = products.find(p => p.id === product.id);
+              if (full) change(full, delta);
+            }}
+            onRemoveUnavailable={() => {
+              setCart(old => Object.fromEntries(
+                Object.entries(old).filter(([id]) => products.some(p => p.id === id)),
+              ));
+              setRequestId(crypto.randomUUID());
+            }}
+            onClear={() => {
+              setCart({});
+              setRequestId(crypto.randomUUID());
+            }}
+            onViewOrders={() => go("orders")}
+            onPlaceOrder={placeCartOrder}
+          />
+        )}
+        {view === "checkout" && (
           <>
             <h2 className="text-xl font-bold">
               {view === "cart" ? "Dambiisha" : "Dhammaystir dalabka"}
