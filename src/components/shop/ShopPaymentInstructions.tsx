@@ -7,17 +7,20 @@ export default function ShopPaymentInstructions({
   provider,
   number,
   amount,
+  showDialButton = true,
 }: {
   provider: string;
   number: string;
   /** Only supply an amount for an already registered order. */
   amount?: number;
+  /** Hide the duplicate EVC shortcut when the checkout receipt provides one. */
+  showDialButton?: boolean;
 }) {
   if (!number) return <p className="text-sm text-muted-foreground">Lacagta waxaa la bixinayaa marka la keeno.</p>;
 
   // The direct dial link is only offered for supported Hormuud 61/77 transfers.
   // Merely opening the dialer is not proof of payment.
-  const dialCode = amount === undefined ? null : evcPlusDialCode(provider, number, amount);
+  const dialCode = !showDialButton || amount === undefined ? null : evcPlusDialCode(provider, number, amount);
 
   return (
     <div className="space-y-3 rounded-2xl border border-primary/20 bg-primary/5 p-4">
