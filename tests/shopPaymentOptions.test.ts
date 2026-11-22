@@ -13,6 +13,22 @@ describe("shop tenant payment methods", () => {
         { id: "dahab", provider: "eDahab", number: "629535029" },
       ],
     })).toHaveLength(2);
+
+    const configured = shopPaymentOptions({
+      payment_provider: "EVC Plus",
+      payment_number: "619535029",
+      payment_methods: [
+        { id: "evc", provider: "EVC Plus", number: "619535029", enabled: true },
+        { id: "edahab", provider: "eDahab", number: "629535029", enabled: false },
+      ],
+    });
+    expect(configured.map(method => method.provider)).toEqual(["EVC Plus"]);
+    // No fallback to the legacy field when all configured methods are OFF.
+    expect(shopPaymentOptions({
+      payment_provider: "EVC Plus",
+      payment_number: "619535029",
+      payment_methods: [{ id: "evc", provider: "EVC Plus", number: "619535029", enabled: false }],
+    })).toEqual([]);
   });
 
   it("validates payer phone according to the chosen network", () => {
@@ -27,7 +43,8 @@ describe("shop tenant payment methods", () => {
   it("uses verified dial formats and never invents a bank payment shortcode", () => {
     expect(shopMethodDialHref("EVC Plus", "619535029", 7.56))
       .toBe("tel:*712*619535029*7.56%23");
-    expect(shopMethodDialHref("eDahab", "629535029", 7.56)).toBe("tel:*101%23");
+    // eDahab has no verified send-money dial syntax: do not open *101#.
+    expect(shopMethodDialHref("eDahab", "629535029", 7.56)).toBeNull();
     expect(shopMethodDialHref("Premier Wallet", "619535029", 7.56)).toBeNull();
   });
 });
