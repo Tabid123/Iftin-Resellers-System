@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { useShop, shopDb } from "./useShop";
 import { toast } from "@/hooks/use-toast";
 import { CreditCard, Headset, Plus, Save, Trash2 } from "lucide-react";
@@ -11,6 +12,7 @@ export type ShopPaymentMethod = {
   id: string;
   provider: string;
   number: string;
+  enabled: boolean;
 };
 
 type CheckoutConfig = {
@@ -33,10 +35,10 @@ const validPhone = (phone: string) => !phone || /^\+?[0-9]{7,15}$/.test(phone);
 
 function configuredMethods(settings: CheckoutConfig): ShopPaymentMethod[] {
   if (Array.isArray(settings.payment_methods) && settings.payment_methods.length) {
-    return settings.payment_methods;
+    return settings.payment_methods.map(method => ({ ...method, enabled: method.enabled !== false }));
   }
   return settings.payment_number
-    ? [{ id: "legacy", provider: settings.payment_provider || "EVC Plus", number: settings.payment_number }]
+    ? [{ id: "legacy", provider: settings.payment_provider || "EVC Plus", number: settings.payment_number, enabled: true }]
     : [];
 }
 
@@ -74,6 +76,13 @@ export default function ShopCheckoutSettings() {
     }));
   }
 
+  function setMethodEnabled(id: string, enabled: boolean) {
+    setForm(old => ({
+      ...old,
+      payment_methods: old.payment_methods.map(m => m.id === id ? { ...m, enabled } : m),
+    }));
+  }
+
   async function save(event: React.FormEvent) {
     event.preventDefault();
     if (!tenant || busy) return;
@@ -81,11 +90,13 @@ export default function ShopCheckoutSettings() {
       id: m.id,
       provider: m.provider.trim(),
       number: normalizedPhone(m.number),
+      enabled: m.enabled !== false,
     }));
+    const primary = methods.find(method => method.enabled);
     const next: CheckoutConfig = {
       ...form,
-      payment_provider: methods[0]?.provider || "EVC Plus",
-      payment_number: methods[0]?.number || "",
+      payment_provider: primary?.provider || "EVC Plus",
+      payment_number: primary?.number || "",
       payment_methods: methods,
       support_whatsapp: normalizedPhone(form.support_whatsapp),
       support_call: normalizedPhone(form.support_call),
@@ -144,7 +155,7 @@ export default function ShopCheckoutSettings() {
             disabled={busy || form.payment_methods.length >= 8}
             onClick={() => setForm(old => ({
               ...old,
-              payment_methods: [...old.payment_methods, { id: crypto.randomUUID(), provider: "", number: "" }],
+              payment_methods: [...old.payment_methods, { id: crypto.randomUUID(), provider: "", number: "", enabled: false }],
             }))}
           >
             <Plus className="h-4 w-4" /> Ku dar shirkad
@@ -152,8 +163,8 @@ export default function ShopCheckoutSettings() {
         </div>
 
         <p className="text-sm text-muted-foreground">
-          Hababkan kaliya ayaa ka muuqanaya popup-ka macaamilka ee dambiisha.
-          Adeeg kasta u geli magaca iyo lambarka saxda ah ee lacagta lagu dirayo.
+          Admin-ka ayaa shirkad kasta ON/OFF ka dhigaya. Popup-ka macaamilka
+          waxa ka muuqanaya oo keliya shirkadaha ON ah ee leh lambar sax ah.
         </p>
 
         <datalist id="shop-payment-providers">
@@ -168,6 +179,17 @@ export default function ShopCheckoutSettings() {
           <div key={method.id} className="space-y-3 rounded-2xl border bg-background p-4">
             <div className="flex items-center justify-between gap-3">
               <strong>Shirkadda {index + 1}</strong>
+              <div className="flex items-center gap-3">
+                <label htmlFor={`shop-method-${method.id}`} className="text-sm font-semibold">
+                  {method.enabled ? "ON — Furan" : "OFF — Xiran"}
+                </label>
+                <Switch
+                  id={`shop-method-${method.id}`}
+                  checked={method.enabled !== false}
+                  onCheckedChange={checked => setMethodEnabled(method.id, checked)}
+                  aria-label={`Shirkadda ${index + 1} ON ama OFF`}
+                />
+              </div>
               <Button
                 type="button"
                 size="sm"
@@ -214,10 +236,12 @@ export default function ShopCheckoutSettings() {
           </p>
         )}
         <p className="rounded-lg bg-muted p-3 text-xs text-muted-foreground">
-          EVC Plus (61/77): badhanka lacag-bixinta wuxuu furi karaa koodhka USSD.
-          eDahab: menu-ga *101# ayaa furmaya. Adeegyada kale waxay muujiyaan
-          lambarka iyo tilmaamaha bixinta ilaa shortcode-kooda si rasmi ah loo dejiyo.
-          Furitaanka dialer-ka ma aha xaqiijin lacag-bixin.
+          EVC Plus (61/77): lacag-dirista USSD waxaa la diyaarin karaa marka
+          lambarka merchant-ka iyo wadarta dalabku sax yihiin.
+          eDahab ama shirkad kale ON ah: waxaa la tusayaa lambarka lacag-dirista;
+          koodh USSD aan la xaqiijin si toos ah looma furo.
+          Shirkad OFF ah macaamilka uma muuqanayso. Furitaanka dialer-ka
+          ma aha caddeyn in lacagtu dhacday.
         </p>
       </section>
 
