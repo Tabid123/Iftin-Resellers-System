@@ -870,7 +870,7 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
           </>
         )}
       </main>
-      <ShopSupportFab whatsapp={supportWhatsApp} call={supportCall} />
+      {view !== "cart" && <ShopSupportFab whatsapp={supportWhatsApp} call={supportCall} />}
       {view !== "checkout" && view !== "product" && (
         <nav
           aria-label="Dukaanka"
