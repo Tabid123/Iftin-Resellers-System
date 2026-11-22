@@ -176,7 +176,7 @@ export default function ShopCartView({
   }
 
   return (
-    <div className="space-y-5 pb-5">
+    <div className={count ? "space-y-5 pb-48" : "space-y-5 pb-5"}>
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-extrabold">Dambiisha ({count} alaab)</h2>
@@ -335,18 +335,24 @@ export default function ShopCartView({
               </p>
             )}
             {error && <p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
-            <Button
-              type="button"
-              className="min-h-14 w-full gap-2 rounded-xl text-base font-bold"
-              disabled={!canOrder || methods.length === 0}
-              onClick={selected ? openPayer : () => setMethodOpen(true)}
-            >
-              {selected ? "Bixi Hadda" : "Select payment method"}
-              <ArrowRight className="h-5 w-5" />
-            </Button>
             <p className="text-center text-xs text-muted-foreground">
               PIN-ka lacag-bixinta waligaa ha ku qorin app-kan. Dialer-ka ayaa ku weydiinaya.
             </p>
+            <div className="fixed inset-x-0 z-40 border-t bg-background/95 px-4 py-3 shadow-[0_-4px_20px_rgba(16,24,40,0.08)] backdrop-blur-sm"
+              style={{ bottom: "calc(4.25rem + env(safe-area-inset-bottom))" }}
+            >
+              <div className="mx-auto max-w-xl">
+                <Button
+                  type="button"
+                  className="min-h-14 w-full gap-2 rounded-xl text-base font-bold"
+                  disabled={!canOrder || methods.length === 0}
+                  onClick={selected ? openPayer : () => setMethodOpen(true)}
+                >
+                  {selected ? "Bixi Hadda" : "Select payment method"}
+                  <ArrowRight className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
           </section>
         </>
       )}
