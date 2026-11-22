@@ -76,6 +76,9 @@ jobs:
       - name: Verify tenant shop payment methods and safe USSD links
         run: bun run test -- tests/shopPaymentOptions.test.ts tests/shopEvcDial.test.ts
 
+      - name: Verify storefront images, brand logos, WhatsApp and fast loading
+        run: bun run test -- tests/shopStorefrontExperience.test.ts
+
       - name: Verify Orders date picker and day-scoped totals
         run: bun run test -- tests/ordersDateFilter.test.ts
 
