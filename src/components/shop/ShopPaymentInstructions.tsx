@@ -1,7 +1,8 @@
-import { Copy, CreditCard, PhoneCall } from "lucide-react";
+import { Copy, PhoneCall } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { evcPlusDialCode, evcPlusDialHref } from "./evcPlusDial";
+import ShopPaymentLogo from "./ShopPaymentLogo";
 
 export default function ShopPaymentInstructions({
   provider,
@@ -24,7 +25,7 @@ export default function ShopPaymentInstructions({
 
   return (
     <div className="space-y-3 rounded-2xl border border-primary/20 bg-primary/5 p-4">
-      <h3 className="flex items-center gap-2 font-bold"><CreditCard className="h-5 w-5 text-primary" /> Lacag-bixinta</h3>
+      <h3 className="flex items-center gap-2 font-bold"><ShopPaymentLogo provider={provider} size="sm" /> Lacag-bixinta</h3>
       <p className="text-sm">Lacagta ku dir lambarka hoose adigoo isticmaalaya {provider || "Mobile Money"}.</p>
       {amount !== undefined && Number.isFinite(amount) && amount > 0 && (
         <p className="text-lg font-extrabold">Wadarta: ${amount.toFixed(2)}</p>
