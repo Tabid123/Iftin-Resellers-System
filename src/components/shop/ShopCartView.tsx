@@ -164,8 +164,9 @@ export default function ShopCartView({
         )}
         {!receiptDialHref && (
           <p className="rounded-xl border bg-muted/40 p-3 text-sm">
-            Adeeggan ma laha koodh USSD oo la xaqiijiyey. Ka isticmaal app-ka
-            shirkadda ama ku dir lacagta lambarka kor ku qoran.
+            Habkan lacag-bixineed waa furan yahay, laakiin koodh USSD sax ah lama xaqiijin.
+            Ka isticmaal app-ka shirkadda ama ku dir lacagta lambarka dukaanka ee kor ku qoran.
+            Lacag-bixinta maamulka ayaa xaqiijinaya.
           </p>
         )}
         <Button type="button" variant="outline" className="w-full" onClick={onViewOrders}>
@@ -440,7 +441,11 @@ export default function ShopCartView({
               disabled={busy || !selected || !validPayerPhone(selected.provider, payerNumber)}
               onClick={() => void confirmPayer()}
             >
-              {busy ? "Dalabka waa la diiwaangelinayaa..." : "Confirm — Fur dialer-ka"}
+              {busy
+                ? "Dalabka waa la diiwaangelinayaa..."
+                : selected && shopMethodDialHref(selected.provider, selected.number, total)
+                  ? "Confirm — Fur dialer-ka"
+                  : "Confirm — Diiwaangeli dalabka"}
               <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
