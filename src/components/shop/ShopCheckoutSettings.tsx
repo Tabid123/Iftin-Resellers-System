@@ -7,12 +7,14 @@ import { useShop, shopDb } from "./useShop";
 import { toast } from "@/hooks/use-toast";
 import { CreditCard, Headset, Plus, Save, Trash2 } from "lucide-react";
 import { Link } from "@/lib/router-compat";
+import ShopPaymentLogo from "./ShopPaymentLogo";
 
 export type ShopPaymentMethod = {
   id: string;
   provider: string;
   number: string;
   enabled: boolean;
+  logo_url?: string;
 };
 
 type CheckoutConfig = {
@@ -69,7 +71,7 @@ export default function ShopCheckoutSettings() {
     setForm({ ...current, payment_methods: configuredMethods(current) });
   }, [query.isSuccess, query.data, tenant?.id]);
 
-  function updateMethod(id: string, key: "provider" | "number", value: string) {
+  function updateMethod(id: string, key: "provider" | "number" | "logo_url", value: string) {
     setForm(old => ({
       ...old,
       payment_methods: old.payment_methods.map(m => m.id === id ? { ...m, [key]: value } : m),
@@ -91,6 +93,7 @@ export default function ShopCheckoutSettings() {
       provider: m.provider.trim(),
       number: normalizedPhone(m.number),
       enabled: m.enabled !== false,
+      logo_url: m.logo_url?.trim() || "",
     }));
     const primary = methods.find(method => method.enabled);
     const next: CheckoutConfig = {
@@ -106,7 +109,8 @@ export default function ShopCheckoutSettings() {
       new Set(methods.map(m => m.id)).size !== methods.length ||
       methods.some(m => !/^[a-zA-Z0-9_-]{1,72}$/.test(m.id) ||
         !m.provider || m.provider.length > 60 ||
-        !validPhone(m.number) || !m.number) ||
+        !validPhone(m.number) || !m.number ||
+        (m.logo_url && !/^https:\/\/[^\s]+$/i.test(m.logo_url))) ||
       !validPhone(next.support_whatsapp) || !validPhone(next.support_call)) {
       toast({
         title: "Hubi hababka lacag-bixinta",
@@ -155,7 +159,7 @@ export default function ShopCheckoutSettings() {
             disabled={busy || form.payment_methods.length >= 8}
             onClick={() => setForm(old => ({
               ...old,
-              payment_methods: [...old.payment_methods, { id: crypto.randomUUID(), provider: "", number: "", enabled: false }],
+              payment_methods: [...old.payment_methods, { id: crypto.randomUUID(), provider: "", number: "", enabled: false, logo_url: "" }],
             }))}
           >
             <Plus className="h-4 w-4" /> Ku dar shirkad
@@ -178,7 +182,10 @@ export default function ShopCheckoutSettings() {
         {form.payment_methods.map((method, index) => (
           <div key={method.id} className="space-y-3 rounded-2xl border bg-background p-4">
             <div className="flex items-center justify-between gap-3">
-              <strong>Shirkadda {index + 1}</strong>
+              <div className="flex items-center gap-2">
+                <ShopPaymentLogo provider={method.provider} logoUrl={method.logo_url} size="sm" />
+                <strong>Shirkadda {index + 1}</strong>
+              </div>
               <div className="flex items-center gap-3">
                 <label htmlFor={`shop-method-${method.id}`} className="text-sm font-semibold">
                   {method.enabled ? "ON — Furan" : "OFF — Xiran"}
@@ -226,6 +233,19 @@ export default function ShopCheckoutSettings() {
                 value={method.number}
                 onChange={e => updateMethod(method.id, "number", e.target.value)}
               />
+            </label>
+            <label className="block space-y-1 text-sm">
+              Logo URL (ikhtiyaari)
+              <Input
+                type="url"
+                maxLength={500}
+                placeholder="https://.../logo.png"
+                value={method.logo_url || ""}
+                onChange={e => updateMethod(method.id, "logo_url", e.target.value)}
+              />
+              <span className="text-xs text-muted-foreground">
+                EVC Plus, eDahab iyo Jeeb waxay leeyihiin logo diyaarsan.
+              </span>
             </label>
           </div>
         ))}
