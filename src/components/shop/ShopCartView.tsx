@@ -148,7 +148,10 @@ export default function ShopCartView({
           </p>
           <p className="mt-3 text-2xl font-extrabold text-primary">{money(receipt.total)}</p>
         </div>
-        <ShopPaymentInstructions provider={receipt.provider} number={receipt.number} amount={receipt.total} />
+        <ShopPaymentInstructions provider={receipt.provider} number={receipt.number} amount={receipt.total} showDialButton={false} />
+        <p className="text-center text-xs font-semibold text-destructive">
+          Haddii aad hore lacagta u dirtay, mar labaad ha bixin.
+        </p>
         {receiptDialHref && (
           <a
             className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-4 font-bold text-primary-foreground"
