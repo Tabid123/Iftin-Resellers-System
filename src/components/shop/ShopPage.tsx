@@ -20,6 +20,7 @@ import { useShop, shopDb, money, orderStatuses } from "./useShop";
 import { ProductGallery } from "./ShopImages";
 import ShopPaymentInstructions from "./ShopPaymentInstructions";
 import ShopSupportFab from "./ShopSupportFab";
+import { evcPlusDialCode } from "./evcPlusDial";
 type Product = {
   id: string;
   category_id: string;
@@ -696,6 +697,12 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
                 )}
                 {!checkoutSettings.isLoading && !checkoutSettings.isError && (
                   <ShopPaymentInstructions provider={paymentProvider} number={paymentNumber} />
+                )}
+                {evcPlusDialCode(paymentProvider, paymentNumber, total) && (
+                  <p className="rounded-xl bg-primary/5 p-3 text-sm">
+                    Marka hore diiwaangeli dalabka. Bogga xiga taabo “Bixi Hadda”
+                    si EVC Plus uga furmo telefoonkaaga.
+                  </p>
                 )}
                 <Button className="w-full" disabled={busy || !count || unavailable || checkoutSettings.isLoading || checkoutSettings.isError}>
                   {busy ? "Waa la dirayaa..." : "Diiwaangeli dalabka"}
