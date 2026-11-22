@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
+import ShopSkeleton from "@/components/shop/ShopSkeleton";
 
 const ShopPage = lazy(() => import("@/components/shop/ShopPage"));
 
@@ -16,7 +17,7 @@ export const Route = createFileRoute("/t/$slug/shop")({
     product: typeof search.product === "string" ? search.product : undefined,
   }),
   component: () => (
-    <Suspense fallback={<p className="p-8">Sug...</p>}>
+    <Suspense fallback={<ShopSkeleton />}>
       <ShopPage />
     </Suspense>
   ),
