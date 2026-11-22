@@ -17,6 +17,7 @@ describe("tenant eCommerce EVC Plus dial", () => {
     expect(evcPlusDialCode("EVC Plus", "123456", 15)).toBeNull();
     expect(evcPlusDialCode("EVC Plus", "629535029", 15)).toBeNull();
     expect(evcPlusDialCode("EVC Plus", "619535029", 0)).toBeNull();
+    expect(evcPlusDialCode("EVC Plus", "619535029", 0.001)).toBeNull();
     expect(evcPlusDialCode("EVC Plus", "619535029", Number.NaN)).toBeNull();
   });
 });
