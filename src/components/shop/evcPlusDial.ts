@@ -9,9 +9,11 @@ export function evcPlusDialCode(provider: string, phone: string, amount: number)
   if (/^252(61|77)\d{7}$/.test(digits)) digits = digits.slice(3);
   if (/^0(61|77)\d{7}$/.test(digits)) digits = digits.slice(1);
   if (!/^(61|77)\d{7}$/.test(digits)) return null;
-  if (!Number.isFinite(amount) || amount <= 0 || !Number.isSafeInteger(Math.round(amount * 100))) return null;
+  if (!Number.isFinite(amount)) return null;
+  const cents = Math.round(amount * 100);
+  if (!Number.isSafeInteger(cents) || cents <= 0) return null;
 
-  const dollars = (Math.round(amount * 100) / 100).toFixed(2);
+  const dollars = (cents / 100).toFixed(2);
   return `*712*${digits}*${dollars}#`;
 }
 
