@@ -1,13 +1,14 @@
 import { useState } from "react";
 import {
-  ArrowRight, CheckCircle2, ChevronRight, CreditCard, MapPin,
+  ArrowRight, CheckCircle2, ChevronRight, CreditCard, MapPin, MessageCircle,
   Minus, Package, Plus, ShoppingBag, Store, Trash2, Truck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { money } from "./useShop";
-import ShopPaymentInstructions from "./ShopPaymentInstructions";
+import ShopPaymentLogo from "./ShopPaymentLogo";
+import { supportPhoneE164 } from "./ShopSupportFab";
 import {
   normalizedPayerPhone,
   shopMethodDialHref,
@@ -41,6 +42,7 @@ type Props = {
   onRemoveUnavailable: () => void;
   onClear: () => void;
   onViewOrders: () => void;
+  supportWhatsApp?: string;
   onPlaceOrder: (details: {
     methodKey: string;
     name: string;
@@ -66,7 +68,7 @@ function CartThumbnail({ product }: { product: ShopCartProduct }) {
 
 export default function ShopCartView({
   items, unavailable, methods, loadingMethods, methodsError,
-  onRetryMethods, onQuantity, onRemoveUnavailable, onClear, onViewOrders, onPlaceOrder,
+  onRetryMethods, onQuantity, onRemoveUnavailable, onClear, onViewOrders, supportWhatsApp, onPlaceOrder,
 }: Props) {
   const [fulfillment, setFulfillment] = useState<"delivery" | "pickup">("delivery");
   const [methodKey, setMethodKey] = useState("");
@@ -85,6 +87,15 @@ export default function ShopCartView({
   const invalidStock = items.some(item => item.quantity > item.product.stock);
   const canOrder = count > 0 && !unavailable && !invalidStock && !loadingMethods && !methodsError;
   const receiptDialHref = receipt ? shopMethodDialHref(receipt.provider, receipt.number, receipt.total) : null;
+  const whatsappPhone = supportPhoneE164(supportWhatsApp || "");
+  const whatsappHref = receipt && whatsappPhone
+    ? `https://wa.me/${whatsappPhone.slice(1)}?text=${encodeURIComponent(
+        `Salaan, waxaan rabaa inaan wax ka weydiiyo dalabka #${receipt.id.slice(0, 8)}. Wadarta: ${money(receipt.total)}.`
+      )}`
+    : "";
+  const receiptLogo = methods.find(method => (
+    method.provider === receipt?.provider && method.number === receipt?.number
+  ))?.logo_url;
 
   function openPayer() {
     setError("");
@@ -139,7 +150,7 @@ export default function ShopCartView({
 
   if (receipt) {
     return (
-      <section className="space-y-5">
+      <section className="space-y-4 pb-24">
         <div className="rounded-2xl border bg-card p-5 text-center shadow-sm">
           <CheckCircle2 className="mx-auto h-12 w-12 text-primary" />
           <h2 className="mt-3 text-xl font-extrabold">Dalabka waa la diiwaangeliyay</h2>
@@ -147,12 +158,27 @@ export default function ShopCartView({
             Lacagta weli lama xaqiijin. Dukaanka ayaa hubinaya wareejinta.
           </p>
           <p className="mt-3 text-2xl font-extrabold text-primary">{money(receipt.total)}</p>
+          <div className="mt-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <ShopPaymentLogo provider={receipt.provider} logoUrl={receiptLogo} size="sm" />
+            <span>{receipt.provider} · {receipt.number}</span>
+          </div>
+          {whatsappHref && (
+            <a
+              href={whatsappHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 text-sm font-bold text-white"
+            >
+              <MessageCircle className="h-5 w-5" />
+              La xiriir lambarkan
+              <span className="text-xs font-medium">{whatsappPhone}</span>
+            </a>
+          )}
         </div>
-        <ShopPaymentInstructions provider={receipt.provider} number={receipt.number} amount={receipt.total} showDialButton={false} />
         <p className="text-center text-xs font-semibold text-destructive">
           Haddii aad hore lacagta u dirtay, mar labaad ha bixin.
         </p>
-        {receiptDialHref && (
+        {receiptDialHref ? (
           <a
             className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-4 font-bold text-primary-foreground"
             href={receiptDialHref}
@@ -161,12 +187,10 @@ export default function ShopCartView({
             {dialAttempted ? "Mar kale fur dialer-ka" : "Fur dialer-ka"}
             <ArrowRight className="h-5 w-5" />
           </a>
-        )}
-        {!receiptDialHref && (
-          <p className="rounded-xl border bg-muted/40 p-3 text-sm">
-            Habkan lacag-bixineed waa furan yahay, laakiin koodh USSD sax ah lama xaqiijin.
-            Ka isticmaal app-ka shirkadda ama ku dir lacagta lambarka dukaanka ee kor ku qoran.
-            Lacag-bixinta maamulka ayaa xaqiijinaya.
+        ) : (
+          <p className="rounded-xl border bg-muted/40 p-3 text-sm text-muted-foreground">
+            Haddii aadan weli bixin, lacagta ugu dir lambarka {receipt.number} adigoo isticmaalaya {receipt.provider}.
+            Dukaanka ayaa xaqiijinaya lacagta.
           </p>
         )}
         <Button type="button" variant="outline" className="w-full" onClick={onViewOrders}>
@@ -314,7 +338,11 @@ export default function ShopCartView({
               className="flex min-h-14 w-full items-center justify-between gap-2 rounded-2xl border bg-card p-4 text-left shadow-sm disabled:opacity-50"
             >
               <div className="flex items-center gap-3">
-                <CreditCard className="h-6 w-6 text-primary" />
+                {selected ? (
+                  <ShopPaymentLogo provider={selected.provider} logoUrl={selected.logo_url} size="sm" />
+                ) : (
+                  <CreditCard className="h-6 w-6 text-primary" />
+                )}
                 <div>
                   <strong className="block text-sm">{selected ? selected.provider : "Select payment method"}</strong>
                   <p className="text-xs text-muted-foreground">{selected ? "Taabo si aad u beddesho" : "Dooro shirkadda lacag-bixinta"}</p>
@@ -381,7 +409,7 @@ export default function ShopCartView({
                 }}
               >
                 <div className="flex items-center gap-3">
-                  <CreditCard className="h-6 w-6 text-primary" />
+                  <ShopPaymentLogo provider={method.provider} logoUrl={method.logo_url} />
                   <div>
                     <strong className="block">{method.provider}</strong>
                     <span className="text-xs text-muted-foreground">{method.number}</span>
@@ -398,21 +426,21 @@ export default function ShopCartView({
         <DialogContent className="max-w-[calc(100vw-2rem)] rounded-2xl sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Geli lambarkaaga {selected?.provider || "lacag-bixinta"}</DialogTitle>
-            <DialogDescription>
-              Lambarkan wuxuu u adeegayaa xiriirka dalabka. Lacagtu waxay ka baxaysaa
-              SIM-ka aad ku doorato dialer-ka, ma aha lambar kasta oo halkan lagu qoro.
-              PIN-ka ha gelin halkan.
-            </DialogDescription>
+            <DialogDescription>Geli lambarkaaga si loo diiwaangeliyo dalabka.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="rounded-xl bg-primary/5 p-3 text-sm">
               <div className="flex items-center justify-between gap-3">
-                <span>Shirkadda</span><strong>{selected?.provider}</strong>
+                <span>Shirkadda</span>
+                <span className="flex items-center gap-2 font-bold">
+                  {selected && <ShopPaymentLogo provider={selected.provider} logoUrl={selected.logo_url} size="sm" />}
+                  {selected?.provider}
+                </span>
               </div>
               <div className="mt-2 flex items-center justify-between gap-3">
                 <span>Wadarta</span><strong>{money(total)}</strong>
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">Lacagta waxaa loo dirayaa lambarka dukaanka.</p>
+
             </div>
             <label className="block space-y-1 text-sm">
               {selected?.provider || "Mobile Money"} number
