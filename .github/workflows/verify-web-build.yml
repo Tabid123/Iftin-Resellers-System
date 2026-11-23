@@ -43,6 +43,9 @@ jobs:
 
       - name: Test customer login phone prefixes 63, 90 and 65
         run: bun run test -- tests/loginPhonePrefixes.test.ts
+
+      - name: Verify clickable Iftin Digital Solutions attribution
+        run: bun run test -- tests/poweredByIftin.test.ts
       - name: Test tenant admin skeleton and access gating
         run: bun run test -- tests/adminLoadingStates.test.ts
 
