@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from "@/lib/router-compat";
-import { ArrowLeft, ArrowUpRight, MessageCircle, Phone, ChevronRight, LogOut, Star, Share2, Trash2 } from 'lucide-react';
+import { ArrowLeft, MessageCircle, Phone, ChevronRight, LogOut, Star, Share2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import {
@@ -19,8 +19,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { BottomNavigation } from '@/components/BottomNavigation';
 import { clearVerifiedPhone } from '@/lib/verifiedPhone';
 import { clearOfflineRegistrationSession } from '@/lib/storefrontSession';
-import { Capacitor } from '@capacitor/core';
-import PoweredByIftin, { IFTIN_DIGITAL_SOLUTIONS_URL } from '@/components/PoweredByIftin';
+import PoweredByIftin from '@/components/PoweredByIftin';
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -168,52 +167,6 @@ const Profile = () => {
             <ChevronRight className="w-5 h-5 text-muted-foreground" />
           </div>
         ))}
-
-        {/* Shared Iftin Digital Solutions promotion: visible on every tenant app,
-            independently of tenant/admin settings. */}
-        <section
-          aria-label="Iftin Digital Solutions"
-          className="mt-4 space-y-3 rounded-2xl border border-primary/20 bg-card p-4 shadow-sm"
-        >
-          <div className="flex flex-col items-center gap-2 text-center">
-            <div>
-              <h2 className="text-base font-bold text-foreground">Iftin Digital Solutions</h2>
-              <p className="text-xs text-muted-foreground">Technology &amp; Software Solutions</p>
-            </div>
-            <img
-              src="/iftin-digital-company-mark.png"
-              alt="Iftin Digital Solutions logo"
-              loading="lazy"
-              decoding="async"
-              width={133}
-              height={94}
-              className="h-20 w-auto max-w-full object-contain"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <h3 className="text-sm font-bold text-foreground">Adigana hel App kuu gaar ah!</h3>
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              Waxaan kuu dhiseynaa Apps, Websites iyo Systems casri ah oo ganacsigaaga horumariya.
-            </p>
-          </div>
-
-          <a
-            href={IFTIN_DIGITAL_SOLUTIONS_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(event) => {
-              if (!Capacitor.isNativePlatform()) return;
-              event.preventDefault();
-              window.location.assign(IFTIN_DIGITAL_SOLUTIONS_URL);
-            }}
-            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-          >
-            Wax badan ka ogow
-            <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-          </a>
-          <p className="text-center text-xs text-muted-foreground">iftindigital.com</p>
-        </section>
 
         {/* Logout */}
         <div
