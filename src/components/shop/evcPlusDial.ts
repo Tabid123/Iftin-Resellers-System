@@ -13,7 +13,9 @@ export function evcPlusDialCode(provider: string, phone: string, amount: number)
   const cents = Math.round(amount * 100);
   if (!Number.isSafeInteger(cents) || cents <= 0) return null;
 
-  const dollars = (cents / 100).toFixed(2);
+  // EVC accepts whole-dollar amounts without trailing decimal zeros.
+  // Keep only meaningful decimal digits for amounts such as $6.50 / $6.25.
+  const dollars = (cents / 100).toFixed(2).replace(/\.?0+$/, "");
   return `*712*${digits}*${dollars}#`;
 }
 
