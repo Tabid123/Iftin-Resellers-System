@@ -2,7 +2,7 @@ import React from "react";
 import { Capacitor } from "@capacitor/core";
 
 /** Official website shown on Iftin Digital Solutions' branding. */
-export const IFTIN_DIGITAL_SOLUTIONS_URL = "https://iftindigitalsolutions.com/";
+export const IFTIN_DIGITAL_SOLUTIONS_URL = "https://iftindigital.com/";
 
 export default function PoweredByIftin({ className = "" }: { className?: string }) {
   return (
