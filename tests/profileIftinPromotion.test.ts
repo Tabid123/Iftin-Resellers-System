@@ -23,6 +23,16 @@ describe("shared Iftin promotion across tenant Profiles", () => {
     expect(profile).toContain("<PoweredByIftin");
   });
 
+  it("places the Iftin company logo under its heading, replacing the generic code icon", () => {
+    const heading = profile.indexOf('<h2 className="text-base font-bold text-foreground">Iftin Digital Solutions</h2>');
+    const image = profile.indexOf('src="/iftin-digital-company-mark.png"');
+    const tagline = profile.indexOf("Technology &amp; Software Solutions");
+    expect(heading).toBeGreaterThan(0);
+    expect(image).toBeGreaterThan(tagline);
+    expect(profile).toContain('alt="Iftin Digital Solutions logo"');
+    expect(profile).not.toContain("<Code2");
+  });
+
   it("always renders, without any tenant ON/OFF settings", () => {
     const promo = profile.slice(
       profile.indexOf("{/* Shared Iftin Digital Solutions promotion"),
