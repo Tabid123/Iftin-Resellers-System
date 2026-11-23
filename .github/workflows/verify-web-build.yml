@@ -47,7 +47,7 @@ jobs:
       - name: Verify clickable Iftin Digital Solutions attribution
         run: bun run test -- tests/poweredByIftin.test.ts
 
-      - name: Verify Iftin promotional card on all tenant Profiles
+      - name: Verify clean tenant Profiles without Iftin promotional card
         run: bun run test -- tests/profileIftinPromotion.test.ts
       - name: Test tenant admin skeleton and access gating
         run: bun run test -- tests/adminLoadingStates.test.ts
