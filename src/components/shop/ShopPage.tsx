@@ -699,6 +699,7 @@ function ShopContent({ tenantId, tenantName, tenantSupportPhone }: { tenantId: s
             methods={paymentMethods}
             supportWhatsApp={supportWhatsApp}
             loadingMethods={checkoutSettings.isLoading}
+            refreshingMethods={checkoutSettings.isFetching}
             methodsError={checkoutSettings.isError}
             onRetryMethods={() => void checkoutSettings.refetch()}
             onQuantity={(product, delta) => {
