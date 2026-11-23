@@ -17,6 +17,7 @@ import amtelLogo from '@/assets/providers/amtel-logo.png';
 import somlinkLogo from '@/assets/providers/somlink-logo.png';
 import { playAudioPrompt, primeAudioPrompts } from '@/lib/audioPrompts';
 import { saveVerifiedPhone } from '@/lib/verifiedPhone';
+import PoweredByIftin from '@/components/PoweredByIftin';
 import { isValidLoginPhone, LOGIN_PHONE_PREFIXES, LOGIN_PREFIX_HELP } from '@/lib/loginPhone';
 
 interface PhoneVerificationProps {
@@ -233,7 +234,7 @@ const PhoneVerification = ({ isOpen, onClose, onSuccess, paymentProvider, packag
               Dir Koodka
             </Button>
 
-            <p className="text-[9px] text-muted-foreground mt-2">Developed by Saabir</p>
+            <PoweredByIftin className="text-[10px] mt-2" />
           </div>
         ) : (
           /* ───────── VERIFICATION STEP ───────── */
@@ -316,7 +317,7 @@ const PhoneVerification = ({ isOpen, onClose, onSuccess, paymentProvider, packag
               Badal Lambarka
             </button>
 
-            <p className="text-[8px] text-muted-foreground mt-1.5">Developed by Saabir</p>
+            <PoweredByIftin className="text-[10px] mt-1.5" />
           </div>
         )}
       </DialogContent>
