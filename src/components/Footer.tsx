@@ -1,13 +1,22 @@
 import React from "react";
 import { Link, useLocation } from "@/lib/router-compat";
 import PoweredByIftin from "@/components/PoweredByIftin";
+
 const Footer = () => {
   const location = useLocation();
-  return <footer className="text-center space-y-1.5 text-muted-foreground py-3">
+
+  return (
+    <footer className="flex flex-col items-center justify-center gap-2 py-3 text-center text-muted-foreground">
       <PoweredByIftin className="text-sm" />
-      <Link to="/privacy-policy" state={{ from: location.pathname }} className="text-primary hover:text-accent transition-colors underline text-xs">
-        Secure privacy policy   
+      <Link
+        to="/privacy-policy"
+        state={{ from: location.pathname }}
+        className="block text-xs text-primary underline hover:text-accent"
+      >
+        Secure privacy policy
       </Link>
-    </footer>;
+    </footer>
+  );
 };
+
 export default Footer;
