@@ -6,15 +6,35 @@ const Footer = () => {
   const location = useLocation();
 
   return (
-    <footer className="flex flex-col items-center justify-center gap-2 py-3 text-center text-muted-foreground">
-      <PoweredByIftin className="text-sm" />
-      <Link
-        to="/privacy-policy"
-        state={{ from: location.pathname }}
-        className="block text-xs text-primary underline hover:text-accent"
+    <footer
+      className="w-full max-w-md py-3 text-center text-muted-foreground"
+      aria-label="Login links"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 1fr)",
+        gridTemplateRows: "auto auto",
+        justifyItems: "center",
+        rowGap: "10px",
+      }}
+    >
+      <div
+        className="w-full text-center"
+        style={{ display: "block", gridColumn: "1", gridRow: "1" }}
       >
-        Secure privacy policy
-      </Link>
+        <PoweredByIftin className="text-sm" />
+      </div>
+      <div
+        className="w-full text-center"
+        style={{ display: "block", gridColumn: "1", gridRow: "2" }}
+      >
+        <Link
+          to="/privacy-policy"
+          state={{ from: location.pathname }}
+          className="text-xs text-primary underline hover:text-accent"
+        >
+          Secure privacy policy
+        </Link>
+      </div>
     </footer>
   );
 };
