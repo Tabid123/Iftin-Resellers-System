@@ -38,6 +38,7 @@ type Props = {
   loadingMethods: boolean;
   methodsError: boolean;
   onRetryMethods: () => void;
+  refreshingMethods?: boolean;
   onQuantity: (product: ShopCartProduct, delta: number) => void;
   onRemoveUnavailable: () => void;
   onClear: () => void;
@@ -68,7 +69,7 @@ function CartThumbnail({ product }: { product: ShopCartProduct }) {
 
 export default function ShopCartView({
   items, unavailable, methods, loadingMethods, methodsError,
-  onRetryMethods, onQuantity, onRemoveUnavailable, onClear, onViewOrders, supportWhatsApp, onPlaceOrder,
+  onRetryMethods, refreshingMethods = false, onQuantity, onRemoveUnavailable, onClear, onViewOrders, supportWhatsApp, onPlaceOrder,
 }: Props) {
   const [fulfillment, setFulfillment] = useState<"delivery" | "pickup">("delivery");
   const [methodKey, setMethodKey] = useState("");
@@ -97,10 +98,17 @@ export default function ShopCartView({
     method.provider === receipt?.provider && method.number === receipt?.number
   ))?.logo_url;
 
+  function openMethodPicker() {
+    setMethodOpen(true);
+    // Always fetch the latest merchant settings when the payment dialog opens.
+    // React Query updates the visible list as soon as the network reply arrives.
+    onRetryMethods();
+  }
+
   function openPayer() {
     setError("");
     if (!selected) {
-      setMethodOpen(true);
+      openMethodPicker();
       return;
     }
     if (!name.trim() || name.trim().length > 100) {
@@ -333,7 +341,7 @@ export default function ShopCartView({
           <section className="space-y-3">
             <button
               type="button"
-              onClick={() => setMethodOpen(true)}
+              onClick={openMethodPicker}
               disabled={loadingMethods || methodsError || methods.length === 0}
               className="flex min-h-14 w-full items-center justify-between gap-2 rounded-2xl border bg-card p-4 text-left shadow-sm disabled:opacity-50"
             >
@@ -375,7 +383,7 @@ export default function ShopCartView({
                   type="button"
                   className="min-h-14 w-full gap-2 rounded-xl text-base font-bold"
                   disabled={!canOrder || methods.length === 0}
-                  onClick={selected ? openPayer : () => setMethodOpen(true)}
+                  onClick={selected ? openPayer : openMethodPicker}
                 >
                   {selected ? "Bixi Hadda" : "Select payment method"}
                   <ArrowRight className="h-5 w-5" />
@@ -390,9 +398,19 @@ export default function ShopCartView({
         <DialogContent className="max-w-[calc(100vw-2rem)] rounded-2xl sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Dooro shirkadda lacag-bixinta</DialogTitle>
-            <DialogDescription>Shirkadaha uu maamulka dukaanku dejiyay oo keliya.</DialogDescription>
+            <DialogDescription>Shirkadaha uu maamulka dukaanku furay (ON) oo keliya.</DialogDescription>
           </DialogHeader>
           <div className="max-h-[55vh] space-y-2 overflow-y-auto">
+            {refreshingMethods && (
+              <p role="status" className="rounded-lg bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+                Shirkadihii ugu dambeeyay waa la soo akhrinayaa...
+              </p>
+            )}
+            {!methods.length && !refreshingMethods && (
+              <p className="rounded-lg bg-muted/50 px-3 py-4 text-center text-sm text-muted-foreground">
+                Shirkad lacag-bixin oo furan ma jirto. La xiriir maamulka dukaanka.
+              </p>
+            )}
             {methods.map(method => (
               <button
                 type="button"
