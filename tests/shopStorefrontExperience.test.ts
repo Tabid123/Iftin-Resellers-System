@@ -21,10 +21,22 @@ describe("tenant ecommerce storefront experience", () => {
       "src/assets/payment-providers/evc-plus.png",
       "src/assets/payment-providers/edahab.jpg",
       "src/assets/payment-providers/jeeb.png",
+      "public/storage/payment-logos/zaad.webp",
     ]) expect(existsSync(new URL("../" + path, import.meta.url))).toBe(true);
     expect(logo).toContain("paymentLogoSrc");
+    expect(logo).toContain('name.includes("edahab")');
+    expect(logo).toContain('name.includes("zaad")');
+    expect(logo).toContain('"/storage/payment-logos/zaad.webp"');
     expect(cart).toContain('<ShopPaymentLogo provider={method.provider}');
     expect(cart).toContain("logoUrl={selected.logo_url}");
+    expect(cart).toContain("onRetryMethods();");
+    expect(cart).toContain("refreshingMethods");
+  });
+
+  it("new merchant payment options are active until explicitly switched off", () => {
+    const settings = file("src/components/shop/ShopCheckoutSettings.tsx");
+    expect(settings).toContain('enabled: true, logo_url: ""');
+    expect(settings).toContain('qc.setQueryData(["shop-checkout-settings", tenant.id], next)');
   });
 
   it("removes verbose payer text and receipt's redundant payment card", () => {
