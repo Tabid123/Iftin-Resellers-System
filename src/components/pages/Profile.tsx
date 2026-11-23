@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from "@/lib/router-compat";
-import { ArrowLeft, ArrowUpRight, Code2, MessageCircle, Phone, ChevronRight, LogOut, Star, Share2, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, MessageCircle, Phone, ChevronRight, LogOut, Star, Share2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import {
@@ -175,14 +175,20 @@ const Profile = () => {
           aria-label="Iftin Digital Solutions"
           className="mt-4 space-y-3 rounded-2xl border border-primary/20 bg-card p-4 shadow-sm"
         >
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <Code2 className="h-6 w-6" aria-hidden="true" />
-            </div>
-            <div className="min-w-0">
+          <div className="flex flex-col items-center gap-2 text-center">
+            <div>
               <h2 className="text-base font-bold text-foreground">Iftin Digital Solutions</h2>
               <p className="text-xs text-muted-foreground">Technology &amp; Software Solutions</p>
             </div>
+            <img
+              src="/iftin-digital-company-mark.png"
+              alt="Iftin Digital Solutions logo"
+              loading="lazy"
+              decoding="async"
+              width={133}
+              height={94}
+              className="h-20 w-auto max-w-full object-contain"
+            />
           </div>
 
           <div className="space-y-1">
