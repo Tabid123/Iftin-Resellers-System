@@ -11,6 +11,7 @@ export function paymentLogoSrc(provider: string, customLogo?: string | null): st
   const name = (provider || "").toLowerCase().replace(/[\s_\-+]/g, "");
   if (name.includes("evc")) return evcLogo;
   if (name.includes("edahab")) return edahabLogo;
+  if (name.includes("zaad")) return "/storage/payment-logos/zaad.webp";
   if (name.includes("jeeb") || name.includes("somnet")) return jeebLogo;
   if (name.includes("hormuud")) return hormuudLogo;
   if (name.includes("somtel")) return somtelLogo;
@@ -29,7 +30,11 @@ export default function ShopPaymentLogo({
   const src = paymentLogoSrc(provider, logoUrl);
   const [broken, setBroken] = useState(false);
   useEffect(() => setBroken(false), [src]);
-  const sizeClass = size === "sm" ? "h-9 w-9" : size === "lg" ? "h-12 w-12" : "h-10 w-10";
+  // Landscape logos such as eDahab and ZAAD need more horizontal room to stay legible.
+  const wideLogo = /edahab|zaad/i.test(provider.replace(/[\s_\-+]/g, ""));
+  const sizeClass = wideLogo
+    ? (size === "sm" ? "h-9 w-16" : size === "lg" ? "h-12 w-24" : "h-10 w-20")
+    : (size === "sm" ? "h-9 w-9" : size === "lg" ? "h-12 w-12" : "h-10 w-10");
   return (
     <div className={`flex ${sizeClass} shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-white p-1`}>
       {src && !broken ? (
