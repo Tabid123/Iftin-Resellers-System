@@ -13,6 +13,16 @@ describe("Iftin Digital Solutions login attribution", () => {
     expect(attribution).toContain("rel=\"noopener noreferrer\"");
   });
 
+  it("separates attribution and privacy policy into two explicit footer rows", () => {
+    const footer = read("src/components/Footer.tsx");
+    expect(footer).toContain('display: "grid"');
+    expect(footer).toContain('gridTemplateRows: "auto auto"');
+    expect(footer).toContain('gridRow: "1"');
+    expect(footer).toContain('gridRow: "2"');
+    expect(footer).toContain("<PoweredByIftin");
+    expect(footer).toContain("Secure privacy policy");
+  });
+
   it("replaces the old text on the login page and phone-verification dialogs", () => {
     for (const path of [
       "src/components/Footer.tsx",
