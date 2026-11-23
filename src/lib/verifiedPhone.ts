@@ -1,10 +1,11 @@
 import { readNativeSession, removeNativeSession, writeNativeSession } from '@/lib/nativeStorefrontSession';
+import { LOGIN_PHONE_RE } from '@/lib/loginPhone';
 
 const VERIFIED_PHONE_KEY = 'verifiedPhone';
 const VERIFIED_PHONE_SESSION_KEY = 'iftin:verifiedPhone';
 const LOGGED_OUT_SESSION_KEY = 'iftin:loggedOut';
 
-export const SOMALI_PHONE_RE = /^(61|77|62|68|71|64)\d{7}$/;
+export const SOMALI_PHONE_RE = LOGIN_PHONE_RE;
 
 export function normalizeVerifiedPhone(value: string | null | undefined): string | null {
   const digits = String(value || '').replace(/\D/g, '');
