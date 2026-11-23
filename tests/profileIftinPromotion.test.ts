@@ -1,48 +1,25 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
-const profile = readFileSync(
-  new URL("../src/components/pages/Profile.tsx", import.meta.url),
-  "utf8",
-);
-const brand = readFileSync(
-  new URL("../src/components/PoweredByIftin.tsx", import.meta.url),
-  "utf8",
-);
+const read = (path: string) =>
+  readFileSync(new URL("../" + path, import.meta.url), "utf8");
 
-describe("shared Iftin promotion across tenant Profiles", () => {
-  it("shows one static promotion after Share and before Logout on the shared Profile page", () => {
-    const shareEnd = profile.indexOf("{profileOptions.map");
-    const promo = profile.indexOf('aria-label="Iftin Digital Solutions"');
-    const logout = profile.indexOf("{/* Logout */}");
-    expect(shareEnd).toBeGreaterThanOrEqual(0);
-    expect(promo).toBeGreaterThan(shareEnd);
-    expect(logout).toBeGreaterThan(promo);
-    expect(profile).toContain("Adigana hel App kuu gaar ah!");
-    expect(profile).toContain("Wax badan ka ogow");
-    expect(profile).toContain("<PoweredByIftin");
-  });
+const profile = read("src/components/pages/Profile.tsx");
 
-  it("places the Iftin company logo under its heading, replacing the generic code icon", () => {
-    const heading = profile.indexOf('<h2 className="text-base font-bold text-foreground">Iftin Digital Solutions</h2>');
-    const image = profile.indexOf('src="/iftin-digital-company-mark.png"');
-    const tagline = profile.indexOf("Technology &amp; Software Solutions");
-    expect(heading).toBeGreaterThan(0);
-    expect(image).toBeGreaterThan(tagline);
-    expect(profile).toContain('alt="Iftin Digital Solutions logo"');
+describe("tenant Profile footer without promotional card", () => {
+  it("removes the Iftin promotion card, CTA, and standalone logo from every tenant Profile", () => {
+    expect(profile).not.toContain('aria-label="Iftin Digital Solutions"');
+    expect(profile).not.toContain("Adigana hel App kuu gaar ah!");
+    expect(profile).not.toContain("Wax badan ka ogow");
+    expect(profile).not.toContain("iftin-digital-company-mark.png");
     expect(profile).not.toContain("<Code2");
   });
 
-  it("always renders, without any tenant ON/OFF settings", () => {
-    const promo = profile.slice(
-      profile.indexOf("{/* Shared Iftin Digital Solutions promotion"),
-      profile.indexOf("{/* Logout */}"),
-    );
-    expect(promo).toContain('href={IFTIN_DIGITAL_SOLUTIONS_URL}');
-    expect(promo).toContain("Capacitor.isNativePlatform()");
-    expect(promo).not.toContain("tenant?.");
-    expect(promo).not.toContain("promoEnabled");
-    expect(promo).not.toContain("isPromotionEnabled");
-    expect(brand).toContain('https://iftindigital.com/');
+  it("keeps the small Powered by Iftin attribution under profile actions", () => {
+    const logout = profile.indexOf("{/* Logout */}");
+    const footer = profile.indexOf("<PoweredByIftin");
+    expect(logout).toBeGreaterThanOrEqual(0);
+    expect(footer).toBeGreaterThan(logout);
+    expect(read("src/components/PoweredByIftin.tsx")).toContain("https://iftindigital.com/");
   });
 });
