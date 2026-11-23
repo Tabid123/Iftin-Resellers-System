@@ -63,6 +63,8 @@ export default function ShopCheckoutSettings() {
       return data as CheckoutConfig | null;
     },
     staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 
   useEffect(() => {
@@ -126,6 +128,9 @@ export default function ShopCheckoutSettings() {
         .upsert({ tenant_id: tenant.id, ...next, updated_at: new Date().toISOString() }, { onConflict: "tenant_id" });
       if (error) throw error;
       setForm(next);
+      // Immediately deliver saved options to the storefront when both views are open.
+      // The server stays authoritative; invalidate to re-check after cache update.
+      qc.setQueryData(["shop-checkout-settings", tenant.id], next);
       await qc.invalidateQueries({ queryKey: ["shop-checkout-settings", tenant.id] });
       toast({ title: "Hababka lacag-bixinta waa la kaydiyay" });
     } catch (error: any) {
@@ -159,7 +164,7 @@ export default function ShopCheckoutSettings() {
             disabled={busy || form.payment_methods.length >= 8}
             onClick={() => setForm(old => ({
               ...old,
-              payment_methods: [...old.payment_methods, { id: crypto.randomUUID(), provider: "", number: "", enabled: false, logo_url: "" }],
+              payment_methods: [...old.payment_methods, { id: crypto.randomUUID(), provider: "", number: "", enabled: true, logo_url: "" }],
             }))}
           >
             <Plus className="h-4 w-4" /> Ku dar shirkad
@@ -167,8 +172,9 @@ export default function ShopCheckoutSettings() {
         </div>
 
         <p className="text-sm text-muted-foreground">
-          Admin-ka ayaa shirkad kasta ON/OFF ka dhigaya. Popup-ka macaamilka
-          waxa ka muuqanaya oo keliya shirkadaha ON ah ee leh lambar sax ah.
+          Shirkad cusub markaad ku darto, si toos ah ON ayay u noqonaysaa.
+          Marka aad kaydiso, isla markiiba waxay ka muuqanaysaa popup-ka macaamilka.
+          Shirkad kasta waad xiri kartaa (OFF) si aysan u muuqan.
         </p>
 
         <datalist id="shop-payment-providers">
@@ -244,7 +250,7 @@ export default function ShopCheckoutSettings() {
                 onChange={e => updateMethod(method.id, "logo_url", e.target.value)}
               />
               <span className="text-xs text-muted-foreground">
-                EVC Plus, eDahab iyo Jeeb waxay leeyihiin logo diyaarsan.
+                EVC Plus, eDahab, ZAAD iyo Jeeb waxay leeyihiin logo diyaarsan.
               </span>
             </label>
           </div>
