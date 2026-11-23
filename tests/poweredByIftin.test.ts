@@ -8,7 +8,7 @@ describe("Iftin Digital Solutions login attribution", () => {
   it("links every customer login footer to the official company site", () => {
     const attribution = read("src/components/PoweredByIftin.tsx");
     expect(attribution).toContain("Powered by Iftin Digital Solutions");
-    expect(attribution).toContain("https://iftindigitalsolutions.com/");
+    expect(attribution).toContain("https://iftindigital.com/");
     expect(attribution).toContain("window.location.assign(IFTIN_DIGITAL_SOLUTIONS_URL)");
     expect(attribution).toContain("rel=\"noopener noreferrer\"");
   });
