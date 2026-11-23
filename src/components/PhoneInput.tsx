@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Loader2, ShieldCheck } from 'lucide-react';
 import { playAudioPrompt, primeAudioPrompts } from '@/lib/audioPrompts';
 import { saveVerifiedPhone } from '@/lib/verifiedPhone';
+import { isValidLoginPhone, LOGIN_PREFIX_HELP } from '@/lib/loginPhone';
 
 const PhoneInput = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -63,14 +64,11 @@ const PhoneInput = () => {
       return;
     }
 
-    const allowedPrefixes = ['61', '77', '62', '68'];
-    const hasAllowedPrefix = allowedPrefixes.some(prefix => phoneNumber.startsWith(prefix));
-    
-    if (!hasAllowedPrefix || phoneNumber.length !== 9) {
+    if (!isValidLoginPhone(phoneNumber)) {
       setShowPrefixError(true);
       toast({
         title: "Error",
-        description: "Kaliya Hormuud (61, 77), Somtel (62) iyo Somnet (68) ayaa loo ogol yahay",
+        description: `Geli lambar 9-god ah oo ku bilaabma: ${LOGIN_PREFIX_HELP}`,
         variant: "destructive",
       });
       return;
@@ -219,7 +217,7 @@ const PhoneInput = () => {
             </div>
             {showPrefixError && (
               <p className="text-xs text-destructive">
-                Kaliya Hormuud (61, 77), Somtel (62) iyo Somnet (68) ayaa loo ogol yahay
+                Geli lambar 9-god ah: {LOGIN_PREFIX_HELP}
               </p>
             )}
           </div>
