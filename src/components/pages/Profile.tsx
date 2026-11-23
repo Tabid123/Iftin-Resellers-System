@@ -217,8 +217,8 @@ const Profile = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-        <div className="pt-4 text-center">
-          <PoweredByIftin className="text-xs" />
+        <div className="flex justify-center pt-4">
+          <PoweredByIftin variant="logo" />
         </div>
       </div>
 
