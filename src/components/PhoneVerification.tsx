@@ -17,6 +17,7 @@ import amtelLogo from '@/assets/providers/amtel-logo.png';
 import somlinkLogo from '@/assets/providers/somlink-logo.png';
 import { playAudioPrompt, primeAudioPrompts } from '@/lib/audioPrompts';
 import { saveVerifiedPhone } from '@/lib/verifiedPhone';
+import { isValidLoginPhone, LOGIN_PHONE_PREFIXES, LOGIN_PREFIX_HELP } from '@/lib/loginPhone';
 
 interface PhoneVerificationProps {
   isOpen: boolean;
@@ -72,9 +73,8 @@ const PhoneVerification = ({ isOpen, onClose, onSuccess, paymentProvider, packag
   };
 
   const provider = getProviderFromPhone(phoneNumber);
-  const validPrefixes = ['61', '77', '62', '68', '71', '64'];
-  const hasValidPrefix = validPrefixes.some(p => phoneNumber.startsWith(p));
-  const isPhoneValid = hasValidPrefix && phoneNumber.length === 9;
+  const hasValidPrefix = LOGIN_PHONE_PREFIXES.some(prefix => phoneNumber.startsWith(prefix));
+  const isPhoneValid = isValidLoginPhone(phoneNumber);
 
   const handleSendCode = async () => {
     if (!isPhoneValid) {
@@ -220,7 +220,7 @@ const PhoneVerification = ({ isOpen, onClose, onSuccess, paymentProvider, packag
 
               {!hasValidPrefix && phoneNumber.length >= 2 && (
                 <p className="text-[10px] text-destructive text-center">
-                  Isticmaal: 61/77, 62, 68, 71, 64
+                  Isticmaal: {LOGIN_PREFIX_HELP}
                 </p>
               )}
             </div>
