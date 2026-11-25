@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from '@/lib/router-compat'
 import { platformSupabase as supabase } from '@/integrations/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
+import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   Users,
   DollarSign,
@@ -331,18 +332,20 @@ export default function PlatformDashboard() {
     offset += tenants.length ? item.count / tenants.length * 100 : 0
     return `${item.color} ${start}% ${offset}%`
   }).join(', ')
-  const chartMax = Math.max(1, ...dashboard.months.map(month => month.max))
+  const chartData = dashboard.months.map(month => ({ month: month.date.toLocaleDateString("en-US", { month: "short" }), min: month.min, max: month.max }))
+  const topCards = [cards[0], cards[1], cards[2], cards[3], cards[6]]
+  const otherCards = [cards[4], cards[5], cards[7]]
 
   return (
     <div className="min-h-full px-4 py-6 sm:px-7 lg:px-8 lg:py-8">
-      <div className="mx-auto w-full max-w-[1500px]">
+      <div className="mx-auto w-full max-w-[1800px]">
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-[30px] font-bold tracking-tight text-[#0c1220]">
-              Overview
+              Ku soo dhawoow, Super Admin
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Ku soo dhawoow, Super Admin. La soco resellers-ka, renewals iyo dakhliga la filayo.
+              La soco resellers-ka, renewals iyo dakhliga subscription-ka la filayo.
             </p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-semibold text-slate-600">
@@ -351,7 +354,7 @@ export default function PlatformDashboard() {
         </div>
 
         {loading ? (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             {Array.from({ length: 8 }, (_, index) => (
               <div
                 key={index}
@@ -362,23 +365,23 @@ export default function PlatformDashboard() {
         ) : (
           <>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {cards.map((card) => (
+              {topCards.map((card, index) => (
                 <Card
                   key={card.label}
-                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                  className={`overflow-hidden rounded-2xl border shadow-sm ${index === 0 ? "border-blue-700 bg-gradient-to-br from-blue-600 to-blue-900 text-white" : card.wrap}`}
                 >
                   <CardContent className="p-5">
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0">
-                        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                        <p className={`text-xs font-semibold uppercase tracking-wide ${index === 0 ? "text-blue-100" : "text-slate-600"}`}>
                           {card.label}
                         </p>
                         <div
-                          className={`mt-3 truncate text-[30px] font-semibold tracking-tight ${card.valueClass}`}
+                          className={`mt-3 truncate text-[30px] font-semibold tracking-tight ${index === 0 ? "text-white" : card.valueClass}`}
                         >
                           {card.value}
                         </div>
-                        <p className="mt-1 text-xs text-slate-500">{card.note}</p>
+                        <p className={`mt-1 text-xs ${index === 0 ? "text-blue-100" : "text-slate-500"}`}>{card.note}</p>
                       </div>
                       <div
                         className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-sm ${card.iconBox}`}
@@ -394,15 +397,26 @@ export default function PlatformDashboard() {
             <div className="mt-6 grid gap-5 xl:grid-cols-[1.7fr_1fr]">
               <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
                 <div className="flex flex-wrap items-start justify-between gap-2"><div><h2 className="text-lg font-bold text-slate-900">Revenue forecast</h2><p className="mt-1 text-xs text-slate-500">12-month expected subscription revenue · not collected payments</p></div><span className="text-lg font-bold text-blue-600">{rangeMoney(dashboard.yearMin, dashboard.yearMax)}</span></div>
-                <div className="mt-6 overflow-x-auto"><div className="flex min-w-[460px] items-end gap-2 border-b border-slate-200 pb-2 sm:gap-3">
-                  {dashboard.months.map(month => <div key={month.key} className="flex min-w-0 flex-1 flex-col items-center gap-2"><div className="flex h-36 w-full items-end justify-center"><div title={rangeMoney(month.min, month.max)} aria-label={monthLabel(month.date) + ': ' + rangeMoney(month.min, month.max)} className="w-full max-w-[38px] rounded-t-md bg-gradient-to-t from-blue-700 to-blue-400" style={{ height: month.max ? Math.max(4, month.max / chartMax * 100) + '%' : '2px' }} /></div><span className="text-[10px] font-medium text-slate-500">{month.date.toLocaleDateString('en-US', { month: 'short' })}</span></div>)}
-                </div></div>
+                <div className="mt-5 h-[250px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData} margin={{top:8,right:12,left:0,bottom:0}}>
+                      <defs><linearGradient id="platformForecastFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#2563eb" stopOpacity={0.35}/><stop offset="100%" stopColor="#2563eb" stopOpacity={0.03}/></linearGradient></defs>
+                      <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="3 3"/>
+                      <XAxis dataKey="month" tick={{fontSize:11,fill:"#64748b"}} axisLine={false} tickLine={false}/>
+                      <YAxis tick={{fontSize:11,fill:"#64748b"}} tickFormatter={value => "$" + value} axisLine={false} tickLine={false} width={58}/>
+                      <Tooltip formatter={(value) => money(Number(value))}/>
+                      <Area type="monotone" dataKey="max" name="Upper forecast" stroke="#2563eb" strokeWidth={3} fill="url(#platformForecastFill)" dot={{r:3,fill:"#2563eb",stroke:"#fff"}}/>
+                      <Area type="monotone" dataKey="min" name="Lower forecast" stroke="#60a5fa" strokeWidth={2} fill="none" strokeDasharray="5 4"/>
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
               </section>
               <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
                 <h2 className="text-lg font-bold text-slate-900">Reseller status</h2><p className="mt-1 text-xs text-slate-500">Current subscription status</p>
                 <div className="mt-5 flex flex-wrap items-center justify-center gap-6"><div className="flex h-36 w-36 shrink-0 items-center justify-center rounded-full" style={{ background: tenants.length ? `conic-gradient(${ring})` : '#e2e8f0' }}><div className="flex h-[108px] w-[108px] flex-col items-center justify-center rounded-full bg-white"><strong className="text-3xl text-slate-900">{tenants.length}</strong><span className="text-xs text-slate-500">Total</span></div></div><div className="min-w-[130px] flex-1 space-y-3">{breakdown.map(item => <div key={item.label} className="flex items-center gap-2 text-xs text-slate-600"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{background: item.color}} /><span className="flex-1">{item.label}</span><strong className="text-slate-900">{item.count}</strong></div>)}</div></div>
               </section>
             </div>
+            <div className="mt-6 grid gap-4 sm:grid-cols-3">{otherCards.map(card => <Card key={card.label} className="rounded-2xl border-slate-200 bg-white shadow-sm"><CardContent className="flex items-center gap-4 p-5"><span className={`rounded-xl p-3 ${card.iconBox}`}><card.icon className="h-5 w-5" /></span><div><div className="text-xs font-medium text-slate-500">{card.label}</div><div className="mt-1 text-2xl font-bold text-slate-900">{card.value}</div><p className="text-xs text-slate-500">{card.note}</p></div></CardContent></Card>)}</div>
             <section className="mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="flex items-center justify-between border-b border-slate-100 p-5"><h2 className="text-lg font-bold">Recent resellers</h2><Link to="/admin/resellers" className="text-sm font-semibold text-blue-600">View all</Link></div><div className="overflow-x-auto"><table className="w-full min-w-[520px] text-left text-sm"><thead className="bg-slate-50 text-xs text-slate-500"><tr><th className="px-5 py-3">Reseller</th><th className="px-5 py-3">Created</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Manage</th></tr></thead><tbody className="divide-y divide-slate-100">{tenants.slice(0,5).map(tenant => <tr key={tenant.id}><td className="px-5 py-3 font-medium">{tenant.name}<span className="block text-xs font-normal text-slate-500">/{tenant.slug}</span></td><td className="px-5 py-3">{new Date(tenant.created_at).toLocaleDateString('en-GB')}</td><td className="px-5 py-3 capitalize">{isExpired(tenant,Date.now()) ? 'expired' : tenant.status}</td><td className="px-5 py-3"><Link to={`/admin/resellers/${tenant.id}`} className="font-semibold text-blue-600">Maamul</Link></td></tr>)}</tbody></table></div></section>
 
             <div className="mt-8 overflow-hidden rounded-2xl border border-black/10 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.04)]">
