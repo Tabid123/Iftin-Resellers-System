@@ -477,7 +477,7 @@ export default function ResellerDetailPage() {
 
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold break-words">{tenant.name}</h1>
+          <h1 className="text-[28px] font-bold tracking-tight break-words">{tenant.name}</h1>
           <a
             href={`/t/${tenant.slug}/providers`}
             target="_blank"
@@ -491,7 +491,7 @@ export default function ResellerDetailPage() {
         <Badge variant={effectiveTenantStatus === 'active' ? 'default' : 'destructive'}>{effectiveTenantStatus}</Badge>
       </div>
 
-      <Card>
+      <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
         <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
           <CardTitle className="text-base">Xogta gelitaanka & Links</CardTitle>
           <Button size="sm" variant="secondary" onClick={copyAll}>
@@ -505,7 +505,7 @@ export default function ResellerDetailPage() {
         </CardContent>
       </Card>
 
-      {tenant.billing_cycle !== "monthly" ? <Card>
+      {tenant.billing_cycle !== "monthly" ? <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
         <CardHeader>
           <CardTitle className="text-base">Yearly Pricing</CardTitle>
         </CardHeader>
@@ -545,7 +545,7 @@ export default function ResellerDetailPage() {
             Keydi yearly pricing
           </Button>
         </CardContent>
-      </Card> : <Card>
+      </Card> : <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
         <CardHeader><CardTitle className="text-base">Monthly — $15/bishii</CardTitle></CardHeader>
         <CardContent><p className="text-sm text-muted-foreground">Hal bil kalandar ah ayaa la siinayaa reseller-ka. Renewal kasta waa $15, waxaana maamulaha uu diiwaangeliyaa lacag-bixinta.</p></CardContent>
       </Card>}
@@ -554,7 +554,7 @@ export default function ResellerDetailPage() {
 
 
       {/* Live theme preview */}
-      <Card>
+      <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
         <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
           <CardTitle>Theme Preview (live)</CardTitle>
           {brandingDirty && (
@@ -570,7 +570,7 @@ export default function ResellerDetailPage() {
       </Card>
 
       <div className="grid md:grid-cols-2 gap-4">
-        <Card>
+        <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
           <CardHeader><CardTitle>Branding</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div>
@@ -679,7 +679,7 @@ export default function ResellerDetailPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
           <CardHeader><CardTitle>Qor lacag-bixin</CardTitle></CardHeader>
           <CardContent>
             <form onSubmit={recordPayment} className="space-y-3">
@@ -714,7 +714,7 @@ export default function ResellerDetailPage() {
         </Card>
       </div>
 
-      <Card>
+      <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
         <CardHeader><CardTitle>Taariikhda Lacagaha</CardTitle></CardHeader>
         <CardContent>
           {payments.length === 0
@@ -747,7 +747,7 @@ export default function ResellerDetailPage() {
       </Card>
 
       {/* Waqtiga isticmaalka */}
-      <Card>
+      <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
         <CardHeader><CardTitle>Waqtiga isticmaalka</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="grid sm:grid-cols-2 gap-4">
@@ -777,7 +777,7 @@ export default function ResellerDetailPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
         <CardHeader><CardTitle>Master Template</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
@@ -813,7 +813,7 @@ export default function ResellerDetailPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Bell className="h-5 w-5" />
@@ -898,7 +898,7 @@ export default function ResellerDetailPage() {
         </CardContent>
       </Card>
 
-      {tenant && <Card>
+      {tenant && <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
         <CardHeader><CardTitle>eCommerce — Dukaanka</CardTitle></CardHeader>
         <CardContent>
           <p className="mb-3 text-sm text-muted-foreground">Features-ka tenant-kan waxaa laga furaa ama laga xiraa Super Admin → Features.</p>
