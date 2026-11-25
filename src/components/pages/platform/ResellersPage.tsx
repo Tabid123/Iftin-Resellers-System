@@ -20,6 +20,7 @@ interface Row {
   monthly_price: number | null
   renewal_yearly_price: number | null
   created_at: string
+  updated_at: string
   subscription_plans?: { name: string } | null
 }
 
@@ -72,44 +73,20 @@ export default function ResellersPage() {
     void (async () => {
       try {
         // Render the reseller list first. Embedded logos can add several MB
-        // to the response; fetch them separately, one small batch at a time.
+        // to the response; use independent browser image requests for public logos.
         const { data, error } = await supabase
           .from('tenants')
-          .select('id, slug, name, status, current_period_end, trial_ends_at, first_year_price, renewal_yearly_price, billing_cycle, monthly_price, created_at, subscription_plans(name)')
+          .select('id, slug, name, status, current_period_end, trial_ends_at, first_year_price, renewal_yearly_price, billing_cycle, monthly_price, created_at, updated_at, subscription_plans(name)')
           .order('created_at', { ascending: false })
           .abortSignal(controller.signal)
         if (error) throw error
         if (!active || controller.signal.aborted) return
-        const list = ((data ?? []) as unknown as Omit<Row, 'logo_url'>[]).map(row => ({ ...row, logo_url: null }))
+        const list = ((data ?? []) as unknown as Omit<Row, 'logo_url'>[]).map(row => ({ ...row, logo_url: `/api/public/tenant-icon?tenant=${encodeURIComponent(row.slug)}&v=${encodeURIComponent(row.updated_at || '')}&strict=1` }))
         setRows(list)
         setLoading(false)
         window.clearTimeout(timeout)
 
-        // Keep the existing RLS and authenticated platform client. Never use
-        // privileged credentials or a public endpoint for the admin list.
-        for (let i = 0; i < list.length && active; i += 3) {
-          const logoController = new AbortController()
-          const cancel = () => logoController.abort()
-          controller.signal.addEventListener('abort', cancel, { once: true })
-          const logoTimeout = window.setTimeout(cancel, 8000)
-          try {
-            const { data: logos, error: logoError } = await supabase
-              .from('tenants')
-              .select('id, logo_url')
-              .in('id', list.slice(i, i + 3).map(row => row.id))
-              .abortSignal(logoController.signal)
-            if (!active || controller.signal.aborted) return
-            if (!logoError && logos) {
-              const byId = new Map<string, string | null>(logos.map((row: { id: string; logo_url: string | null }) => [row.id, row.logo_url]))
-              setRows(current => current.map(row => byId.has(row.id) ? { ...row, logo_url: byId.get(row.id) ?? null } : row))
-            }
-          } catch {
-            // A failed image request must never block reseller management.
-          } finally {
-            window.clearTimeout(logoTimeout)
-            controller.signal.removeEventListener('abort', cancel)
-          }
-        }
+
       } catch (error) {
         if (active && !controller.signal.aborted) {
           console.warn('[platform/resellers] Could not load reseller list', error)
@@ -142,11 +119,11 @@ export default function ResellersPage() {
   })
 
   const stats = [
-    { key: 'all', label: 'Total Resellers', icon: Users, tone: 'bg-blue-600 text-white' },
-    { key: 'active', label: 'Active', icon: CheckCircle2, tone: 'bg-emerald-50 text-emerald-700' },
-    { key: 'trial', label: 'Trial', icon: Clock3, tone: 'bg-amber-50 text-amber-700' },
-    { key: 'expired', label: 'Expired', icon: AlertCircle, tone: 'bg-rose-50 text-rose-700' },
-    { key: 'suspended', label: 'Suspended', icon: PauseCircle, tone: 'bg-slate-100 text-slate-700' },
+    { key: 'all', label: 'Total Resellers', icon: Users, tone: 'bg-white/20 text-white', surface: 'bg-gradient-to-br from-blue-600 to-blue-800 text-white' },
+    { key: 'active', label: 'Active', icon: CheckCircle2, tone: 'bg-white/20 text-white', surface: 'bg-gradient-to-br from-emerald-500 to-emerald-700 text-white' },
+    { key: 'trial', label: 'Trial', icon: Clock3, tone: 'bg-white/20 text-white', surface: 'bg-gradient-to-br from-orange-400 to-orange-600 text-white' },
+    { key: 'expired', label: 'Expired', icon: AlertCircle, tone: 'bg-white/20 text-white', surface: 'bg-gradient-to-br from-rose-500 to-rose-700 text-white' },
+    { key: 'suspended', label: 'Suspended', icon: PauseCircle, tone: 'bg-white/20 text-white', surface: 'bg-gradient-to-br from-slate-500 to-slate-700 text-white' },
   ].map(stat => ({ ...stat, count: stat.key === 'all' ? rows.length : rows.filter(row => effectiveStatus(row) === stat.key).length }))
   const pageSize = 10
   const pageCount = Math.max(1, Math.ceil(filteredRows.length / pageSize))
@@ -180,9 +157,9 @@ export default function ResellersPage() {
 
         <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
           {stats.map(stat => (
-            <button key={stat.key} type="button" onClick={() => { setStatusFilter(stat.key); setPage(1) }} aria-pressed={statusFilter === stat.key} className="flex min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-blue-300 focus-visible:ring-2 focus-visible:ring-blue-500">
+            <button key={stat.key} type="button" onClick={() => { setStatusFilter(stat.key); setPage(1) }} aria-pressed={statusFilter === stat.key} className={`flex min-w-0 items-center gap-3 rounded-2xl p-5 text-left shadow-sm transition hover:brightness-105 focus-visible:ring-2 focus-visible:ring-blue-500 ${stat.surface}`}>
               <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${stat.tone}`}><stat.icon className="h-5 w-5" /></span>
-              <span className="min-w-0"><span className="block text-xs font-medium text-slate-500">{stat.label}</span><span className="mt-1 block text-2xl font-bold tracking-tight text-slate-900">{loading || loadError ? '—' : stat.count}</span></span>
+              <span className="min-w-0"><span className="block text-xs font-medium text-white/90">{stat.label}</span><span className="mt-1 block text-3xl font-bold tracking-tight text-white">{loading || loadError ? '—' : stat.count}</span></span>
             </button>
           ))}
         </div>
@@ -271,7 +248,7 @@ export default function ResellersPage() {
                   {visibleRows.map(row => {
                     const status = effectiveStatus(row)
                     return <tr key={row.id} className="transition hover:bg-blue-50/50">
-                      <td className="px-4 py-3"><div className="flex items-center gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">{row.logo_url ? <CachedImage src={row.logo_url} alt={row.name} bundledName={null} className="h-full w-full object-contain" /> : <span className="text-xs font-bold text-slate-500">{row.name.slice(0, 2).toUpperCase()}</span>}</div><div><div className="font-semibold text-slate-900">{row.name}</div><div className="text-xs text-slate-500">{formatDate(row.created_at)}</div></div></div></td>
+                      <td className="px-4 py-3"><div className="flex items-center gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">{row.logo_url ? <CachedImage src={row.logo_url} alt={row.name} bundledName={null} loading="lazy" className="h-full w-full object-contain" fallback={<span className="text-xs font-bold text-slate-500">{row.name.slice(0, 2).toUpperCase()}</span>} /> : <span className="text-xs font-bold text-slate-500">{row.name.slice(0, 2).toUpperCase()}</span>}</div><div><div className="font-semibold text-slate-900">{row.name}</div><div className="text-xs text-slate-500">{formatDate(row.created_at)}</div></div></div></td>
                       <td className="whitespace-nowrap px-4 py-3 text-slate-500">/{row.slug}</td>
                       <td className="px-4 py-3 text-xs font-medium">{row.subscription_plans?.name || '—'}</td>
                       <td className="px-4 py-3 capitalize">{row.billing_cycle || '—'}</td>
@@ -305,6 +282,9 @@ export default function ResellersPage() {
                         {r.logo_url ? (
                           <CachedImage
                             src={r.logo_url}
+                            bundledName={null}
+                            loading="lazy"
+                            fallback={<span className="text-xl font-semibold uppercase text-slate-500">{r.name.slice(0, 2)}</span>}
                             alt={`${r.name} logo`}
                             className="h-full w-full object-contain"
                           />
