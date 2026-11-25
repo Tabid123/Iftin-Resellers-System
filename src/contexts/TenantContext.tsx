@@ -348,9 +348,14 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
       packagedTenant?.id &&
       String(packagedTenant.slug || "").toLowerCase() === bakedSlug.toLowerCase()
     ) {
-      return isTenantBlocked(packagedTenant)
-        ? { status: "suspended", tenant: packagedTenant, isPlatform: false }
-        : { status: "ready", tenant: packagedTenant, isPlatform: false };
+      // A runtime identity is newer than the immutable APK snapshot.
+      const cachedTenant = readCachedTenant(bakedSlug);
+      const initialTenant = cachedTenant?.id === packagedTenant.id
+        ? cachedTenant
+        : packagedTenant;
+      return isTenantBlocked(initialTenant)
+        ? { status: "suspended", tenant: initialTenant, isPlatform: false }
+        : { status: "ready", tenant: initialTenant, isPlatform: false };
     }
 
     // Web tenant routes should also avoid a blank first frame on repeat visits.
@@ -442,7 +447,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
     let retryTimer: number | undefined;
     let transientFailures = 0;
 
-    const hasOfflineIdentity = Boolean(cached || buildFallback);
+    let hasOfflineIdentity = Boolean(cached || buildFallback);
+    let resolving = false;
     const LOOKUP_TIMEOUT_MS = 8000;
     const MAX_TRANSIENT_RETRIES = 3;
 
@@ -480,19 +486,32 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
     };
 
     const resolveTenantFromNetwork = async () => {
+      if (cancelled || resolving) return;
+      if (retryTimer !== undefined) {
+        window.clearTimeout(retryTimer);
+        retryTimer = undefined;
+      }
+      resolving = true;
       const result = await lookupTenant();
+      resolving = false;
       if (cancelled) return;
 
       if (result.kind === "transient") {
         // Offline / server trouble: keep the cached or build identity in place
         // so the app stays fully usable, and retry quietly in the background.
-        if (cached?.id) setTenantHeader(cached.id);
+        // Keep the latest runtime identity, not the initial APK identity.
         transientFailures += 1;
-        if (!hasOfflineIdentity) {
-          if (transientFailures >= MAX_TRANSIENT_RETRIES) {
-            // Still nothing to show: report a connectivity problem, not a 404.
-            setState({ status: "offline", tenant: null, isPlatform: false, slug });
-          }
+        if (!hasOfflineIdentity && transientFailures >= MAX_TRANSIENT_RETRIES) {
+          setState({ status: "offline", tenant: null, isPlatform: false, slug });
+        }
+        // A cached logo must not prevent recovery from a temporary failure.
+        // With an existing identity, bound retries to avoid needless traffic.
+        // Connectivity/foreground events restart the attempt when appropriate.
+        if (
+          navigator.onLine !== false &&
+          document.visibilityState === "visible" &&
+          (!hasOfflineIdentity || transientFailures <= MAX_TRANSIENT_RETRIES)
+        ) {
           retryTimer = window.setTimeout(
             () => void resolveTenantFromNetwork(),
             Math.min(2000 * transientFailures, 15000),
@@ -511,6 +530,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
 
       transientFailures = 0;
       const tenant = result.tenant;
+      hasOfflineIdentity = true;
       // Tenant configuration changed on the server: never wait for a TTL to
       // expire. Drop the storefront snapshots and tell the app to refetch.
       const previous = readCachedTenant(slug);
@@ -531,7 +551,12 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
         return;
       }
 
-      setState({ status: "ready", tenant, isPlatform: false });
+      setState((current) =>
+        current.status === "ready" &&
+        JSON.stringify(current.tenant) === JSON.stringify(tenant)
+          ? current
+          : { status: "ready", tenant, isPlatform: false },
+      );
     };
 
     void resolveTenantFromNetwork();
@@ -543,7 +568,10 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({
       void resolveTenantFromNetwork();
     };
     const handleVisible = () => {
-      if (document.visibilityState === "visible") void resolveTenantFromNetwork();
+      if (document.visibilityState === "visible") {
+        transientFailures = 0;
+        void resolveTenantFromNetwork();
+      }
     };
     window.addEventListener('online', handleOnline);
     document.addEventListener('visibilitychange', handleVisible);
