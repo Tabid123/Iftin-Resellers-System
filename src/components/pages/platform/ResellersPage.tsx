@@ -51,16 +51,80 @@ export default function ResellersPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
 
+  const [loadError, setLoadError] = useState(false)
+  const [reload, setReload] = useState(0)
+
   useEffect(() => {
-    (async () => {
-      const { data } = await supabase
-        .from('tenants')
-        .select('id, slug, name, status, logo_url, current_period_end, trial_ends_at, first_year_price, renewal_yearly_price, billing_cycle, monthly_price, created_at, subscription_plans(name)')
-        .order('created_at', { ascending: false })
-      setRows((data ?? []) as any)
-      setLoading(false)
+    let active = true
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => {
+      controller.abort()
+      if (active) {
+        setLoadError(true)
+        setLoading(false)
+      }
+    }, 12000)
+    setLoading(true)
+    setLoadError(false)
+
+    void (async () => {
+      try {
+        // Render the reseller list first. Embedded logos can add several MB
+        // to the response; fetch them separately, one small batch at a time.
+        const { data, error } = await supabase
+          .from('tenants')
+          .select('id, slug, name, status, current_period_end, trial_ends_at, first_year_price, renewal_yearly_price, billing_cycle, monthly_price, created_at, subscription_plans(name)')
+          .order('created_at', { ascending: false })
+          .abortSignal(controller.signal)
+        if (error) throw error
+        if (!active || controller.signal.aborted) return
+        const list = ((data ?? []) as unknown as Omit<Row, 'logo_url'>[]).map(row => ({ ...row, logo_url: null }))
+        setRows(list)
+        setLoading(false)
+        window.clearTimeout(timeout)
+
+        // Keep the existing RLS and authenticated platform client. Never use
+        // privileged credentials or a public endpoint for the admin list.
+        for (let i = 0; i < list.length && active; i += 3) {
+          const logoController = new AbortController()
+          const cancel = () => logoController.abort()
+          controller.signal.addEventListener('abort', cancel, { once: true })
+          const logoTimeout = window.setTimeout(cancel, 8000)
+          try {
+            const { data: logos, error: logoError } = await supabase
+              .from('tenants')
+              .select('id, logo_url')
+              .in('id', list.slice(i, i + 3).map(row => row.id))
+              .abortSignal(logoController.signal)
+            if (!active || controller.signal.aborted) return
+            if (!logoError && logos) {
+              const byId = new Map<string, string | null>(logos.map((row: { id: string; logo_url: string | null }) => [row.id, row.logo_url]))
+              setRows(current => current.map(row => byId.has(row.id) ? { ...row, logo_url: byId.get(row.id) ?? null } : row))
+            }
+          } catch {
+            // A failed image request must never block reseller management.
+          } finally {
+            window.clearTimeout(logoTimeout)
+            controller.signal.removeEventListener('abort', cancel)
+          }
+        }
+      } catch (error) {
+        if (active && !controller.signal.aborted) {
+          console.warn('[platform/resellers] Could not load reseller list', error)
+          setLoadError(true)
+        }
+      } finally {
+        window.clearTimeout(timeout)
+        if (active) setLoading(false)
+      }
     })()
-  }, [])
+
+    return () => {
+      active = false
+      window.clearTimeout(timeout)
+      controller.abort()
+    }
+  }, [reload])
 
   const filteredRows = rows.filter((row) => {
     const q = searchQuery.trim().toLowerCase()
@@ -104,7 +168,7 @@ export default function ResellersPage() {
               <button type="button" className="relative pb-3 text-sm font-semibold text-[#0c1220]">
                 Resellers
                 <span className="ml-1.5 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-600">
-                  {rows.length}
+                  {loading || loadError ? '—' : rows.length}
                 </span>
                 <span className="absolute inset-x-0 bottom-0 h-[3px] rounded-t-full bg-[#ff7a00]" />
               </button>
@@ -156,6 +220,11 @@ export default function ResellersPage() {
                 className="h-[190px] animate-pulse rounded-xl border border-black/10 bg-white/70"
               />
             ))}
+          </div>
+        ) : loadError ? (
+          <div role="alert" className="rounded-xl border border-black/10 bg-white/60 px-6 py-10 text-center">
+            <div className="text-sm font-medium text-slate-700">Reseller-yada lama soo akhrin karin.</div>
+            <Button variant="outline" size="sm" className="mt-3" onClick={() => setReload(value => value + 1)}>Dib u isku day</Button>
           </div>
         ) : filteredRows.length === 0 ? (
           <div className="rounded-xl border border-dashed border-black/15 bg-white/60 px-6 py-14 text-center">
