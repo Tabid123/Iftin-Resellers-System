@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Plus, ExternalLink, Search, Users, CalendarDays, CheckCircle2, Clock3, AlertCircle, PauseCircle, LayoutGrid, List } from 'lucide-react'
-import CachedImage from '@/components/CachedImage'
+import { useRef } from 'react'
 
 interface Row {
   id: string
@@ -44,6 +44,28 @@ const daysLeft = (endDate: string | null | undefined) => {
   if (!endDate) return null
   const diff = new Date(endDate).getTime() - Date.now()
   return Math.max(0, Math.ceil(diff / 86400000))
+}
+
+// Public branding is served separately from the protected reseller list.
+// If the image endpoint is unavailable, retrieve just this reseller's original
+// logo through the existing authenticated platform client.
+function ResellerLogo({ row, size = 'small' }: { row: Row; size?: 'small' | 'large' }) {
+  const [src, setSrc] = useState(row.logo_url)
+  const tried = useRef(false)
+  const alive = useRef(true)
+  useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
+  useEffect(() => { tried.current = false; setSrc(row.logo_url) }, [row.logo_url])
+  const recover = async () => {
+    if (tried.current) { setSrc(null); return }
+    tried.current = true
+    try {
+      const { data, error } = await supabase.from('tenants').select('logo_url').eq('id', row.id).maybeSingle()
+      if (alive.current) setSrc(!error && data?.logo_url && data.logo_url !== src ? data.logo_url : null)
+    } catch { if (alive.current) setSrc(null) }
+  }
+  return <div className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 ${size === 'large' ? 'h-[72px] w-[72px]' : 'h-11 w-11'}`}>
+    {src ? <img src={src} alt={row.name + ' logo'} loading="lazy" decoding="async" className="h-full w-full object-contain" onError={() => void recover()} /> : <span className="text-sm font-bold text-slate-500">{row.name.slice(0,2).toUpperCase()}</span>}
+  </div>
 }
 
 export default function ResellersPage() {
@@ -134,14 +156,14 @@ export default function ResellersPage() {
 
   return (
     <div className="min-h-full px-4 py-6 sm:px-7 lg:px-8 lg:py-8">
-      <div className="mx-auto w-full max-w-[1500px]">
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-          <div>
+      <div className="mx-auto w-full max-w-[1800px]">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4"><span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-blue-700"><Users className="h-7 w-7" /></span><div>
             <h1 className="text-[30px] font-bold tracking-tight text-[#0c1220]">Resellers</h1>
             <p className="mt-1 text-sm text-slate-500">
               Reseller-yada ka maamul, qorshahooda Monthly/Yearly, status-kooda iyo waqtiga ay dhacayaan eeg.
             </p>
-          </div>
+          </div></div>
 
           <Button
             asChild
@@ -155,9 +177,9 @@ export default function ResellersPage() {
           </Button>
         </div>
 
-        <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+        <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
           {stats.map(stat => (
-            <button key={stat.key} type="button" onClick={() => { setStatusFilter(stat.key); setPage(1) }} aria-pressed={statusFilter === stat.key} className={`flex min-w-0 items-center gap-3 rounded-2xl p-5 text-left shadow-sm transition hover:brightness-105 focus-visible:ring-2 focus-visible:ring-blue-500 ${stat.surface}`}>
+            <button key={stat.key} type="button" onClick={() => { setStatusFilter(stat.key); setPage(1) }} aria-pressed={statusFilter === stat.key} className={`flex min-w-0 items-center gap-3 min-h-[108px] rounded-2xl p-5 text-left shadow-sm transition hover:brightness-105 focus-visible:ring-2 focus-visible:ring-blue-500 ${stat.surface}`}>
               <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${stat.tone}`}><stat.icon className="h-5 w-5" /></span>
               <span className="min-w-0"><span className="block text-xs font-medium text-white/90">{stat.label}</span><span className="mt-1 block text-3xl font-bold tracking-tight text-white">{loading || loadError ? '—' : stat.count}</span></span>
             </button>
@@ -247,11 +269,11 @@ export default function ResellersPage() {
                 <tbody className="divide-y divide-slate-100">
                   {visibleRows.map(row => {
                     const status = effectiveStatus(row)
-                    return <tr key={row.id} className="transition hover:bg-blue-50/50">
-                      <td className="px-4 py-3"><div className="flex items-center gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">{row.logo_url ? <CachedImage src={row.logo_url} alt={row.name} bundledName={null} loading="lazy" className="h-full w-full object-contain" fallback={<span className="text-xs font-bold text-slate-500">{row.name.slice(0, 2).toUpperCase()}</span>} /> : <span className="text-xs font-bold text-slate-500">{row.name.slice(0, 2).toUpperCase()}</span>}</div><div><div className="font-semibold text-slate-900">{row.name}</div><div className="text-xs text-slate-500">{formatDate(row.created_at)}</div></div></div></td>
+                    return <tr key={row.id} className="transition even:bg-slate-50/40 hover:bg-blue-50/80">
+                      <td className="px-4 py-3"><div className="flex items-center gap-3"><ResellerLogo row={row} /><div><div className="font-semibold text-slate-900">{row.name}</div><div className="text-xs text-slate-500">{formatDate(row.created_at)}</div></div></div></td>
                       <td className="whitespace-nowrap px-4 py-3 text-slate-500">/{row.slug}</td>
                       <td className="px-4 py-3 text-xs font-medium">{row.subscription_plans?.name || '—'}</td>
-                      <td className="px-4 py-3 capitalize">{row.billing_cycle || '—'}</td>
+                      <td className="px-4 py-3 capitalize"><span className={row.billing_cycle === 'monthly' ? 'rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700' : 'rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-700'}>{row.billing_cycle || '—'}</span></td>
                       <td className="px-4 py-3"><span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${statusTone(status)}`}><span className="h-1.5 w-1.5 rounded-full bg-current" />{status}</span></td>
                       <td className="whitespace-nowrap px-4 py-3 text-slate-600">{formatDate(row.status === 'trial' ? row.trial_ends_at : row.current_period_end)}</td>
                       <td className="px-4 py-3"><Button asChild variant="outline" size="sm" className="rounded-lg"><Link to={`/admin/resellers/${row.id}`}>Maamul <ExternalLink className="ml-2 h-3.5 w-3.5" /></Link></Button></td>
@@ -278,22 +300,7 @@ export default function ResellersPage() {
                 >
                   <div className="p-4">
                     <div className="flex items-start gap-4">
-                      <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-xl border border-black/10 bg-[#f6f6f4]">
-                        {r.logo_url ? (
-                          <CachedImage
-                            src={r.logo_url}
-                            bundledName={null}
-                            loading="lazy"
-                            fallback={<span className="text-xl font-semibold uppercase text-slate-500">{r.name.slice(0, 2)}</span>}
-                            alt={`${r.name} logo`}
-                            className="h-full w-full object-contain"
-                          />
-                        ) : (
-                          <span className="text-xl font-semibold uppercase text-slate-500">
-                            {r.name.trim().slice(0, 2) || 'R'}
-                          </span>
-                        )}
-                      </div>
+                      <ResellerLogo row={r} size="large" />
 
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
