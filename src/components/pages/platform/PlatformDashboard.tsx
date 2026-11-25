@@ -266,7 +266,7 @@ export default function PlatformDashboard() {
       valueClass: 'text-red-950',
     },
     {
-      label: 'This Month Revenue',
+      label: 'This Month Expected',
       value: rangeMoney(
         dashboard.thisMonth?.min ?? 0,
         dashboard.thisMonth?.max ?? 0,
@@ -315,19 +315,37 @@ export default function PlatformDashboard() {
     },
   ]
 
+  const trialCount = tenants.filter(tenant => tenant.status === 'trial' && !isExpired(tenant, Date.now())).length
+  const activeCount = tenants.filter(tenant => tenant.status === 'active' && !isExpired(tenant, Date.now())).length
+  const otherCount = Math.max(0, tenants.length - activeCount - trialCount - dashboard.expired - dashboard.suspended)
+  const breakdown = [
+    { label: 'Active', count: activeCount, color: '#10b981' },
+    { label: 'Trial', count: trialCount, color: '#3b82f6' },
+    { label: 'Expired', count: dashboard.expired, color: '#f59e0b' },
+    { label: 'Suspended / cancelled', count: dashboard.suspended, color: '#ef4444' },
+    { label: 'Other', count: otherCount, color: '#94a3b8' },
+  ].filter(item => item.count > 0 || item.label !== 'Other')
+  let offset = 0
+  const ring = breakdown.map(item => {
+    const start = offset
+    offset += tenants.length ? item.count / tenants.length * 100 : 0
+    return `${item.color} ${start}% ${offset}%`
+  }).join(', ')
+  const chartMax = Math.max(1, ...dashboard.months.map(month => month.max))
+
   return (
     <div className="min-h-full px-4 py-6 sm:px-7 lg:px-8 lg:py-8">
       <div className="mx-auto w-full max-w-[1500px]">
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-[28px] font-semibold tracking-tight text-[#0c1220]">
+            <h1 className="text-[30px] font-bold tracking-tight text-[#0c1220]">
               Overview
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Iftin Resellers — revenue forecast, renewals iyo xaaladda tenants-ka.
+              Ku soo dhawoow, Super Admin. La soco resellers-ka, renewals iyo dakhliga la filayo.
             </p>
           </div>
-          <div className="rounded-full border border-orange-200 bg-orange-50 px-4 py-2 text-xs font-semibold text-orange-700">
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-semibold text-slate-600">
             Business year: {monthLabel(dashboard.startMonth)} → {monthLabel(dashboard.endMonth)}
           </div>
         </div>
@@ -347,7 +365,7 @@ export default function PlatformDashboard() {
               {cards.map((card) => (
                 <Card
                   key={card.label}
-                  className={`overflow-hidden rounded-2xl border shadow-[0_8px_24px_rgba(15,23,42,0.04)] ${card.wrap}`}
+                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
                 >
                   <CardContent className="p-5">
                     <div className="flex items-start justify-between gap-4">
@@ -372,6 +390,20 @@ export default function PlatformDashboard() {
                 </Card>
               ))}
             </div>
+
+            <div className="mt-6 grid gap-5 xl:grid-cols-[1.7fr_1fr]">
+              <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                <div className="flex flex-wrap items-start justify-between gap-2"><div><h2 className="text-lg font-bold text-slate-900">Revenue forecast</h2><p className="mt-1 text-xs text-slate-500">12-month expected subscription revenue · not collected payments</p></div><span className="text-lg font-bold text-blue-600">{rangeMoney(dashboard.yearMin, dashboard.yearMax)}</span></div>
+                <div className="mt-6 overflow-x-auto"><div className="flex min-w-[460px] items-end gap-2 border-b border-slate-200 pb-2 sm:gap-3">
+                  {dashboard.months.map(month => <div key={month.key} className="flex min-w-0 flex-1 flex-col items-center gap-2"><div className="flex h-36 w-full items-end justify-center"><div title={rangeMoney(month.min, month.max)} aria-label={monthLabel(month.date) + ': ' + rangeMoney(month.min, month.max)} className="w-full max-w-[38px] rounded-t-md bg-gradient-to-t from-blue-700 to-blue-400" style={{ height: month.max ? Math.max(4, month.max / chartMax * 100) + '%' : '2px' }} /></div><span className="text-[10px] font-medium text-slate-500">{month.date.toLocaleDateString('en-US', { month: 'short' })}</span></div>)}
+                </div></div>
+              </section>
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                <h2 className="text-lg font-bold text-slate-900">Reseller status</h2><p className="mt-1 text-xs text-slate-500">Current subscription status</p>
+                <div className="mt-5 flex flex-wrap items-center justify-center gap-6"><div className="flex h-36 w-36 shrink-0 items-center justify-center rounded-full" style={{ background: tenants.length ? `conic-gradient(${ring})` : '#e2e8f0' }}><div className="flex h-[108px] w-[108px] flex-col items-center justify-center rounded-full bg-white"><strong className="text-3xl text-slate-900">{tenants.length}</strong><span className="text-xs text-slate-500">Total</span></div></div><div className="min-w-[130px] flex-1 space-y-3">{breakdown.map(item => <div key={item.label} className="flex items-center gap-2 text-xs text-slate-600"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{background: item.color}} /><span className="flex-1">{item.label}</span><strong className="text-slate-900">{item.count}</strong></div>)}</div></div>
+              </section>
+            </div>
+            <section className="mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="flex items-center justify-between border-b border-slate-100 p-5"><h2 className="text-lg font-bold">Recent resellers</h2><Link to="/admin/resellers" className="text-sm font-semibold text-blue-600">View all</Link></div><div className="overflow-x-auto"><table className="w-full min-w-[520px] text-left text-sm"><thead className="bg-slate-50 text-xs text-slate-500"><tr><th className="px-5 py-3">Reseller</th><th className="px-5 py-3">Created</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Manage</th></tr></thead><tbody className="divide-y divide-slate-100">{tenants.slice(0,5).map(tenant => <tr key={tenant.id}><td className="px-5 py-3 font-medium">{tenant.name}<span className="block text-xs font-normal text-slate-500">/{tenant.slug}</span></td><td className="px-5 py-3">{new Date(tenant.created_at).toLocaleDateString('en-GB')}</td><td className="px-5 py-3 capitalize">{isExpired(tenant,Date.now()) ? 'expired' : tenant.status}</td><td className="px-5 py-3"><Link to={`/admin/resellers/${tenant.id}`} className="font-semibold text-blue-600">Maamul</Link></td></tr>)}</tbody></table></div></section>
 
             <div className="mt-8 overflow-hidden rounded-2xl border border-black/10 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.04)]">
               <div className="flex flex-wrap items-start justify-between gap-4 border-b border-black/5 px-5 py-5 sm:px-6">
