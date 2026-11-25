@@ -30,7 +30,7 @@ function PlatformSidebar({
     ]
   
   return (
-    <div className="flex h-full flex-col bg-gradient-to-b from-[#101f3d] via-[#0c1830] to-[#081326] text-slate-200">
+    <div className="flex h-full flex-col platform-sidebar bg-gradient-to-b from-[#102445] via-[#0b1a35] to-[#07132a] text-slate-200">
       <div className="flex h-[76px] items-center justify-between border-b border-white/10 px-5">
         <div className="flex min-w-0 items-center gap-2.5">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
@@ -52,7 +52,7 @@ function PlatformSidebar({
             end={item.end}
             onClick={onNavigate}
             className={({ isActive }) =>
-              'group relative flex h-11 items-center gap-3 rounded-xl px-4 text-[14px] font-medium transition-colors ' +
+              'group relative flex h-12 items-center gap-3 rounded-xl px-4 text-[15px] font-semibold transition-colors ' +
               (isActive
                 ? 'bg-[#0758ed] text-white shadow-lg shadow-blue-950/30'
                 : 'text-slate-400 hover:bg-white/5 hover:text-white')
@@ -69,6 +69,7 @@ function PlatformSidebar({
         ))}
       </nav>
 
+      <div className="mx-4 mb-5 rounded-2xl border border-blue-400/25 bg-gradient-to-br from-blue-900/70 to-slate-950/40 p-4"><div className="text-xs font-semibold uppercase tracking-widest text-blue-300">Platform control</div><div className="mt-2 text-sm font-semibold text-white">Manage your network</div><p className="mt-1 text-xs leading-relaxed text-slate-300">Resellers, subscriptions and apps in one place.</p></div>
       <div className="border-t border-white/10 p-4">
         <Button
           type="button"
@@ -205,7 +206,7 @@ export default function PlatformLayout() {
   }
 
   return (
-    <div className={`platform-shell flex min-h-screen w-full overflow-x-hidden bg-[#f7f6f3] text-slate-950 ${platformDark ? 'platform-dark' : ''}`}>
+    <div className={`platform-shell flex min-h-screen w-full overflow-x-hidden bg-[#f2f5fb] text-slate-950 ${platformDark ? 'platform-dark' : ''}`}>
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[240px] shrink-0 border-r border-black/10 bg-[#0c1220] lg:flex lg:flex-col">
         <PlatformSidebar email={email} platformDark={platformDark} togglePlatformTheme={togglePlatformTheme} signOut={signOut} />
       </aside>
@@ -218,7 +219,7 @@ export default function PlatformLayout() {
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-[216px] border-0 p-0">
+            <SheetContent side="left" className="w-[240px] border-0 p-0">
               <SheetTitle className="sr-only">Menu</SheetTitle>
               <PlatformSidebar email={email} platformDark={platformDark} togglePlatformTheme={togglePlatformTheme} signOut={signOut} onNavigate={() => setMenuOpen(false)} />
             </SheetContent>
@@ -227,7 +228,11 @@ export default function PlatformLayout() {
           <div className="min-w-0 truncate text-sm font-semibold">Iftin Resellers</div>
         </header>
 
-        <main className="min-w-0 flex-1 overflow-x-hidden bg-[#f7f6f3]">
+        <header className="platform-topbar sticky top-0 z-30 hidden h-[66px] items-center justify-between border-b border-slate-200 bg-white px-7 lg:flex">
+          <div className="flex items-center gap-3"><span className="rounded-lg bg-blue-50 p-2 text-blue-600"><BarChart3 className="h-5 w-5" /></span><div><div className="text-sm font-semibold text-slate-900">Platform management</div><div className="text-xs text-slate-500">Iftin Resellers / Super Admin</div></div></div>
+          <div className="flex items-center gap-4"><NavLink to="/admin/resellers" className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-600 hover:border-blue-300"><Users className="h-4 w-4" /> Find a reseller</NavLink><span className="h-9 w-px bg-slate-200" /><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-700 text-sm font-bold text-white">SA</span><div><div className="text-sm font-bold text-slate-900">Super Admin</div><div className="max-w-[220px] truncate text-xs text-slate-500">{email}</div></div></div></div>
+        </header>
+        <main className="platform-workspace min-w-0 flex-1 overflow-x-hidden bg-[#f2f5fb]">
           <Outlet />
         </main>
       </div>
