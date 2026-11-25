@@ -10,7 +10,9 @@ export const Route = createFileRoute('/api/public/tenant-icon')({
       GET: async ({ request }) => {
         const url = new URL(request.url);
         const slug = (url.searchParams.get('tenant') || '').trim().toLowerCase();
-        const fallback = () => Response.redirect(new URL('/api/public/platform-icon', url.origin).toString(), 302);
+        const fallback = () => url.searchParams.get('strict') === '1'
+          ? new Response(null, { status: 404, headers: { 'Cache-Control': 'no-store' } })
+          : Response.redirect(new URL('/api/public/platform-icon', url.origin).toString(), 302);
 
         const tenant = await fetchTenantBranding(slug);
         const logo = tenant?.logo_url;
