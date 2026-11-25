@@ -4,7 +4,7 @@ import { platformSupabase as supabase } from '@/integrations/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Plus, ExternalLink, Search, Users, CalendarDays } from 'lucide-react'
+import { Plus, ExternalLink, Search, Users, CalendarDays, CheckCircle2, Clock3, AlertCircle, PauseCircle, LayoutGrid, List } from 'lucide-react'
 import CachedImage from '@/components/CachedImage'
 
 interface Row {
@@ -50,6 +50,8 @@ export default function ResellersPage() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [view, setView] = useState<'table' | 'grid'>('table')
+  const [page, setPage] = useState(1)
 
   const [loadError, setLoadError] = useState(false)
   const [reload, setReload] = useState(0)
@@ -139,12 +141,26 @@ export default function ResellersPage() {
     return matchesSearch && matchesStatus
   })
 
+  const stats = [
+    { key: 'all', label: 'Total Resellers', icon: Users, tone: 'bg-blue-600 text-white' },
+    { key: 'active', label: 'Active', icon: CheckCircle2, tone: 'bg-emerald-50 text-emerald-700' },
+    { key: 'trial', label: 'Trial', icon: Clock3, tone: 'bg-amber-50 text-amber-700' },
+    { key: 'expired', label: 'Expired', icon: AlertCircle, tone: 'bg-rose-50 text-rose-700' },
+    { key: 'suspended', label: 'Suspended', icon: PauseCircle, tone: 'bg-slate-100 text-slate-700' },
+  ].map(stat => ({ ...stat, count: stat.key === 'all' ? rows.length : rows.filter(row => effectiveStatus(row) === stat.key).length }))
+  const pageSize = 10
+  const pageCount = Math.max(1, Math.ceil(filteredRows.length / pageSize))
+  const currentPage = Math.min(page, pageCount)
+  const visibleRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  const statusTone = (status: string) => status === 'active' ? 'bg-emerald-100 text-emerald-800' : status === 'trial' ? 'bg-amber-100 text-amber-800' : status === 'expired' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-700'
+  const formatDate = (value: string | null) => value ? new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+
   return (
     <div className="min-h-full px-4 py-6 sm:px-7 lg:px-8 lg:py-8">
       <div className="mx-auto w-full max-w-[1500px]">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-[26px] font-semibold tracking-tight text-[#0c1220]">Resellers</h1>
+            <h1 className="text-[30px] font-bold tracking-tight text-[#0c1220]">Resellers</h1>
             <p className="mt-1 text-sm text-slate-500">
               Reseller-yada ka maamul, qorshahooda Monthly/Yearly, status-kooda iyo waqtiga ay dhacayaan eeg.
             </p>
@@ -153,7 +169,7 @@ export default function ResellersPage() {
           <Button
             asChild
             size="sm"
-            className="h-9 rounded-full bg-[#0b5ed7] px-5 text-sm font-semibold text-white hover:bg-[#094fb6]"
+            className="h-10 rounded-xl bg-[#0758ed] px-5 text-sm font-semibold text-white hover:bg-[#094fb6]"
           >
             <Link to="/admin/resellers/new">
               <Plus className="mr-2 h-4 w-4" />
@@ -162,7 +178,15 @@ export default function ResellersPage() {
           </Button>
         </div>
 
-        <div className="mb-7 border-b border-black/10">
+        <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+          {stats.map(stat => (
+            <button key={stat.key} type="button" onClick={() => { setStatusFilter(stat.key); setPage(1) }} aria-pressed={statusFilter === stat.key} className="flex min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-blue-300 focus-visible:ring-2 focus-visible:ring-blue-500">
+              <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${stat.tone}`}><stat.icon className="h-5 w-5" /></span>
+              <span className="min-w-0"><span className="block text-xs font-medium text-slate-500">{stat.label}</span><span className="mt-1 block text-2xl font-bold tracking-tight text-slate-900">{loading || loadError ? '—' : stat.count}</span></span>
+            </button>
+          ))}
+        </div>
+        <div className="mb-5 rounded-2xl border border-slate-200 bg-white px-4 pt-4 shadow-sm">
           <div className="flex min-w-0 flex-wrap items-end justify-between gap-4">
             <div className="flex gap-7">
               <button type="button" className="relative pb-3 text-sm font-semibold text-[#0c1220]">
@@ -179,9 +203,9 @@ export default function ResellersPage() {
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                 <Input
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => { setSearchQuery(e.target.value); setPage(1) }}
                   placeholder="Search by name, slug or plan"
-                  className="h-9 border-0 bg-transparent pl-9 shadow-none focus-visible:ring-0"
+                  className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9 shadow-none"
                 />
               </div>
 
@@ -196,17 +220,21 @@ export default function ResellersPage() {
                   <button
                     key={value}
                     type="button"
-                    onClick={() => setStatusFilter(value)}
+                    onClick={() => { setStatusFilter(value); setPage(1) }}
                     className={
                       'rounded px-3 py-1.5 text-xs font-medium transition ' +
                       (statusFilter === value
-                        ? 'bg-[#efefef] text-slate-950 shadow-sm'
+                        ? 'bg-blue-600 text-white shadow-sm'
                         : 'text-slate-500 hover:text-slate-900')
                     }
                   >
                     {label}
                   </button>
                 ))}
+              </div>
+              <div className="flex gap-1 rounded-lg border border-slate-200 p-1">
+                <Button size="icon" variant={view === 'table' ? 'default' : 'ghost'} className="h-8 w-8" aria-label="Table view" aria-pressed={view === 'table'} onClick={() => setView('table')}><List className="h-4 w-4" /></Button>
+                <Button size="icon" variant={view === 'grid' ? 'default' : 'ghost'} className="h-8 w-8" aria-label="Grid view" aria-pressed={view === 'grid'} onClick={() => setView('grid')}><LayoutGrid className="h-4 w-4" /></Button>
               </div>
             </div>
           </div>
@@ -233,6 +261,29 @@ export default function ResellersPage() {
             <div className="mt-1 text-xs text-slate-500">
               Search/filter-ka beddel ama reseller cusub samee.
             </div>
+          </div>
+        ) : view === 'table' ? (
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[780px] text-left text-sm">
+                <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500"><tr>{['Reseller', 'Slug', 'Plan', 'Billing', 'Status', 'Period end', 'Actions'].map(label => <th key={label} className="whitespace-nowrap px-4 py-4">{label}</th>)}</tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {visibleRows.map(row => {
+                    const status = effectiveStatus(row)
+                    return <tr key={row.id} className="transition hover:bg-blue-50/50">
+                      <td className="px-4 py-3"><div className="flex items-center gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">{row.logo_url ? <CachedImage src={row.logo_url} alt={row.name} bundledName={null} className="h-full w-full object-contain" /> : <span className="text-xs font-bold text-slate-500">{row.name.slice(0, 2).toUpperCase()}</span>}</div><div><div className="font-semibold text-slate-900">{row.name}</div><div className="text-xs text-slate-500">{formatDate(row.created_at)}</div></div></div></td>
+                      <td className="whitespace-nowrap px-4 py-3 text-slate-500">/{row.slug}</td>
+                      <td className="px-4 py-3 text-xs font-medium">{row.subscription_plans?.name || '—'}</td>
+                      <td className="px-4 py-3 capitalize">{row.billing_cycle || '—'}</td>
+                      <td className="px-4 py-3"><span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${statusTone(status)}`}><span className="h-1.5 w-1.5 rounded-full bg-current" />{status}</span></td>
+                      <td className="whitespace-nowrap px-4 py-3 text-slate-600">{formatDate(row.status === 'trial' ? row.trial_ends_at : row.current_period_end)}</td>
+                      <td className="px-4 py-3"><Button asChild variant="outline" size="sm" className="rounded-lg"><Link to={`/admin/resellers/${row.id}`}>Maamul <ExternalLink className="ml-2 h-3.5 w-3.5" /></Link></Button></td>
+                    </tr>
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-4 text-xs text-slate-500"><span>Showing {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filteredRows.length)} of {filteredRows.length} resellers</span><div className="flex items-center gap-2"><Button size="sm" variant="outline" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Previous</Button><span className="font-semibold">{currentPage} / {pageCount}</span><Button size="sm" variant="outline" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>Next</Button></div></div>
           </div>
         ) : (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
