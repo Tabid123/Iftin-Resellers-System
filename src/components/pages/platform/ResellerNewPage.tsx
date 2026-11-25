@@ -132,12 +132,12 @@ export default function ResellerNewPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 max-w-2xl">
-      <h1 className="text-xl sm:text-2xl font-bold mb-4">Reseller Cusub</h1>
-      <Card>
+    <div className="mx-auto w-full max-w-[900px] p-5 sm:p-8">
+      <h1 className="mb-6 text-[30px] font-bold tracking-tight">Reseller Cusub</h1>
+      <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
         <CardHeader><CardTitle>Faahfaahin</CardTitle></CardHeader>
         <CardContent>
-          <form onSubmit={submit} className="space-y-4">
+          <form onSubmit={submit} className="space-y-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label>Magaca</Label>
