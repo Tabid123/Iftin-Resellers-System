@@ -234,12 +234,23 @@ jobs:
         run: |
           set -e
           mkdir -p public/audio
-          curl --retry 3 --retry-delay 1 -fsSL "https://iftinagents.com/__l5e/assets-v1/035ae08a-83c5-483c-a7a7-fc834544cf83/phone-number-prompt.wav" -o public/audio/phone.wav
-          curl --retry 3 --retry-delay 1 -fsSL "https://iftinagents.com/__l5e/assets-v1/bd53b427-602d-4cdb-9102-ac6c3d065c12/otp-code-prompt.wav" -o public/audio/otp.wav
-          curl --retry 3 --retry-delay 1 -fsSL "https://iftinagents.com/__l5e/assets-v1/d208b555-c658-4bb2-9ad9-fb3aeac0e72f/offline-mode-prompt.wav" -o public/audio/offline.wav
-          test -s public/audio/phone.wav
-          test -s public/audio/otp.wav
-          test -s public/audio/offline.wav
+          # Use versioned original recordings first; keep legacy downloads only
+          # for older checkouts where the recordings have not been committed.
+          if [ ! -s public/audio/phone.wav ]; then
+            curl --retry 3 --retry-delay 1 -fsSL "https://iftinagents.com/__l5e/assets-v1/035ae08a-83c5-483c-a7a7-fc834544cf83/phone-number-prompt.wav" -o public/audio/phone.wav
+          fi
+          if [ ! -s public/audio/otp.wav ]; then
+            curl --retry 3 --retry-delay 1 -fsSL "https://iftinagents.com/__l5e/assets-v1/bd53b427-602d-4cdb-9102-ac6c3d065c12/otp-code-prompt.wav" -o public/audio/otp.wav
+          fi
+          if [ ! -s public/audio/offline.wav ]; then
+            curl --retry 3 --retry-delay 1 -fsSL "https://iftinagents.com/__l5e/assets-v1/d208b555-c658-4bb2-9ad9-fb3aeac0e72f/offline-mode-prompt.wav" -o public/audio/offline.wav
+          fi
+          # Ensure every tenant build contains the unchanged original recordings.
+          sha256sum --check <<'CHECKSUMS'
+          86a81b50048958ce4f68501a5e7e309f4f8235af14a0727312ed0445889e1ed1  public/audio/phone.wav
+          f5356b543f1733941a4e7a697aedf85646fa87966d2afcd720ee3d3ba64a3e28  public/audio/otp.wav
+          e1883213ce2c73520fc5df2275643f7585bff331a520a695e3639538ad7ab4cb  public/audio/offline.wav
+          CHECKSUMS
 
       - name: Stamp Android web bundle
         run: |
