@@ -112,22 +112,22 @@ export default function FeaturesPage() {
     <div className="min-h-full px-4 py-6 sm:px-7 lg:px-8 lg:py-8">
       <div className="mx-auto max-w-[1300px] space-y-6">
         <div>
-          <h1 className="text-[26px] font-semibold text-[#0c1220]">Features</h1>
+          <h1 className="text-[30px] font-bold tracking-tight text-[#0c1220]">Features</h1>
           <p className="mt-1 text-sm text-slate-500">Super Admin oo keliya ayaa feature tenant u furi kara ama ka xiri kara.</p>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">
-          <Card><CardContent className="flex items-center gap-3 p-4"><Users className="text-slate-500" />
+          <Card className="rounded-2xl border-slate-200 bg-white shadow-sm"><CardContent className="flex items-center gap-4 p-5"><span className="rounded-xl bg-blue-50 p-3 text-blue-600"><Users className="h-5 w-5" /></span>
             <div><p className="text-xs text-slate-500">Tenants</p><strong className="text-2xl">{tenants.length}</strong></div>
           </CardContent></Card>
-          <Card><CardContent className="flex items-center gap-3 p-4"><Store className="text-emerald-600" />
+          <Card className="rounded-2xl border-slate-200 bg-white shadow-sm"><CardContent className="flex items-center gap-3 p-4"><span className="rounded-xl bg-emerald-50 p-3 text-emerald-600"><Store className="h-5 w-5" /></span>
             <div><p className="text-xs text-slate-500">eCommerce ON</p><strong className="text-2xl">{enabledCount}</strong></div>
           </CardContent></Card>
-          <Card><CardContent className="flex items-center gap-3 p-4"><ShoppingBag className="text-slate-500" />
+          <Card className="rounded-2xl border-slate-200 bg-white shadow-sm"><CardContent className="flex items-center gap-3 p-4"><span className="rounded-xl bg-slate-100 p-3 text-slate-600"><ShoppingBag className="h-5 w-5" /></span>
             <div><p className="text-xs text-slate-500">eCommerce OFF</p><strong className="text-2xl">{Math.max(0, tenants.length - enabledCount)}</strong></div>
           </CardContent></Card>
         </div>
-        <div className="border-b"><span className="inline-flex items-center gap-2 border-b-[3px] border-orange-500 px-3 py-3 text-sm font-semibold">
+        <div className="border-b"><span className="inline-flex items-center gap-2 border-b-[3px] border-blue-600 px-3 py-3 text-sm font-semibold">
           <ShoppingBag className="h-4 w-4" /> eCommerce
         </span></div>
 
@@ -136,7 +136,7 @@ export default function FeaturesPage() {
 
         {!loading && !error && (
           <div className="grid gap-5 lg:grid-cols-2">
-            <Card>
+            <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
               <CardHeader><CardTitle className="text-base">1. Dooro tenant-ka</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <label className="block space-y-1 text-sm font-medium">Tenant
@@ -152,11 +152,11 @@ export default function FeaturesPage() {
                   </select>
                 </label>
                 <Input aria-label="Raadi tenant" placeholder="Raadi tenant..." value={search} onChange={e => setSearch(e.target.value)} />
-                <div className="max-h-80 space-y-1 overflow-y-auto">
+                <div className="max-h-96 space-y-1 overflow-y-auto rounded-xl border border-slate-100 p-2">
                   {matches.map(t => {
                     const on = features.some(f => f.tenant_id === t.id && f.enabled)
                     return <button type="button" key={t.id} disabled={busy} onClick={() => setSelectedId(t.id)}
-                      className={'flex w-full justify-between rounded-lg border px-3 py-2.5 text-left text-sm ' +
+                      className={'flex w-full justify-between rounded-xl border px-4 py-3 text-left text-sm ' +
                         (selectedId === t.id ? 'border-blue-600 bg-blue-50' : 'border-transparent hover:bg-slate-50')}>
                       <span>{t.name}</span><span className={on ? 'font-bold text-emerald-700' : 'text-slate-400'}>{on ? 'ON' : 'OFF'}</span>
                     </button>
@@ -167,7 +167,7 @@ export default function FeaturesPage() {
             </Card>
 
             <div className="space-y-5">
-              <Card>
+              <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
                 <CardHeader><CardTitle className="text-base">2. Xogta tenant-ka</CardTitle></CardHeader>
                 <CardContent>
                   {!tenant ? <p className="text-sm text-slate-500">Marka hore tenant dooro.</p> :
@@ -193,7 +193,7 @@ export default function FeaturesPage() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
                 <CardHeader><CardTitle className="text-base">3. Plan-ka eCommerce & ON/OFF</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <label className="block space-y-1 text-sm font-medium">Dooro plan-ka
