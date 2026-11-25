@@ -3,7 +3,7 @@ import { platformSupabase as supabase, supabase as tenantSupabase } from '@/inte
 import { NavLink, Outlet } from "@/lib/router-compat"
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
-import { Loader2, LogOut, Users, Package, BarChart3, Smartphone, Menu, PanelLeftClose, Moon, Sun, SlidersHorizontal } from 'lucide-react'
+import { Loader2, LogOut, Users, Package, BarChart3, Smartphone, Menu, Moon, Sun, SlidersHorizontal } from 'lucide-react'
 import PlatformAuth from './PlatformAuth'
 import { warmPlatformPages } from '@/lib/lazyPages'
 import { PLATFORM_ICON_URL } from '@/lib/platformBrand'
@@ -30,21 +30,21 @@ function PlatformSidebar({
     ]
   
   return (
-    <div className="flex h-full flex-col bg-[#0c1220] text-slate-200">
-      <div className="flex h-[62px] items-center justify-between border-b border-white/5 px-4">
+    <div className="flex h-full flex-col bg-gradient-to-b from-[#101f3d] via-[#0c1830] to-[#081326] text-slate-200">
+      <div className="flex h-[76px] items-center justify-between border-b border-white/10 px-5">
         <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
             <img src={PLATFORM_ICON_URL} alt="Iftin Resellers" className="h-7 w-7 object-contain scale-[1.15]" />
           </div>
           <div className="min-w-0">
-            <div className="truncate text-[13px] font-semibold tracking-tight text-white">Iftin Resellers</div>
-            <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Super Admin</div>
+            <div className="truncate text-[15px] font-bold tracking-tight text-white">Iftin Resellers</div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400">Super Admin</div>
           </div>
         </div>
-        <PanelLeftClose className="hidden h-4 w-4 text-slate-500 lg:block" />
+        
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+      <nav className="flex-1 space-y-2 overflow-y-auto px-3 py-6">
         {navItems.map(item => (
           <NavLink
             key={item.to}
@@ -52,16 +52,16 @@ function PlatformSidebar({
             end={item.end}
             onClick={onNavigate}
             className={({ isActive }) =>
-              'group relative flex h-9 items-center gap-3 rounded-md px-3 text-[13px] font-medium transition-colors ' +
+              'group relative flex h-11 items-center gap-3 rounded-xl px-4 text-[14px] font-medium transition-colors ' +
               (isActive
-                ? 'bg-[#1a2230] text-white'
+                ? 'bg-[#0758ed] text-white shadow-lg shadow-blue-950/30'
                 : 'text-slate-400 hover:bg-white/5 hover:text-white')
             }
           >
             {({ isActive }: { isActive: boolean }) => (
               <>
-                {isActive ? <span className="absolute -left-3 h-6 w-[3px] rounded-r-full bg-[#ff7a00]" /> : null}
-                <item.icon className="h-4 w-4 shrink-0" />
+                {isActive ? <span className="absolute left-0 h-6 w-[3px] rounded-r-full bg-orange-400" /> : null}
+                <item.icon className="h-5 w-5 shrink-0" />
                 <span>{item.label}</span>
               </>
             )}
@@ -69,7 +69,7 @@ function PlatformSidebar({
         ))}
       </nav>
 
-      <div className="border-t border-white/5 p-3">
+      <div className="border-t border-white/10 p-4">
         <Button
           type="button"
           variant="ghost"
@@ -177,7 +177,7 @@ export default function PlatformLayout() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f7f6f3]">
+      <div className="min-h-screen flex items-center justify-center bg-[#f3f6fc]">
         <Loader2 className="h-8 w-8 animate-spin text-[#0b5ed7]" />
       </div>
     )
@@ -206,12 +206,12 @@ export default function PlatformLayout() {
 
   return (
     <div className={`platform-shell flex min-h-screen w-full overflow-x-hidden bg-[#f7f6f3] text-slate-950 ${platformDark ? 'platform-dark' : ''}`}>
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[216px] shrink-0 border-r border-black/10 bg-[#0c1220] lg:flex lg:flex-col">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[240px] shrink-0 border-r border-black/10 bg-[#0c1220] lg:flex lg:flex-col">
         <PlatformSidebar email={email} platformDark={platformDark} togglePlatformTheme={togglePlatformTheme} signOut={signOut} />
       </aside>
 
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:pl-[216px]">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-black/5 bg-[#f7f6f3]/95 px-4 backdrop-blur lg:hidden">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:pl-[240px]">
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-black/5 bg-[#f3f6fc]/95 px-4 backdrop-blur lg:hidden">
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger asChild>
               <Button variant="outline" size="icon" aria-label="Fur menu-ka" className="border-black/10 bg-white">
