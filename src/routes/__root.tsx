@@ -47,6 +47,8 @@ function isChunkLoadError(error: unknown) {
 }
 
 function recoverFromStaleChunk() {
+  const recovery = (window as Window & { __iftinRecoverOtaBundle?: () => boolean }).__iftinRecoverOtaBundle;
+  if (recovery?.()) return true;
   try {
     const previousAttempt = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY) ?? 0);
     if (Date.now() - previousAttempt < 30_000) return false;
@@ -64,6 +66,7 @@ const chunkRecoveryScript = `
     const key = ${JSON.stringify(CHUNK_RELOAD_KEY)};
     window.addEventListener('vite:preloadError', (event) => {
       event.preventDefault();
+      if (window.__iftinRecoverOtaBundle?.()) return;
       try {
         const previousAttempt = Number(sessionStorage.getItem(key) || 0);
         if (Date.now() - previousAttempt < 30000) return;
