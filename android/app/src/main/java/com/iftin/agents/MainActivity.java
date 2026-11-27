@@ -6,6 +6,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.view.WindowManager;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
 import android.webkit.JavascriptInterface;
 
@@ -22,11 +24,16 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.MessageDigest;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
+import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import com.getcapacitor.Bridge;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.BridgeWebViewClient;
 
 import org.json.JSONObject;
 import org.json.JSONTokener;
@@ -49,9 +56,13 @@ public class MainActivity extends BridgeActivity {
     private static final String LIVE_UPDATE_MANIFEST_URL =
         "https://bpkddmxpyeyxvjyebull.supabase.co/storage/v1/object/public/apks/live-updates/manifest.json";
 
+    private static final Object UPDATE_LOCK = new Object();
+    private static final Set<String> BUNDLES_USED_THIS_PROCESS = new HashSet<>();
+
     private final Handler startupHandler = new Handler(Looper.getMainLooper());
     private long launchStartedAt;
     private volatile boolean webSurfaceReady = false;
+    private boolean triedPackagedRecovery;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -67,6 +78,21 @@ public class MainActivity extends BridgeActivity {
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
 
         if (bridge != null && bridge.getWebView() != null) {
+            bridge.setWebViewClient(new BridgeWebViewClient(bridge) {
+                @Override
+                public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                    if (request.isForMainFrame()
+                        && "https".equals(request.getUrl().getScheme())
+                        && "localhost".equals(request.getUrl().getHost())
+                        && !triedPackagedRecovery) {
+                        triedPackagedRecovery = true;
+                        clearStagedPathIfActive(bridge.getServerBasePath());
+                        bridge.setServerAssetPath(Bridge.DEFAULT_WEB_ASSET_DIR);
+                        return;
+                    }
+                    super.onReceivedError(view, request, error);
+                }
+            });
             bridge.getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false);
             bridge.getWebView().addJavascriptInterface(
                 new NativeStorefrontSession(),
@@ -79,10 +105,39 @@ public class MainActivity extends BridgeActivity {
         startBackgroundLiveUpdateCheck();
     }
 
+    @Override
+    protected void load() {
+        synchronized (BUNDLES_USED_THIS_PROCESS) {
+            SharedPreferences prefs = capacitorPreferences();
+            String path = prefs.getString(com.getcapacitor.plugin.WebView.CAP_SERVER_PATH, "");
+            if (!path.isEmpty() && !new File(path, "index.html").isFile()) {
+                prefs.edit().remove(com.getcapacitor.plugin.WebView.CAP_SERVER_PATH).apply();
+            }
+            super.load();
+            if (bridge != null) BUNDLES_USED_THIS_PROCESS.add(bridge.getServerBasePath());
+        }
+    }
+
+    private SharedPreferences capacitorPreferences() {
+        return getSharedPreferences(com.getcapacitor.plugin.WebView.WEBVIEW_PREFS_NAME, MODE_PRIVATE);
+    }
+
+    private void clearStagedPathIfActive(String path) {
+        synchronized (BUNDLES_USED_THIS_PROCESS) {
+            SharedPreferences prefs = capacitorPreferences();
+            String staged = prefs.getString(com.getcapacitor.plugin.WebView.CAP_SERVER_PATH, "");
+            if (!staged.isEmpty() && staged.equals(path)) {
+                prefs.edit().remove(com.getcapacitor.plugin.WebView.CAP_SERVER_PATH).apply();
+            }
+        }
+    }
+
     private void startBackgroundLiveUpdateCheck() {
         startupHandler.postDelayed(() -> new Thread(() -> {
             try {
-                checkAndStageLiveUpdate();
+                synchronized (UPDATE_LOCK) {
+                    checkAndStageLiveUpdate();
+                }
             } catch (Exception ignored) {
                 // OTA failure must never affect the running packaged app.
             }
@@ -100,10 +155,7 @@ public class MainActivity extends BridgeActivity {
         if (requiredNativeVersion > 0 && requiredNativeVersion != currentNativeVersionCode()) return;
 
         SharedPreferences livePrefs = getSharedPreferences(LIVE_UPDATE_PREFS, MODE_PRIVATE);
-        SharedPreferences capPrefs = getSharedPreferences(
-            com.getcapacitor.plugin.WebView.WEBVIEW_PREFS_NAME,
-            MODE_PRIVATE
-        );
+        SharedPreferences capPrefs = capacitorPreferences();
 
         String installedVersion = livePrefs.getString(LIVE_UPDATE_VERSION_KEY, "");
         String installedPath = livePrefs.getString(LIVE_UPDATE_PATH_KEY, "");
@@ -116,46 +168,38 @@ public class MainActivity extends BridgeActivity {
                 capPrefs.getString(com.getcapacitor.plugin.WebView.CAP_SERVER_PATH, "")
             )
         ) {
+            cleanupOldLiveUpdates(new File(getFilesDir(), "iftin_live_updates"), new File(installedPath));
             return;
         }
 
         File updateRoot = new File(getFilesDir(), "iftin_live_updates");
         if (!updateRoot.exists() && !updateRoot.mkdirs()) return;
 
-        String safeVersion = version.replaceAll("[^A-Za-z0-9._-]", "_");
-        File finalDir = new File(updateRoot, safeVersion);
-        File tempDir = new File(updateRoot, safeVersion + ".tmp");
-        File zipFile = new File(getCacheDir(), "iftin-live-update-" + safeVersion + ".zip");
+        // A bundle may still be serving an open WebView even after its
+        // replacement is staged. Publish each download at a fresh path.
+        String bundleId = UUID.randomUUID().toString();
+        File finalDir = new File(updateRoot, bundleId);
+        File tempDir = new File(updateRoot, bundleId + ".tmp");
+        File zipFile = new File(getCacheDir(), "iftin-live-update-" + bundleId + ".zip");
 
-        deleteRecursively(tempDir);
-        if (tempDir.exists() || (!tempDir.mkdirs() && !tempDir.isDirectory())) return;
+        if (!tempDir.mkdir()) return;
+        try {
+            downloadFile(bundleUrl, zipFile);
+            if (!expectedSha256.isEmpty() && !expectedSha256.equals(sha256(zipFile))) return;
 
-        downloadFile(bundleUrl, zipFile);
-        if (!expectedSha256.isEmpty() && !expectedSha256.equals(sha256(zipFile))) {
+            unzipSafely(zipFile, tempDir);
+            if (!new File(tempDir, "index.html").isFile() || !tempDir.renameTo(finalDir)) return;
+        } finally {
             zipFile.delete();
             deleteRecursively(tempDir);
-            return;
         }
 
-        unzipSafely(zipFile, tempDir);
-        zipFile.delete();
-
-        if (!new File(tempDir, "index.html").isFile()) {
-            deleteRecursively(tempDir);
-            return;
+        // Capacitor picks up the staged bundle on the next launch.
+        synchronized (BUNDLES_USED_THIS_PROCESS) {
+            capPrefs.edit()
+                .putString(com.getcapacitor.plugin.WebView.CAP_SERVER_PATH, finalDir.getAbsolutePath())
+                .apply();
         }
-
-        deleteRecursively(finalDir);
-        if (!tempDir.renameTo(finalDir)) {
-            deleteRecursively(tempDir);
-            return;
-        }
-
-        // Capacitor reads this preference on the next process launch and serves
-        // the downloaded bundle locally through the same localhost origin.
-        capPrefs.edit()
-            .putString(com.getcapacitor.plugin.WebView.CAP_SERVER_PATH, finalDir.getAbsolutePath())
-            .apply();
 
         livePrefs.edit()
             .putString(LIVE_UPDATE_VERSION_KEY, version)
@@ -262,7 +306,10 @@ public class MainActivity extends BridgeActivity {
         File[] entries = root.listFiles();
         if (entries == null) return;
         for (File entry : entries) {
-            if (!entry.equals(keep)) deleteRecursively(entry);
+            synchronized (BUNDLES_USED_THIS_PROCESS) {
+                if (entry.equals(keep) || BUNDLES_USED_THIS_PROCESS.contains(entry.getAbsolutePath())) continue;
+            }
+            deleteRecursively(entry);
         }
     }
 
